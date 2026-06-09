@@ -42,13 +42,40 @@ gh run view "$RUN_ID" --log-failed > /tmp/ci-failure.log
 자가치유 절차:
 1. `/tmp/ci-failure.log` 파싱 → 원인 분류 (lint / type / test / build / 의존성)
 2. **R&R 체크**: 원인이 자동 처리 영역인가? (`RNR.md`)
-   - ✅ 자동 영역 → 수정 코드 작성 → 커밋 → 푸시 → 1번 폴링으로 복귀
+   - ✅ 자동 영역 → 수정 코드 작성 → **가드 통과 시** 커밋·푸시 → 1번 폴링으로 복귀
    - ⛔ 인간 영역(스키마/보안/결제 등) → 자동 중단 + Slack 알림
 3. K회(예: 3회) 연속 실패하거나 동일 원인 반복 시 자동 중단, 사용자 호출.
 
+> **⚠️ 가드레일은 문서가 아니라 코드로 집행한다 (P0).** RNR.md의 "하라"는 원칙을
+> 아래 `guard()` 가 실제로 검사한다. 이 게이트를 통과하지 못하면 **push 하지 않는다.**
+
 ```bash
-# 자동 수정 커밋 (자동 영역에 한함)
-git add -A && git commit -m "fix(ci): <원인 요약> 자동 수정" && git push
+# --- 자가치유 푸시 선행 가드 (R&R 코드 집행) ---
+guard() {
+  # 1) 허용 브랜치 화이트리스트 (자동 푸시는 ai/* bot/* 에서만)
+  local br; br="$(git branch --show-current)"
+  case "$br" in
+    ai/*|bot/*) : ;;
+    *) echo "⛔ 보호 브랜치 '$br' — 자동 푸시 금지"; return 1 ;;
+  esac
+  # 2) 민감 경로(diff) 검사 — 스키마/인증/결제/마이그레이션은 인간 승인
+  if git diff --cached --name-only | grep -qiE 'migration|schema|auth|payment|secret|\.env'; then
+    echo "⛔ 민감 경로 변경 감지 — Human-in-the-Loop 필요"; return 1
+  fi
+  return 0
+}
+
+git add -A
+if guard; then
+  git commit -m "fix(ci): <원인 요약> 자동 수정" && git push
+else
+  # 가드 실패 → 푸시 중단 + 알림 (SLACK_WEBHOOK_URL 은 사용자 설정)
+  git reset    # 스테이징 해제, 변경은 보존
+  [ -n "${SLACK_WEBHOOK_URL:-}" ] && curl -sX POST "$SLACK_WEBHOOK_URL" \
+    -H 'Content-Type: application/json' \
+    -d '{"text":"⛔ 자가치유 가드 차단: 보호 브랜치 또는 민감 경로. 자동 진행 중단."}'
+  echo "자동 수정을 중단했습니다. 사용자 확인이 필요합니다."
+fi
 ```
 
 ---
