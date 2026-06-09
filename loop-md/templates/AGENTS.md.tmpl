@@ -3,6 +3,15 @@
 > 이 파일은 Codex CLI 등 `AGENTS.md`를 자동 로드하는 에이전트를 위한 지침이다.
 > Claude Code는 `loop-md` 스킬(SKILL.md)로 같은 규칙을 따른다. **둘은 동일한 `loop.md`를 공유한다.**
 
+## 0. loop.md 부트스트랩 (프로젝트에 `loop.md`가 없을 때)
+
+DoD 세팅 요청을 받으면 스킬 자산으로 직접 만든다 (Claude 없이 Codex 단독 가능):
+1. `bash ~/.claude/skills/loop-md/scripts/detect-stack.sh .` 로 스택·명령 감지 — **출력은 힌트이며 직접 분석이 우선**(Rails `bin/`·다중 서비스 주의).
+2. `~/.claude/skills/loop-md/templates/loop.md.tmpl` 을 읽어 `{{...}}` 토큰을 감지 값으로 치환 → 프로젝트 루트 `loop.md` 작성. **생성 후 `grep '{{' loop.md` 로 미치환 0 확인.**
+3. `IS_MULTISERVICE=yes`면 1번 게이트 표를 `<STACK>_*_CMD` 기준 스택별 행으로 확장.
+
+이후 아래 검증 규칙을 따른다. (loop.md가 이미 있으면 이 절은 건너뛴다.)
+
 ## 절대 규칙: 완료 선언 전 검증
 
 작업을 **"완료/done"으로 선언하기 전에 반드시** 프로젝트 루트의 `loop.md`를 열어
