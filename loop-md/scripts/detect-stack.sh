@@ -1,153 +1,146 @@
 #!/usr/bin/env bash
-# detect-stack.sh — 프로젝트 스택을 감지해 빌드/타입체크/테스트/린트 명령어를 추출한다.
+# detect-stack.sh — 프로젝트 스택을 감지해 빌드/타입체크/테스트/린트 명령어 "힌트"를 추출한다.
 #
-# 사용법:
-#   bash detect-stack.sh [PROJECT_DIR]   (기본값: 현재 디렉토리)
+# ⚠️ 이 스크립트는 단정기가 아니라 **힌트 제공기**다. 풀스택·다중서비스 프로젝트에서는
+#    누락이 있을 수 있으므로, SKILL.md 지침대로 **Claude의 직접 분석이 항상 우선**한다.
 #
-# 출력(stdout): KEY=VALUE 형식 (한 줄에 하나). 미감지 키는 플레이스홀더로 남긴다.
-#   STACK, PKG_MANAGER, IS_MONOREPO, BUILD_CMD, TYPECHECK_CMD, TEST_CMD, LINT_CMD, COVERAGE_CMD
-# 진단(stderr): monorepo 경고, 미감지 키 요약 (조용한 통과 방지).
+# 사용법:  bash detect-stack.sh [PROJECT_DIR]   (기본값: 현재 디렉토리)
 #
-# read-only: 어떤 파일도 수정하지 않는다. 매니페스트만 읽는다.
+# 출력(stdout): KEY=VALUE. 여러 스택이 잡히면 <STACK>_* 키로도 각각 출력한다.
+#   DETECTED_STACKS, PRIMARY_STACK, IS_MULTISERVICE, COVERAGE_FLOOR
+#   BUILD_CMD/TYPECHECK_CMD/TEST_CMD/LINT_CMD/COVERAGE_CMD  (= PRIMARY 스택 기준, 하위호환)
+#   RUBY_* / NODE_* / PYTHON_* / GO_* (감지된 스택별 명령)
+# 진단(stderr): 다중서비스·미감지 경고.
+#
+# read-only · bash 3.2(macOS 기본) 호환: 연관배열·declare -A 미사용.
 set -euo pipefail
 
 DIR="${1:-.}"
 cd "$DIR"
 
-# 플레이스홀더 기본값 — loop.md.tmpl 의 {{...}} 와 매칭
-STACK="<감지 실패: 직접 입력>"
-PKG_MANAGER=""
-IS_MONOREPO="no"
-BUILD_CMD="<빌드 명령>"
-TYPECHECK_CMD="<타입체크 명령>"
-TEST_CMD="<테스트 명령>"
-LINT_CMD="<린트 명령>"
-COVERAGE_CMD="<커버리지 명령>"
+DETECTED=""
+COVERAGE_FLOOR=70
 
-# package.json 의 scripts.<name> 존재 여부 (node 우선, 없으면 grep 폴백)
+# bin/<tool> 래퍼가 있으면 그것을, 없으면 bundle exec <tool>
+rb() { if [ -x "bin/$1" ]; then echo "bin/$1"; else echo "bundle exec $1"; fi; }
+# package.json scripts.<name> 존재?
 has_npm_script() {
-  local name="$1"
   if command -v node >/dev/null 2>&1; then
-    node -e "try{const s=require('./package.json').scripts||{};process.exit(s['$name']?0:1)}catch(e){process.exit(1)}" 2>/dev/null
-  else
-    grep -qE "\"$name\"[[:space:]]*:" package.json 2>/dev/null
-  fi
+    node -e "try{const s=require('./package.json').scripts||{};process.exit(s['$1']?0:1)}catch(e){process.exit(1)}" 2>/dev/null
+  else grep -qE "\"$1\"[[:space:]]*:" package.json 2>/dev/null; fi
 }
+gem_has() { grep -qiE "(^|[^a-z])$1([^a-z]|$)" Gemfile 2>/dev/null; }
 
-detect_pkg_manager() {
-  if   [ -f pnpm-lock.yaml ]; then echo "pnpm"
-  elif [ -f yarn.lock ];      then echo "yarn"
-  elif [ -f bun.lockb ];      then echo "bun"
-  else echo "npm"
-  fi
-}
-
-# 패키지매니저별 바이너리 실행기 (폴백 명령에 사용 — npx 하드코딩 금지)
-pkg_exec() {
-  case "$1" in
-    pnpm) echo "pnpm exec" ;;
-    yarn) echo "yarn" ;;       # yarn 은 yarn <bin> 으로 로컬 bin 실행
-    bun)  echo "bunx" ;;
-    *)    echo "npx" ;;
-  esac
-}
+# ---------- Ruby / Rails ----------
+RUBY_BUILD=""; RUBY_TYPECHECK=""; RUBY_TEST=""; RUBY_LINT=""; RUBY_SECURITY=""; RUBY_AUDIT=""; RUBY_COVERAGE=""
+if [ -f Gemfile ]; then
+  DETECTED="$DETECTED ruby"
+  gem_has rubocop && RUBY_LINT="$(rb rubocop)"
+  if [ -f bin/rails ] || gem_has rails; then
+    if [ -d spec ] || gem_has rspec; then RUBY_TEST="$(rb rspec)"; else RUBY_TEST="$(rb rails) test"; fi
+  elif gem_has rspec; then RUBY_TEST="$(rb rspec)"
+  else RUBY_TEST="bundle exec rake test"; fi
+  gem_has brakeman      && RUBY_SECURITY="$(rb brakeman) --no-pager"
+  gem_has bundler-audit && RUBY_AUDIT="$(rb bundler-audit)"
+  gem_has simplecov     && RUBY_COVERAGE="(SimpleCov: 테스트 실행 시 coverage/ 생성)"
+  gem_has sorbet        && RUBY_TYPECHECK="$(rb srb) tc"
+fi
 
 # ---------- Node / TypeScript ----------
+NODE_BUILD=""; NODE_TYPECHECK=""; NODE_TEST=""; NODE_LINT=""; NODE_COVERAGE=""
 if [ -f package.json ]; then
-  PKG_MANAGER="$(detect_pkg_manager)"
-  RUN="$PKG_MANAGER run"; [ "$PKG_MANAGER" = "npm" ] && RUN="npm run"
-  EXEC="$(pkg_exec "$PKG_MANAGER")"
-
-  STACK="Node.js"
-  if [ -f tsconfig.json ]; then
-    STACK="TypeScript / Node.js"
-    TYPECHECK_CMD="$EXEC tsc --noEmit"
+  DETECTED="$DETECTED node"
+  pm="npm"; [ -f pnpm-lock.yaml ] && pm="pnpm"; [ -f yarn.lock ] && pm="yarn"; [ -f bun.lockb ] && pm="bun"
+  RUN="$pm run"; [ "$pm" = npm ] && RUN="npm run"
+  case "$pm" in pnpm) EXEC="pnpm exec";; yarn) EXEC="yarn";; bun) EXEC="bunx";; *) EXEC="npx";; esac
+  [ -f tsconfig.json ] && NODE_TYPECHECK="$EXEC tsc --noEmit"
+  has_npm_script build      && NODE_BUILD="$RUN build"
+  has_npm_script typecheck  && NODE_TYPECHECK="$RUN typecheck"
+  has_npm_script test       && NODE_TEST="$RUN test"
+  has_npm_script lint       && NODE_LINT="$RUN lint"
+  has_npm_script coverage   && NODE_COVERAGE="$RUN coverage"
+  if [ -z "$NODE_BUILD" ] && grep -q '"vite"' package.json 2>/dev/null; then NODE_BUILD="$EXEC vite build"; fi
+  if [ -z "$NODE_LINT" ]; then
+    if ls .eslintrc* >/dev/null 2>&1 || grep -q '"eslint"' package.json 2>/dev/null; then NODE_LINT="$EXEC eslint ."
+    elif [ -f biome.json ]; then NODE_LINT="$EXEC biome check ."; fi
   fi
-
-  has_npm_script build      && BUILD_CMD="$RUN build"
-  has_npm_script typecheck  && TYPECHECK_CMD="$RUN typecheck"
-  has_npm_script type-check && TYPECHECK_CMD="$RUN type-check"
-  has_npm_script test       && TEST_CMD="$RUN test"
-  has_npm_script lint       && LINT_CMD="$RUN lint"
-  has_npm_script coverage        && COVERAGE_CMD="$RUN coverage"
-  has_npm_script "test:coverage" && COVERAGE_CMD="$RUN test:coverage"
-
-  if [ "$LINT_CMD" = "<린트 명령>" ]; then
-    if   ls .eslintrc* >/dev/null 2>&1 || grep -q '"eslint"' package.json 2>/dev/null; then LINT_CMD="$EXEC eslint ."
-    elif [ -f biome.json ]; then LINT_CMD="$EXEC biome check ."
-    fi
-  fi
-
-  # monorepo 감지 (워크스페이스)
-  if [ -f pnpm-workspace.yaml ] || grep -q '"workspaces"' package.json 2>/dev/null; then
-    IS_MONOREPO="yes"
-    echo "경고: monorepo(워크스페이스)로 보입니다. 루트 매니페스트만 감지했습니다." >&2
-    echo "      각 워크스페이스 패키지별로 빌드/테스트 명령을 loop.md 에서 보완하세요." >&2
-  fi
-
-# ---------- Rust ----------
-elif [ -f Cargo.toml ]; then
-  STACK="Rust"
-  BUILD_CMD="cargo build"
-  TYPECHECK_CMD="cargo check"
-  TEST_CMD="cargo test"
-  LINT_CMD="cargo clippy -- -D warnings"
-  COVERAGE_CMD="cargo tarpaulin"
-  if grep -qE '^\[workspace\]' Cargo.toml 2>/dev/null; then
-    IS_MONOREPO="yes"
-    echo "경고: Cargo workspace 입니다. 명령에 --workspace 추가를 고려하세요." >&2
-  fi
+fi
 
 # ---------- Python ----------
-elif [ -f pyproject.toml ] || [ -f setup.cfg ] || [ -f setup.py ]; then
-  STACK="Python"
-  BUILD_CMD="python -m build"
-  TEST_CMD="pytest"
-  COVERAGE_CMD="pytest --cov"
-  if grep -qiE "mypy" pyproject.toml setup.cfg 2>/dev/null; then TYPECHECK_CMD="mypy ."; fi
-  if   grep -qiE "ruff" pyproject.toml setup.cfg 2>/dev/null; then LINT_CMD="ruff check ."
-  elif grep -qiE "flake8" pyproject.toml setup.cfg 2>/dev/null; then LINT_CMD="flake8"
-  fi
+PYTHON_BUILD=""; PYTHON_TYPECHECK=""; PYTHON_TEST=""; PYTHON_LINT=""; PYTHON_COVERAGE=""
+PYDIR=""
+if [ -f pyproject.toml ] || [ -f setup.cfg ] || [ -f setup.py ] || [ -f pyrightconfig.json ]; then PYDIR="."; fi
+# 서브디렉토리 Python 서비스도 1뎁스 탐색 (예: pii_service/)
+if [ -z "$PYDIR" ]; then
+  for d in */; do
+    if [ -f "${d}pyproject.toml" ] || [ -f "${d}pyrightconfig.json" ]; then PYDIR="${d%/}"; break; fi
+  done
+fi
+if [ -n "$PYDIR" ]; then
+  DETECTED="$DETECTED python"
+  PFX=""; [ "$PYDIR" != "." ] && PFX="cd $PYDIR && "
+  PYTHON_TEST="${PFX}pytest"
+  PYTHON_COVERAGE="${PFX}pytest --cov"
+  if [ -f "$PYDIR/pyrightconfig.json" ]; then PYTHON_TYPECHECK="${PFX}pyright"
+  elif grep -qiE mypy "$PYDIR"/pyproject.toml "$PYDIR"/setup.cfg 2>/dev/null; then PYTHON_TYPECHECK="${PFX}mypy ."; fi
+  if   grep -qiE ruff  "$PYDIR"/pyproject.toml 2>/dev/null; then PYTHON_LINT="${PFX}ruff check ."
+  elif grep -qiE flake8 "$PYDIR"/pyproject.toml "$PYDIR"/setup.cfg 2>/dev/null; then PYTHON_LINT="${PFX}flake8"; fi
+fi
 
 # ---------- Go ----------
-elif [ -f go.mod ]; then
-  STACK="Go"
-  BUILD_CMD="go build ./..."
-  TYPECHECK_CMD="go vet ./..."
-  TEST_CMD="go test ./..."
-  LINT_CMD="golangci-lint run"
-  COVERAGE_CMD="go test -cover ./..."
-  if [ -f go.work ]; then
-    IS_MONOREPO="yes"
-    echo "경고: go.work 멀티모듈 워크스페이스입니다." >&2
-  fi
-
-# ---------- Makefile 폴백 ----------
-elif [ -f Makefile ]; then
-  STACK="Make 기반"
-  grep -qE "^build:" Makefile     && BUILD_CMD="make build"
-  grep -qE "^test:" Makefile      && TEST_CMD="make test"
-  grep -qE "^lint:" Makefile      && LINT_CMD="make lint"
-  grep -qE "^typecheck:" Makefile && TYPECHECK_CMD="make typecheck"
+GO_BUILD=""; GO_TYPECHECK=""; GO_TEST=""; GO_LINT=""; GO_COVERAGE=""
+if [ -f go.mod ]; then
+  DETECTED="$DETECTED go"
+  GO_BUILD="go build ./..."; GO_TYPECHECK="go vet ./..."; GO_TEST="go test ./..."
+  GO_LINT="golangci-lint run"; GO_COVERAGE="go test -cover ./..."
 fi
 
-# 미감지 키 요약 (stderr) — 조용한 통과 방지
-MISSING=""
-for kv in "BUILD_CMD=$BUILD_CMD" "TYPECHECK_CMD=$TYPECHECK_CMD" "TEST_CMD=$TEST_CMD" "LINT_CMD=$LINT_CMD" "COVERAGE_CMD=$COVERAGE_CMD"; do
-  case "$kv" in *"<"*">"*) MISSING="$MISSING ${kv%%=*}";; esac
-done
-if [ -n "$MISSING" ]; then
-  echo "주의: 자동 감지 실패한 명령:$MISSING → loop.md 에서 직접 채우세요." >&2
+DETECTED="$(echo "$DETECTED" | xargs)"   # trim
+NSTACK=$(echo "$DETECTED" | wc -w | tr -d ' ')
+
+# 주 스택 결정: 백엔드 우선 (ruby > python > go > node)
+PRIMARY=""
+for s in ruby python go node; do case " $DETECTED " in *" $s "*) PRIMARY="$s"; break;; esac; done
+
+pick() { # pick <STACK> <FIELD> → 해당 변수 값
+  local v; eval "v=\${$(echo "$1" | tr a-z A-Z)_$2:-}"; echo "$v"; }
+ph() { [ -n "$1" ] && echo "$1" || echo "<$2>"; }
+
+if [ -n "$PRIMARY" ]; then
+  P="$(echo "$PRIMARY" | tr a-z A-Z)"
+  eval "BUILD_CMD=\${${P}_BUILD:-}"; eval "TYPECHECK_CMD=\${${P}_TYPECHECK:-}"
+  eval "TEST_CMD=\${${P}_TEST:-}";  eval "LINT_CMD=\${${P}_LINT:-}"; eval "COVERAGE_CMD=\${${P}_COVERAGE:-}"
+  STACK_LABEL="$PRIMARY"
+else
+  BUILD_CMD=""; TYPECHECK_CMD=""; TEST_CMD=""; LINT_CMD=""; COVERAGE_CMD=""; STACK_LABEL="<감지 실패: 직접 입력>"
 fi
 
-# 출력 (stdout)
+IS_MULTI="no"; [ "$NSTACK" -gt 1 ] && IS_MULTI="yes"
+
+# ----- 진단 (stderr) -----
+if [ "$IS_MULTI" = yes ]; then
+  echo "경고: 다중 스택/서비스 감지($DETECTED). 단일 BUILD_CMD 등은 주 스택($PRIMARY) 기준이다." >&2
+  echo "      각 서비스 명령은 <STACK>_* 키를 참고해 loop.md에 모두 종합하라." >&2
+fi
+[ -z "$DETECTED" ] && echo "주의: 알려진 스택 매니페스트를 못 찾음 → loop.md 명령을 직접 채우세요." >&2
+
+# ----- 출력 (stdout) -----
 cat <<EOF
-STACK=$STACK
-PKG_MANAGER=$PKG_MANAGER
-IS_MONOREPO=$IS_MONOREPO
-BUILD_CMD=$BUILD_CMD
-TYPECHECK_CMD=$TYPECHECK_CMD
-TEST_CMD=$TEST_CMD
-LINT_CMD=$LINT_CMD
-COVERAGE_CMD=$COVERAGE_CMD
+DETECTED_STACKS=$DETECTED
+PRIMARY_STACK=$STACK_LABEL
+IS_MULTISERVICE=$IS_MULTI
+COVERAGE_FLOOR=$COVERAGE_FLOOR
+BUILD_CMD=$(ph "$BUILD_CMD" 빌드 명령)
+TYPECHECK_CMD=$(ph "$TYPECHECK_CMD" 타입체크 명령)
+TEST_CMD=$(ph "$TEST_CMD" 테스트 명령)
+LINT_CMD=$(ph "$LINT_CMD" 린트 명령)
+COVERAGE_CMD=$(ph "$COVERAGE_CMD" 커버리지 명령)
 EOF
+
+# 감지된 스택별 상세 (다중일 때 Claude가 종합용으로 사용)
+for s in $DETECTED; do
+  S="$(echo "$s" | tr a-z A-Z)"
+  for f in BUILD TYPECHECK TEST LINT SECURITY AUDIT COVERAGE; do
+    eval "v=\${${S}_${f}:-}"; [ -n "${v:-}" ] && echo "${S}_${f}_CMD=$v"
+  done
+done
