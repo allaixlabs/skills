@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-codex.sh — plan-then-codex 사전 점검 (프로젝트를 수정하지 않음; /tmp 작업 폴더만 생성)
+# check-codex.sh — plan-then-codex 사전 점검 (read-only, 아무것도 수정하지 않음)
 # stdout: KEY=VALUE 형식. exit 0 = 위임 가능, exit 1 = 전제조건 미충족.
 set -u
 
@@ -23,19 +23,17 @@ else
   fail=1
 fi
 
-# 3) config 기본값 (model / effort) — 플래그 생략 시 적용될 값
+# 3) config 기본값 추정 — top-level config.toml 해석일 뿐 "실효값"이 아니다.
+#    (profile/override/env에 따라 달라질 수 있음 — 실효값은 codex exec 실행 배너에서 확정)
 CFG="${CODEX_HOME:-$HOME/.codex}/config.toml"
 if [ -f "$CFG" ]; then
   model=$(awk -F'= *' '/^model[[:space:]]*=/{gsub(/["[:space:]]/,"",$2); print $2; exit}' "$CFG")
   effort=$(awk -F'= *' '/^model_reasoning_effort[[:space:]]*=/{gsub(/["[:space:]]/,"",$2); print $2; exit}' "$CFG")
-  echo "DEFAULT_MODEL=${model:-<unset>}"
-  echo "DEFAULT_EFFORT=${effort:-<unset>}"
+  echo "CONFIG_MODEL=${model:-<unset>}"
+  echo "CONFIG_EFFORT=${effort:-<unset>}"
 else
-  echo "DEFAULT_MODEL=<no-config>"
-  echo "DEFAULT_EFFORT=<no-config>"
+  echo "CONFIG_MODEL=<no-config>"
+  echo "CONFIG_EFFORT=<no-config>"
 fi
-
-# 4) 작업 디렉터리 준비
-mkdir -p /tmp/codex-handoff 2>/dev/null && echo "HANDOFF_DIR=/tmp/codex-handoff"
 
 exit "$fail"
