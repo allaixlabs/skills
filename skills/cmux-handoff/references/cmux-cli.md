@@ -55,7 +55,13 @@ cmux list-panels --workspace workspace:2
 cmux capture-pane [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] [--scrollback] [--lines <n>]
 ```
 
-Use this to read visible pane text. It is a tmux-compatible alias. `--surface` defaults to `CMUX_SURFACE_ID`; pass it explicitly when reading another panel.
+Use this to read visible pane text. It is a tmux-compatible alias (not listed in the
+top-level `cmux --help` command list, but it has its own `--help` and works). `--surface`
+defaults to `CMUX_SURFACE_ID`; pass it explicitly when reading another panel.
+
+The default `--lines` value is a sample, not the full history. Gauge the real size with
+`cmux pipe-pane --surface <ref> --command 'wc -l'` and report the captured range —
+scrollback may be truncated, so never present a partial capture as the complete history.
 
 Examples:
 
@@ -88,12 +94,16 @@ cmux send --surface surface:2 -- "ls -la\n"
 cmux send --surface surface:17 -- "Please summarize the current blocker without changing files.\n"
 ```
 
-Safety rules:
+Pre-send checklist (agreed with the integrated-agent side):
 
-- Do not include `\n` unless execution is intended.
-- Prefer sending prompts over commands when controlling another agent.
-- Avoid sending secrets or destructive shell commands.
-- If a pane is not clearly identified, capture it first.
+1. Validate the target with `cmux identify --surface <ref>` — documented and read-only.
+   Do **not** rely on `send --dry-run`: it is absent from `cmux send --help` (undocumented).
+2. Cross-check with a fresh `capture-pane`: surface, workspace, title, and visible task must match.
+3. Two or more plausible target panes → stop and ask the user.
+4. Capture twice 1–2 seconds apart; output still advancing = busy → do not send.
+5. Do not include `\n`/`\r` unless submission/execution is intended.
+6. Report the text and target surface before sending; send only the approved scope.
+7. Avoid sending secrets or destructive shell commands; prefer prompts over commands when controlling another agent.
 
 ## Sending Key Events
 
@@ -132,6 +142,14 @@ Attaches restart-command metadata to a surface so the pane can be manually resto
 later (e.g. relaunching an agent in the same `--cwd`). `show`/`get` inspect the stored
 binding; this is the native counterpart to the handoff workflow when a pane has exited
 and needs to be brought back rather than read.
+
+Hard limits (do not blur them):
+
+- The result is an **opaque restart hint**, not evidence of recovered task state.
+- Never auto-run the returned command.
+- Review the command for approval-bypass or permission-relaxing flags before showing it.
+- Confirm `cwd`, `kind`, `source`, and the surface match the expected target.
+- Execute only after the user's explicit approval.
 
 ## Piping Pane Text
 

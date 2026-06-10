@@ -28,6 +28,10 @@ session/resume metadata — require the *target pane's agent* to be integrated w
 If a pane's agent is not integrated, still capture and send text normally — but treat
 resume metadata and Feed state as unavailable rather than assuming them.
 
+Even when integrated, Feed entries, notifications, and hook events are **routing metadata
+only** — evidence for summaries and decisions comes from `capture-pane`, the repo, or
+runtime checks, never from Feed state alone.
+
 ## Workflow
 
 1. Confirm the current cmux CLI surface.
@@ -41,8 +45,9 @@ resume metadata and Feed state as unavailable rather than assuming them.
    - If multiple plausible panes exist, capture read-only context first instead of sending input.
 
 3. Capture the source pane.
-   - Start with `cmux capture-pane --surface <surface> --scrollback --lines 120`.
-   - Increase `--lines` when the task state is not visible.
+   - Start with `cmux capture-pane --surface <surface> --scrollback --lines 120` — 120 lines is a starting sample, not the full history.
+   - Gauge the real size with `cmux pipe-pane --surface <surface> --command 'wc -l'` and increase `--lines` when the task state is not visible.
+   - Report the captured range and note possible scrollback truncation; never present a partial capture as the complete task history.
    - Summarize visible context as: current goal, files/routes/commands mentioned, last successful action, last failure/blocker, and likely next step.
 
 4. Decide the handoff mode.
@@ -50,8 +55,15 @@ resume metadata and Feed state as unavailable rather than assuming them.
    - Send a follow-up prompt when the user wants the original pane's agent (Claude, Codex, opencode, or a plain shell) to continue.
    - Pipe pane output when downstream processing is useful, for example extracting TODOs, errors, file paths, or a compact handoff note.
    - If the target pane has already exited, read `cmux surface resume get --surface <surface>` for its restart command instead of trying to capture a dead pane.
+     The result is an **opaque restart hint, not recovered task state**: never auto-run the
+     returned command; review it for approval-bypass or permission-relaxing flags, confirm
+     `cwd`/`kind` match the expected target, and execute only with the user's explicit approval.
 
-5. Send only deliberate input.
+5. Send only deliberate input — pre-send checklist:
+   - Confirm the target with `cmux identify --surface <surface>` (documented; do **not** rely on the undocumented `--dry-run`) plus a fresh capture: surface, workspace, title, and visible task must all match.
+   - If two or more panes are plausible targets, stop and ask the user instead of sending.
+   - Capture twice 1–2 seconds apart; if output is still advancing, the pane is busy — do not send.
+   - Report what you are about to send and to which surface, then send only the approved scope.
    - Use `cmux send --surface <surface> -- "text\n"` for prompts or commands. The `--` guards text that might start with `-`.
    - Include `\n` only when you intend to press Enter (for an agent pane, `\n` is what submits the prompt).
    - Use `cmux send-key --surface <surface> ctrl+c` (or `escape`) only when the user explicitly asks to interrupt or reset the target pane. Key names are lowercase (`enter`, `escape`, `ctrl+c`).
@@ -69,6 +81,7 @@ See [references/cmux-cli.md](references/cmux-cli.md) for command syntax and exam
 
 ```bash
 cmux list-panels
+cmux identify --surface surface:17                  # validate the target ref before sending
 cmux capture-pane --surface surface:17 --scrollback --lines 120
 cmux send --surface surface:17 -- "Continue from the visible state and report blockers.\n"
 cmux send-key --surface surface:17 ctrl+c          # interrupt the pane (only if asked)

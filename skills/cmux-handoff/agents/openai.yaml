@@ -1,3 +1,5 @@
+# 소비 주체: 멀티 에이전트 스킬 설치 CLI(npx skills 류)가 OpenAI 계열 에이전트에 스킬을
+# 등록할 때 읽는 메타데이터로 추정된다 (확정 소비자 미확인 — 무해, cmux hooks 통합과는 무관).
 interface:
   display_name: "cmux Handoff"
   short_description: "Read and resume cmux agent panels"
