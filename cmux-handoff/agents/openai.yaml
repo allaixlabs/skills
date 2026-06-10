@@ -1,0 +1,4 @@
+interface:
+  display_name: "cmux Handoff"
+  short_description: "Read and resume cmux agent panels"
+  default_prompt: "Use $cmux-handoff to inspect cmux panels, capture another agent's pane, and continue or send follow-up instructions."
