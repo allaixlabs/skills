@@ -125,17 +125,28 @@ fi
 [ -z "$DETECTED" ] && echo "주의: 알려진 스택 매니페스트를 못 찾음 → loop.md 명령을 직접 채우세요." >&2
 
 # ----- 출력 (stdout) -----
-cat <<EOF
-DETECTED_STACKS=$DETECTED
-PRIMARY_STACK=$STACK_LABEL
-IS_MULTISERVICE=$IS_MULTI
-COVERAGE_FLOOR=$COVERAGE_FLOOR
-BUILD_CMD=$(ph "$BUILD_CMD" 빌드 명령)
-TYPECHECK_CMD=$(ph "$TYPECHECK_CMD" 타입체크 명령)
-TEST_CMD=$(ph "$TEST_CMD" 테스트 명령)
-LINT_CMD=$(ph "$LINT_CMD" 린트 명령)
-COVERAGE_CMD=$(ph "$COVERAGE_CMD" 커버리지 명령)
-EOF
+# printf 사용 — heredoc은 임시파일을 만들어 read-only 샌드박스(Codex 등)에서 실패한다.
+printf 'DETECTED_STACKS=%s\n'  "$DETECTED"
+printf 'PRIMARY_STACK=%s\n'    "$STACK_LABEL"
+printf 'IS_MULTISERVICE=%s\n'  "$IS_MULTI"
+printf 'COVERAGE_FLOOR=%s\n'   "$COVERAGE_FLOOR"
+printf 'BUILD_CMD=%s\n'        "$(ph "$BUILD_CMD" 빌드 명령)"
+printf 'TYPECHECK_CMD=%s\n'    "$(ph "$TYPECHECK_CMD" 타입체크 명령)"
+printf 'TEST_CMD=%s\n'         "$(ph "$TEST_CMD" 테스트 명령)"
+printf 'LINT_CMD=%s\n'         "$(ph "$LINT_CMD" 린트 명령)"
+printf 'COVERAGE_CMD=%s\n'     "$(ph "$COVERAGE_CMD" 커버리지 명령)"
+
+# 매니페스트 경로 나열 (서브디렉토리 서비스 종합용 — git 추적 기준, 비-git이면 find 4뎁스)
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  MANIFESTS=$(git ls-files 2>/dev/null \
+    | grep -E '(^|/)(package\.json|Gemfile|go\.mod|pyproject\.toml|setup\.cfg|Cargo\.toml)$' \
+    | grep -vE '(^|/)(node_modules|vendor)/' | head -20) || true
+else
+  MANIFESTS=$(find . -maxdepth 4 \( -name node_modules -o -name vendor -o -name .git \) -prune -o \
+    -type f \( -name package.json -o -name Gemfile -o -name go.mod -o -name pyproject.toml -o -name Cargo.toml \) -print 2>/dev/null \
+    | sed 's|^\./||' | head -20) || true
+fi
+[ -n "${MANIFESTS:-}" ] && printf 'MANIFEST_PATHS=%s\n' "$(printf '%s' "$MANIFESTS" | tr '\n' ' ')"
 
 # 감지된 스택별 상세 (다중일 때 Claude가 종합용으로 사용)
 for s in $DETECTED; do
@@ -144,3 +155,5 @@ for s in $DETECTED; do
     eval "v=\${${S}_${f}:-}"; [ -n "${v:-}" ] && echo "${S}_${f}_CMD=$v"
   done
 done
+
+exit 0   # 마지막 [ -n ] && 패턴의 비-0 상태가 스크립트 종료코드로 새는 것 방지
