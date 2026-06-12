@@ -52,6 +52,16 @@ bypass() {
 printf '%s' "$cmd" | grep -q 'skip-loop' && bypass "skip-loop"
 [ "${LOOP_SKIP:-}" = "1" ] && bypass "LOOP_SKIP=1"
 
+# lessons 등 docs/loop-md/ 전용 커밋은 게이트 면제 — 지식 증류는 검증 대상 작업이 아니며,
+# 작업 커밋과 섞이지 않게 즉시 분리 커밋하는 것이 규칙이다. (FAIL 라운드 중에도 허용)
+# 단 -a/-am/--all 커밋은 unstaged 작업 파일까지 쓸려 들어가므로 claude-hook 모드에서는 면제하지 않는다.
+staged=$(git -C "$root" diff --cached --name-only 2>/dev/null)
+if [ -n "$staged" ] && [ "$(printf '%s\n' "$staged" | grep -cv '^docs/loop-md/')" -eq 0 ]; then
+  if [ "$MODE" = "git-hook" ] || ! printf '%s' "$cmd" | grep -qE '(^|[[:space:]])-(a|am)([[:space:]]|$)|--all([[:space:]]|$)'; then
+    exit 0
+  fi
+fi
+
 marker="$root/.loop/last-verified"
 block() {
   printf '⛔ loop.md DoD 가드: %s\n' "$1" >&2
