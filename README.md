@@ -5,8 +5,8 @@
 ## 스킬
 
 - `loop-md`: 작업을 완료로 선언하기 전 3단계 완료 기준을 강제하는 DoD 프레임워크.
-- `cmux-handoff`: `cmux --help` 기반으로 패널 목록 조회, scrollback 캡처, 후속 지시 전송, pane piping을 수행해 멈춘 Claude/Codex 패널 작업을 이어받는 스킬.
-- `plan-then-codex`: Claude가 분석·계획·검증을 맡고 실제 구현은 `codex exec`에 위임하는 split-brain 워크플로우. "분석은 claude, 구현은 codex gpt5.5 xhigh" 류 요청 전용.
+- `cmux-handoff`: `cmux --help` 기반으로 패널 목록 조회, scrollback 캡처, 후속 지시 전송, pane piping을 수행해 멈춘 Claude/Codex 패널 작업을 이어받는 스킬. 상세: [`skills/cmux-handoff/README.md`](skills/cmux-handoff/README.md)
+- `plan-then-codex`: Claude가 분석·계획·검증을 맡고 실제 구현은 `codex exec`에 위임하는 split-brain 워크플로우. "분석은 claude, 구현은 codex gpt5.5 xhigh" 류 요청 전용. 상세: [`skills/plan-then-codex/README.md`](skills/plan-then-codex/README.md)
 
 ## loop-md
 
