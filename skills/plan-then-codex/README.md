@@ -31,14 +31,14 @@ bash scripts/check-codex.sh
 ## 설치
 
 ```bash
-npx skills add allaixlabs/loop-md --skill plan-then-codex   # 권장
+npx skills add allaixlabs/skills --skill plan-then-codex   # 권장
 ```
 
 수동 설치:
 
 ```bash
-git clone https://github.com/allaixlabs/loop-md.git ~/project/loop-md   # 이미 있으면 생략
-ln -s ~/project/loop-md/skills/plan-then-codex ~/.claude/skills/plan-then-codex
+git clone https://github.com/allaixlabs/skills.git ~/project/skills   # 이미 있으면 생략
+ln -s ~/project/skills/skills/plan-then-codex ~/.claude/skills/plan-then-codex
 ```
 
 새 Claude Code 세션부터 자동 인식된다. **Codex 쪽 설치는 불필요** — HANDOFF가 stdin으로 전달되는 Claude Code 단독 오케스트레이션이다 (loop-md의 `AGENTS.md` 어댑터 같은 Codex측 세팅 없음).
