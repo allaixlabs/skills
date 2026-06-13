@@ -42,9 +42,14 @@ soft 가드(글로벌 지시)로 부족하면 **커밋 시점에 강제**한다.
 
 **① Claude PreToolUse hook** — `~/.claude/settings.json` 의 `hooks.PreToolUse` 배열에 추가
 (`git commit --no-verify` 도 명령 문자열 검사라서 잡는다):
+
+JSON은 셸 변수를 확장하지 않으므로 절대 경로가 필요합니다. 먼저 경로를 확인한 뒤 복사하세요:
+```bash
+echo "$HOME/.claude/skills/loop-md/scripts/precommit-guard.sh"
+```
 ```json
 { "matcher": "Bash", "hooks": [
-  { "type": "command", "command": "bash \"/Users/<you>/.claude/skills/loop-md/scripts/precommit-guard.sh\"", "timeout": 5 } ] }
+  { "type": "command", "command": "bash \"<위 명령 출력값>\"", "timeout": 5 } ] }
 ```
 
 **② git pre-commit hook (에이전트 불문)** — Codex·Claude·사람 누구든 셸 `git commit` 시 발동
