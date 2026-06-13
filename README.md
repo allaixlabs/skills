@@ -7,6 +7,7 @@
 - `loop-md`: 작업을 완료로 선언하기 전 3단계 완료 기준을 강제하는 DoD 프레임워크.
 - `cmux-handoff`: `cmux --help` 기반으로 패널 목록 조회, scrollback 캡처, 후속 지시 전송, pane piping을 수행해 멈춘 Claude/Codex 패널 작업을 이어받는 스킬. 상세: [`skills/cmux-handoff/README.md`](skills/cmux-handoff/README.md)
 - `plan-then-codex`: Claude가 분석·계획·검증을 맡고 실제 구현은 `codex exec`에 위임하는 split-brain 워크플로우. "분석은 claude, 구현은 codex gpt5.5 xhigh" 류 요청 전용. 상세: [`skills/plan-then-codex/README.md`](skills/plan-then-codex/README.md)
+- `plan-then-opencode`: Claude가 분석·계획·에이전트 선택·검증을 맡고 실제 구현은 `omo run`(oh-my-openagent)에 위임하는 split-brain 워크플로우. Prometheus·Sisyphus·Hephaestus 에이전트 선택 + 멀티 프로바이더 지원. 상세: [`skills/plan-then-opencode/README.md`](skills/plan-then-opencode/README.md)
 
 ## loop-md
 
@@ -55,5 +56,6 @@ skills/
 │   ├── templates/              # loop.md / report / AGENTS.md / 참조 스텁
 │   └── scripts/                # detect-stack.sh(스택 감지) · precommit-guard.sh(hard 커밋 가드 듀얼 모드)
 ├── cmux-handoff/               # 멈춘 에이전트 패널 읽기·이어받기 — SKILL + README + cmux CLI 실측 노트
-└── plan-then-codex/            # Claude 계획 → codex exec 구현 위임 — SKILL + README + HANDOFF 템플릿 + 사전점검
+├── plan-then-codex/            # Claude 계획 → codex exec 구현 위임 — SKILL + README + HANDOFF 템플릿 + 사전점검
+└── plan-then-opencode/         # Claude 계획 → omo run(oh-my-openagent) 위임 — Sisyphus/Hephaestus/Prometheus 에이전트 선택
 ```
