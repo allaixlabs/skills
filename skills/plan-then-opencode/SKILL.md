@@ -83,6 +83,8 @@ echo "round1_exit=$?" >> "$RUN/manifest"
 SESSION_ID=$(grep -o '"session_id":"[^"]*"' "$RUN/round1.log" | head -1 | sed 's/.*"session_id":"\([^"]*\)".*/\1/')
 # 실패 시 opencode session 목록에서 최신 세션 시도
 if [ -z "$SESSION_ID" ]; then
+  # opencode session list --format json 의 JSON 필드명은 버전에 따라 다를 수 있음.
+  # 추출 실패 시 "$RUN/round1.log"에서 session 관련 JSON 키를 직접 확인할 것.
   SESSION_ID=$(opencode session list --format json 2>/dev/null | grep -o '"id":"[^"]*"' | head -1 | sed 's/.*"id":"\([^"]*\)".*/\1/')
 fi
 echo "session_id=$SESSION_ID" >> "$RUN/manifest"

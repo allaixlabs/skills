@@ -87,8 +87,10 @@ fi
 echo "session_id=${SESSION_ID:-<not-found>}" >> "$RUN/manifest"
 ```
 
-⚠️ JSON 이벤트 스트림의 정확한 필드명은 omo 버전에 따라 다를 수 있다 —
+⚠️ JSON 이벤트 스트림의 정확한 필드명은 omo/opencode 버전에 따라 다를 수 있다.
 추출 실패 시 `"$RUN/round1.log"` 에서 `session` 관련 JSON 키를 직접 확인할 것.
+`opencode session list --format json` 은 실재하는 명령이지만(opencode session list --help 실측 확인),
+JSON 내 session ID 필드명(id / sessionId 등)은 직접 실행해 확인해야 한다.
 
 ### Resume (검증 라운드)
 

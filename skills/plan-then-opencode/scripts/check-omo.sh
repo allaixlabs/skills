@@ -35,6 +35,8 @@ echo "OPENCODE_VERSION=$OC_VERSION"
 # opencode >= 1.4.0 요구 (oh-my-openagent doctor 기준)
 OC_MAJOR=$(echo "$OC_VERSION" | cut -d. -f1)
 OC_MINOR=$(echo "$OC_VERSION" | cut -d. -f2)
+OC_MAJOR=${OC_MAJOR:-0}
+OC_MINOR=${OC_MINOR:-0}
 if [ "$OC_MAJOR" -lt 1 ] || { [ "$OC_MAJOR" -eq 1 ] && [ "$OC_MINOR" -lt 4 ]; }; then
   echo "OPENCODE_VERSION_OK=no"
   echo "HINT: opencode >= 1.4.0 필요. 현재 $OC_VERSION. 'opencode upgrade' 실행." >&2
@@ -60,11 +62,12 @@ if [ "$PLUGIN_OK" = "no" ]; then
 fi
 
 # 4) opencode 인증 상태 (간접 확인 — providers 목록으로 판단)
-if opencode providers 2>&1 | grep -qiE 'authenticated|api.key|provider'; then
+if opencode providers list 2>/dev/null | grep -q '●'; then
   echo "OPENCODE_AUTH=ok"
 else
-  echo "OPENCODE_AUTH=unknown"
-  echo "HINT: 'opencode providers' 로 인증 상태를 확인하세요." >&2
+  echo "OPENCODE_AUTH=none_configured"
+  echo "HINT: 'opencode providers login' 으로 프로바이더를 설정하세요." >&2
+  fail=1
 fi
 
 exit "$fail"
