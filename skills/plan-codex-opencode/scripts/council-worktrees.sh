@@ -29,6 +29,11 @@ council_wt_setup() {
   local ts; ts=$(date +%s 2>/dev/null || echo 0)
   mkdir -p "$RUN/wt"
   # 사용자 dirty 변경 스냅샷 (워킹트리 불변 — stash 목록에 push 하지 않음)
+  # ⚠️ stash create는 tracked dirty만 담는다(untracked 새 파일 제외). untracked는 worktree에
+  #    전파되지 않으므로(전파하면 adopt가 패널 산출물로 오인) 감지해 경고만 한다 — 필요하면 먼저 커밋.
+  if [ -n "$(git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null | head -1)" ]; then
+    echo "WARN: 사용자 untracked 파일은 패널 worktree에 전파되지 않습니다(git stash create 한계). 패널 작업에 필요하면 먼저 커밋하세요." >&2
+  fi
   local stash; stash=$(git -C "$ROOT" stash create 2>/dev/null || echo "")
   printf '%s' "$stash" > "$RUN/stash.sha"
   git -C "$ROOT" rev-parse HEAD > "$RUN/baseline.head" 2>/dev/null
@@ -71,7 +76,10 @@ council_wt_adopt() {
     echo "ABORT: 메인 HEAD가 baseline에서 드리프트($base → $now). council 진행 중 메인이 바뀜 — 수동 확인 필요." >&2
     return 2
   fi
-  git -C "$RUN/wt/$id" --no-pager diff "$base" -- > "$RUN/final.patch" 2>/dev/null
+  # ⚠️ git diff <base>는 untracked(패널이 새로 만든 파일)를 빠뜨린다 → add -A 후 인덱스 기준 diff로
+  #    신규 파일까지 패치에 포함한다(조용한 누락 방지). worktree 인덱스만 건드리므로 ROOT엔 영향 없음.
+  git -C "$RUN/wt/$id" add -A >/dev/null 2>&1
+  git -C "$RUN/wt/$id" --no-pager diff --cached "$base" -- > "$RUN/final.patch" 2>/dev/null
   if [ ! -s "$RUN/final.patch" ]; then
     echo "NOTE: 채택 패널 '$id' 변경 없음(빈 diff)." >&2
     return 0
@@ -86,7 +94,7 @@ council_wt_adopt() {
 }
 
 # ── 직접 실행 시 dry-run 자가 점검 (임시 레포에서 setup→cleanup 누수 0 확인) ──
-if [ "${BASH_SOURCE[0]:-$0}" = "${0}" ]; then
+if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE[0]}" = "${0}" ]; then  # zsh엔 BASH_SOURCE 없음 → source 시 self-test 스킵
   echo "[dry-run] council-worktrees.sh 자가 점검"
   TMP=$(mktemp -d "${TMPDIR:-/tmp}/cwt-selftest.XXXXXX")
   ( cd "$TMP" && git init -q && git config user.email t@t && git config user.name t \
