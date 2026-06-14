@@ -1,0 +1,73 @@
+# 라우팅 레퍼런스 — 호명 → 백엔드 (plan-codex-opencode 전용)
+
+사용자가 자연어로 부르는 모델명을 `(backend, model, effort/variant, dir/session 플래그)`로 정규화하는 단일 진실 소스.
+검증 기준: codex-cli 0.139.0 · opencode 1.16.2 · omo(oh-my-openagent) 4.9.2 — `opencode models` / 각 `--help` 실측.
+
+## 대원칙
+
+| 호명 패밀리 | 백엔드 | 이유 |
+|---|---|---|
+| **codex / gpt 계열** | `codex exec` | GPT는 codex가 1급 시민(결정론적 샌드박스, `exec review` 코드리뷰 특화) |
+| **그 외 모든 provider/model** (glm·kimi·deepseek·qwen·minimax·mimo·opus 등) | **opencode 계열** (`omo run` 또는 `opencode run`) | 멀티 프로바이더는 opencode 생태계가 담당 |
+
+핵심: codex와 opencode는 **서로 다른 모델 패밀리** → 같은 문제에서 다른 실수 → 교차검증 독립성이 구조적으로 보장된다. 패널은 가능하면 **서로 다른 패밀리**로 구성한다.
+
+## 호명 → 정규화 테이블
+
+| 사용자 자연어 | backend | `-m` model | effort/variant | dir 플래그 |
+|---|---|---|---|---|
+| codex / gpt5.5 / "gpt5.5 xhigh" | `codex exec` | `gpt-5.5` | `-c model_reasoning_effort="xhigh"` | `-C` |
+| gpt5.5 fast / gpt5.5 pro | `codex exec` | `gpt-5.5-fast` / `gpt-5.5-pro` | `-c model_reasoning_effort="<v>"` | `-C` |
+| spark / codex spark | `codex exec` | `gpt-5.3-codex-spark` | (빠른 작업 기본) | `-C` |
+| gpt5.4 / gpt5.4 mini / fast | `codex exec` | `gpt-5.4` / `gpt-5.4-mini` / `gpt-5.4-fast` | `-c model_reasoning_effort="<v>"` | `-C` |
+| glm5.2 / "glm 5.2" | opencode | `zai-coding-plan/glm-5.2` | `--variant high` | `-d`(omo) / `--dir`(opencode) |
+| glm5.1 / glm4.7 / "glm5 turbo" | opencode | `zai-coding-plan/glm-5.1` / `glm-4.7` / `glm-5-turbo` | `--variant high` | `-d`/`--dir` |
+| kimi k2.7 / kimi | opencode | `opencode-go/kimi-k2.7-code` | `--variant high` | `-d`/`--dir` |
+| kimi k2.6 | opencode | `opencode-go/kimi-k2.6` | `--variant high` | `-d`/`--dir` |
+| deepseek / deepseek pro / flash | opencode | `opencode-go/deepseek-v4-pro` / `deepseek-v4-flash` | `--variant high` | `-d`/`--dir` |
+| qwen3.7 max / plus, qwen3.6 plus | opencode | `opencode-go/qwen3.7-max` / `qwen3.7-plus` / `qwen3.6-plus` | `--variant high` | `-d`/`--dir` |
+| minimax m3 / m2.7, mimo | opencode | `opencode-go/minimax-m3` / `minimax-m2.7` / `mimo-v2.5[-pro]` | `--variant high` | `-d`/`--dir` |
+| opus | opencode (리뷰 보조) | `dgrid/claude-opus-4-8` | — | `--dir` |
+
+> 전체 모델 풀은 `opencode models`로 확인(프로바이더: OpenAI / Z.AI Coding Plan / OpenCode Go / dgrid). 위 표에 없는 모델은 `opencode-go/` 또는 `zai-coding-plan/` 접두로 그대로 통과시키되, 인증 매트릭스(check-panels.sh)에 해당 provider가 `ok`인지 확인한다.
+
+## effort / variant 매핑
+
+- **codex**: `xhigh | high | medium | low | minimal` → `-c model_reasoning_effort="<v>"` (TOML 파싱 — 쌍따옴표 필수).
+- **opencode/omo**: provider별 reasoning variant → `--variant <high|max|minimal>` (실측: `opencode run --variant` = "provider-specific reasoning effort").
+  - `omo run`에는 `--variant`가 없다 → 고추론이 필요하면 ① `opencode run` 직접 경로로 `--variant high`를 쓰거나 ② 모델 자체를 상위 변형으로 선택. omo 경로에서는 변형 지정을 생략하고 모델 기본값을 쓴다.
+
+## 모호 호명 처리 (순서대로)
+
+1. provider 토큰 명시("zai", "opencode-go", "openai") → 그대로 사용.
+2. 모델 패밀리만("glm", "kimi", "qwen") → 위 표의 최신 안정 버전 기본 선택(glm→glm-5.2, kimi→kimi-k2.7-code).
+3. "opencode" 단독(모델 미지정) → 백엔드만 확정, 모델은 기본 패널 추천 로직으로 채우고 **사용자에게 1줄 확인**.
+4. 완전 모호("아무 모델 2개로") → 기본 패널 추천.
+
+## 기본 패널 추천 (사용자 호명 없을 때) — 교차검증 독립성 기준
+
+- 코어 원칙: **서로 다른 모델 패밀리/프로바이더 2~3개**를 골라 상관된 오류를 깨뜨린다. 동일 패밀리(gpt-5.5 + gpt-5.5-fast) 조합 금지.
+- **기본 2-패널**: codex `gpt-5.5` + opencode `zai-coding-plan/glm-5.2` (OpenAI × Z.AI — 결정론 샌드박스 1 + 멀티프로바이더 1).
+- **3-패널(고난도)**: 위 + `opencode-go/kimi-k2.7-code` (세 번째 독립 패밀리).
+- `dgrid/claude-opus-4-8`(opus)는 종합자 Claude와 **동족**이라 교차검증 독립성이 낮다 → 패널 멤버가 아니라 **리뷰 보조**로만 권장.
+- 추천 시 한 줄 이유를 사용자에게 설명: 예) "GPT·GLM·Kimi 3개 패밀리로 교차검증 독립성을 확보합니다."
+
+## 백엔드 선택: omo vs opencode 직접 (모델과 직교 — 모델 동일, 실행기만 다름)
+
+| 경로 | 명령 골격 | 특성 | 권장 용도 |
+|---|---|---|---|
+| **omo run** | `omo run "<msg>" --agent Sisyphus -m <prov/model> -d <dir> --json [--session-id <id>]` | Sisyphus 완수보장·병렬 서브태스크·todo완료+idle 자동종료 | **구현(쓰기)·다단계·끝까지 완수** |
+| **opencode run** | `opencode run -m <prov/model> --variant high --format json --dir <dir> [-s <id>] "<msg>"` | 경량 단발·오케스트레이션 없음·빠름 | **리뷰·분석·2nd opinion(읽기·단발)·N개 병렬** |
+
+- codex는 항상 `codex exec` (omo/opencode 경로 없음).
+- 기본: 구현 단계 → omo run, 리뷰/비코드 단계 → opencode run 직접.
+
+## ⚠️ 백엔드별 플래그 차이 (Council 병렬 위임에서 엉키지 않도록)
+
+| | 작업 디렉토리 | 모델 | effort | 세션 resume | stdin |
+|---|---|---|---|---|---|
+| codex | `-C <dir>` | `-m` | `-c model_reasoning_effort="<v>"` | `codex exec resume <id>` (`-C`/`--sandbox` 미지원·상속) | `- < FILE` |
+| omo | `-d <dir>` | `-m <prov/model>` | (없음) | `--session-id <id>` | `"$(cat FILE)"` |
+| opencode | `--dir <dir>` | `-m <prov/model>` | `--variant <v>` | `-s <id>` (`--continue` last 금지 — 병렬 오선택) | `"$(cat FILE)"` |
+
+라우팅 테이블이 모델뿐 아니라 이 플래그 차이까지 캡슐화해야 패널별 디렉토리/세션이 섞이지 않는다.
