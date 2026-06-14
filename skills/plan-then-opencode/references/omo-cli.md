@@ -129,7 +129,7 @@ omo run은 아래 **두 조건이 모두 충족될 때만** 자동 종료:
 | stdin 입력 | `- < FILE` | `"$(cat FILE)"` 또는 메시지 인자 |
 | 작업 디렉토리 | `-C <dir>` | `-d <dir>` |
 | 모델 | `-m gpt-5.5` | `-m provider/model` |
-| effort | `-c model_reasoning_effort="xhigh"` | `--variant high` (opencode run) |
+| effort | `-c model_reasoning_effort="xhigh"` | omo run 직접 플래그 없음 — `--agent`(예: Sisyphus 라우팅) 또는 `-m` 모델 선택으로 대체 |
 | 샌드박스 | `--sandbox workspace-write` | 없음 (풀 파일시스템 접근) |
 | 세션 resume | `codex exec resume <id>` | `omo run --session-id <id>` |
 | 종료 감지 | 프로세스 종료 | todo완료+idle 자동 감지 |
@@ -148,4 +148,4 @@ omo run은 아래 **두 조건이 모두 충족될 때만** 자동 종료:
 | session_id 추출 실패 | round1.log에서 `session` 키 직접 확인 |
 | resume 즉사 | session_id 오입력 또는 세션 만료 — 새 세션으로 재위임 |
 | 변경이 지정 디렉토리 밖에 생성됨 | `-d` 경로 재확인, HANDOFF의 프로젝트 루트 점검 |
-| 인증 오류 | `opencode providers` 로 프로바이더별 인증 상태 확인 |
+| 인증 오류 | `opencode providers list` 로 프로바이더별 인증 상태 확인 |

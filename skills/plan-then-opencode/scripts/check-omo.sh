@@ -65,9 +65,8 @@ fi
 if opencode providers list 2>/dev/null | grep -q '●'; then
   echo "OPENCODE_AUTH=ok"
 else
-  echo "OPENCODE_AUTH=none_configured"
-  echo "HINT: 'opencode providers login' 으로 프로바이더를 설정하세요." >&2
-  fail=1
+  echo "OPENCODE_AUTH=unknown"
+  echo "WARN: opencode provider 인증 상태를 확인하지 못했습니다(plain/NO_COLOR 출력일 수 있음). 진행은 가능합니다." >&2
 fi
 
 exit "$fail"

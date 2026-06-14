@@ -33,7 +33,8 @@ bash "$SKILL_DIR/scripts/check-omo.sh"
 - 임시 작업 폴더 생성(격리):
   ```bash
   slug=$(echo "<태스크 한 단어>" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | head -c20)
-  RUN=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/pto.${slug}.XXXXXX")
+  RUN=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/pto.${slug}.XXXXXX") || { echo "RUN 생성 실패"; exit 1; }
+  [ -d "$RUN" ] || { echo "RUN 생성 실패"; exit 1; }
   ```
 
 ---
@@ -49,7 +50,8 @@ bash "$SKILL_DIR/scripts/check-omo.sh"
 
 ## 2. PLAN
 
-`git status --short > "$RUN/baseline.status"` 로 baseline 스냅샷을 남긴다.
+`git -C "<프로젝트 루트>" rev-parse --is-inside-work-tree >/dev/null || { echo "프로젝트 루트가 git 저장소가 아닙니다"; exit 1; }`
+`git -C "<프로젝트 루트>" status --short > "$RUN/baseline.status"` 로 baseline 스냅샷을 남긴다.
 
 `templates/HANDOFF.md.tmpl`을 읽어 `{{...}}` 토큰을 채운 뒤 `"$RUN/handoff.md"`로 저장한다.
 
@@ -68,6 +70,7 @@ bash "$SKILL_DIR/scripts/check-omo.sh"
 ```bash
 # omo 바이너리 결정 (omo PATH 우선, 없으면 bunx oh-my-openagent)
 OMO_BIN=$(command -v omo 2>/dev/null || echo "bunx oh-my-openagent")
+AGENT="Sisyphus"   # 1단계 ANALYZE에서 선택한 에이전트로 치환(Prometheus/Sisyphus/Hephaestus)
 # ⚠️ `bunx omo` / `npx omo`는 다른 패키지가 설치되므로 절대 사용 금지
 
 $OMO_BIN run "$(cat "$RUN/handoff.md")" \
@@ -103,7 +106,7 @@ echo "session_id=$SESSION_ID" >> "$RUN/manifest"
 # 라운드 N resume
 $OMO_BIN run "다음 Acceptance Criteria를 확인하고 미달 항목을 수정하라. 수정 후 재검증 결과를 보고하라.
 
-$(cat "$RUN/handoff.md" | grep -A20 'Acceptance Criteria')
+$(awk '/^## Acceptance Criteria/{capture=1} capture && /^## / && !/^## Acceptance Criteria/{exit} capture {print}' "$RUN/handoff.md")
 
 미달이면 BLOCKED 형식으로 보고하라." \
   --session-id "$SESSION_ID" \
@@ -117,6 +120,7 @@ echo "roundN_exit=$?" >> "$RUN/manifest"
 1. **빌드·타입·테스트·린트** — Bash로 실제 실행, exit code·출력 확인
 2. **Acceptance Criteria** — Handoff의 각 항목 대조
 3. **Baseline 보존** — dirty 파일이 의도치 않게 revert·수정되지 않았는지
+   - `git -C "<프로젝트 루트>" status --short | diff "$RUN/baseline.status" -` 로 현재 차이가 의도한 변경 파일뿐인지 확인
 4. **범위 준수** — '변경 지시' 밖 파일이 수정되지 않았는지
 
 - 검증 통과 → 5. REPORT 진행
@@ -133,5 +137,5 @@ echo "roundN_exit=$?" >> "$RUN/manifest"
 - Acceptance Criteria 항목별 충족/미충족(증거 요약)
 - **BLOCKED 여부·적용 기본 결정·남은 질문**
 - 사용한 에이전트·모델, 라운드 수(+ORCHESTRATION_FAIL 횟수)
-- `$RUN` 경로(handoff/manifest/result/log)
+- `$RUN` 경로(handoff/manifest/round*.log)
 - UI 작업이면 before/after 스크린샷 경로
