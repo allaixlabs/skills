@@ -102,7 +102,9 @@ echo "round1_exit=$?" >> "$RUN/kimi/manifest"
 ```bash
 SESSION_ID=$(grep -o '"session_id":"[^"]*"' "$RUN/<id>/round1.log" | head -1 \
   | sed 's/.*"session_id":"\([^"]*\)".*/\1/')
-# 폴백: opencode session 목록 최신
+# 폴백: opencode session 목록 최신 — ⚠️ 병렬 패널 동시 실행 중엔 다른 패널의 세션을
+#       잡을 수 있다(opencode `--continue` 금지와 같은 race). round1.log 직접 추출이 항상 우선이며,
+#       이 폴백은 "그 시점 그 패널만 단독 실행 중"이 확실할 때만 신뢰하라.
 if [ -z "$SESSION_ID" ]; then
   SESSION_ID=$(opencode session list --format json 2>/dev/null \
     | grep -o '"id":"[^"]*"' | head -1 | sed 's/.*"id":"\([^"]*\)".*/\1/')

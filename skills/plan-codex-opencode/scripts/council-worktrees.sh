@@ -55,6 +55,18 @@ council_wt_setup() {
   done
 }
 
+# council_wt_diffbase <RUN> — 패널 "순수 기여분" diff의 base 커밋을 stdout으로.
+#   패널 worktree는 'HEAD + 사용자 dirty(stash)'에서 출발한다. 그래서 diff base는 HEAD가 아니라
+#   그 출발점이어야 패널이 실제로 더한 변경만 나온다. stash 커밋(stash create가 만든 HEAD+dirty
+#   커밋)이 정확히 그 출발점이다. 사용자 dirty가 없으면 stash.sha는 비고 → baseline.head(HEAD) 사용.
+#   ⚠️ base를 무조건 HEAD로 두면 사용자 dirty가 patch에 섞여, ROOT의 기존 dirty와 충돌해
+#      adopt의 apply가 통째로 실패한다(패널 산출물 유실). 종합용 diff 추출도 반드시 이 base를 쓸 것.
+council_wt_diffbase() {
+  local RUN="$1" stash
+  stash=$(cat "$RUN/stash.sha" 2>/dev/null)
+  if [ -n "$stash" ]; then printf '%s' "$stash"; else cat "$RUN/baseline.head" 2>/dev/null; fi
+}
+
 # council_wt_cleanup <ROOT> <RUN> — 모든 council worktree 제거 + stale 등록 prune
 council_wt_cleanup() {
   local ROOT="$1" RUN="$2" d
@@ -69,17 +81,21 @@ council_wt_cleanup() {
 # council_wt_adopt <ROOT> <RUN> <id> — 채택 패널 변경을 메인 작업트리에 안전 반영
 council_wt_adopt() {
   local ROOT="$1" RUN="$2" id="$3"
-  local base now
+  local base now diffbase
   base=$(cat "$RUN/baseline.head" 2>/dev/null)
   now=$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)
+  # 드리프트 체크는 HEAD 기준(메인이 council 중 움직였는지) — diff base와는 별개.
   if [ -n "$base" ] && [ "$base" != "$now" ]; then
     echo "ABORT: 메인 HEAD가 baseline에서 드리프트($base → $now). council 진행 중 메인이 바뀜 — 수동 확인 필요." >&2
     return 2
   fi
+  # diff base는 패널 worktree의 출발점(stash 있으면 stash 커밋, 없으면 HEAD) — 사용자 dirty가
+  # patch에 섞여 ROOT 기존 dirty와 충돌하는 것을 막는다. 상세는 council_wt_diffbase 주석.
+  diffbase=$(council_wt_diffbase "$RUN")
   # ⚠️ git diff <base>는 untracked(패널이 새로 만든 파일)를 빠뜨린다 → add -A 후 인덱스 기준 diff로
   #    신규 파일까지 패치에 포함한다(조용한 누락 방지). worktree 인덱스만 건드리므로 ROOT엔 영향 없음.
   git -C "$RUN/wt/$id" add -A >/dev/null 2>&1
-  git -C "$RUN/wt/$id" --no-pager diff --cached "$base" -- > "$RUN/final.patch" 2>/dev/null
+  git -C "$RUN/wt/$id" --no-pager diff --cached "$diffbase" -- > "$RUN/final.patch" 2>/dev/null
   if [ ! -s "$RUN/final.patch" ]; then
     echo "NOTE: 채택 패널 '$id' 변경 없음(빈 diff)." >&2
     return 0

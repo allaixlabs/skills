@@ -70,7 +70,7 @@ trap 'council_wt_cleanup "<root>" "$RUN"' EXIT
 codex `-s read-only -C "<root>"`(샌드박스 강제). opencode/omo는 강제 샌드박스가 없어 기본은 쓰기금지 지시 + 사후 `git status` 오염검사이며 **이는 예방이 아닌 탐지**다 — 민감 레포는 비-codex 패널을 **읽기전용 사본**(`cp -a`)에서 실행해 격리한다(`references/council.md` §1).
 
 ### Pipeline — 구현 → 리뷰 → 수정 → 종합
-> 격리: 구현도 baseline 보존을 위해 worktree에서 한다 — `council_wt_setup "<root>" "$RUN" "$slug" impl` 후 `$RUN/wt/impl`에서 작업하고, 종합 후 `council_wt_adopt "<root>" "$RUN" impl`로 메인 반영(단일 패널이라 worktree 1개). 단일트리 직접 구현이면 `baseline.status`로 사후 범위 검증.
+> 격리: 구현도 baseline 보존을 위해 worktree에서 한다 — `council_wt_setup "<root>" "$RUN" "$slug" impl` + `trap 'council_wt_cleanup "<root>" "$RUN"' EXIT`(Council-Code와 동일하게 누수 방지) 후 `$RUN/wt/impl`에서 작업하고, 종합 후 `council_wt_adopt "<root>" "$RUN" impl`로 메인 반영(단일 패널이라 worktree 1개). 단일트리 직접 구현이면 `baseline.status`로 사후 범위 검증.
 1. **구현**: 모델 A를 `omo run --agent Sisyphus -d "$RUN/wt/impl"`(완수보장), SESSION_A 추출.
 2. **리뷰** (리뷰어 패밀리 ≠ 구현자 패밀리): 구현자가 omo(glm/kimi)면 `codex exec review --uncommitted -C "$RUN/wt/impl"`. **구현자가 codex면** opencode엔 `exec review`가 없으니 diff를 브리프에 담아 glm/kimi에 일반 위임한다(`references/council.md` §3-(b) 패턴).
 3. **수정**: 리뷰 지적을 모델 A에 resume으로 되돌림(omo `--session-id` / opencode `-s` / codex `exec resume`). Claude가 직접 안 고침.

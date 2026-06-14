@@ -82,10 +82,16 @@ echo "round1_exit=$?" >> "$RUN/kimi/manifest"
 
 ### Council-Code
 1. **결과 수집**: 각 패널 exit·result(DONE/BLOCKED). BLOCKED 질문 모아 차단 판단.
-2. **diff 추출** (주장이 아니라 실제 변경):
+2. **diff 추출** (주장이 아니라 실제 변경 — ⚠️ 신규 파일 포함 + 사용자 dirty 제외):
 ```bash
-git -C "$RUN/wt/$id" --no-pager diff "$(cat "$RUN/baseline.head")" -- > "$RUN/$id/diff.patch"
-git -C "$RUN/wt/$id" --no-pager diff --stat "$(cat "$RUN/baseline.head")"  > "$RUN/$id/diff.stat"
+BASE=$(council_wt_diffbase "$RUN")   # 패널 worktree 출발점(stash 있으면 그 커밋, 없으면 HEAD).
+# baseline.head(HEAD)를 직접 쓰면 ① 사용자 dirty가 패널 기여분으로 오인되고 ② adopt 패치와 base가
+# 어긋난다. 반드시 adopt와 같은 council_wt_diffbase 를 쓴다(헬퍼는 §1에서 source됨).
+# 그리고 그냥 git diff <base>는 패널이 새로 만든 untracked 파일(새 모듈·테스트)을 빠뜨리므로
+# add -A 후 인덱스 기준 diff로 신규까지 포함한다(worktree 인덱스만 staged — ROOT엔 영향 없음).
+git -C "$RUN/wt/$id" add -A >/dev/null 2>&1
+git -C "$RUN/wt/$id" --no-pager diff --cached "$BASE" -- > "$RUN/$id/diff.patch"
+git -C "$RUN/wt/$id" --no-pager diff --cached --stat "$BASE" > "$RUN/$id/diff.stat"
 ```
 3. **접근 차이 분석**: 파일·알고리즘·구조 차이, 테스트 추가 여부, Out-of-scope 침범 패널 식별.
 4. **교차리뷰** (독립성 활용 — council의 진짜 가치): 한 패널 변경을 **다른 패밀리**가 리뷰. ⚠️ **리뷰어도 다양해야 한다** — `codex exec review`만 쓰면 구현자는 다양해도 리뷰어가 GPT 단일이라, GPT 계열 공통 약점은 종합에서도 안 잡힌다.
@@ -138,7 +144,7 @@ council_wt_adopt "$ROOT" "$RUN" "<채택 id>"   # rev-parse 드리프트 체크 
 | worktree 누수(프로세스 death) | `$RUN/wt/<id>` 격리 + `trap … council_wt_cleanup` + `worktree remove --force`+`prune`. REPORT서 `worktree list` 확인 |
 | 브랜치명 충돌/재실행 누수 | `council/<slug>-<id>-<ts>` 유니크 명명 |
 | 동시 파일 충돌 | 패널마다 독립 worktree(비-git은 `cp -a`) |
-| baseline 오염 | `stash create`(워킹트리 불변)→apply, 메인 적용은 `apply --3way` |
+| baseline 오염 / 사용자 dirty 중복충돌 | `stash create`(워킹트리 불변)→worktree apply로 동일 출발선. diff·adopt의 base는 `council_wt_diffbase`(=stash 출발점)라 **패널 순수 기여분만** 추출 → ROOT의 기존 dirty와 겹쳐 `apply`가 통째로 실패하던 문제 없음. 메인 적용은 `apply --3way` |
 | race(완료 전 read) | 모든 패널 완료 알림 후 read, manifest exit→result→log |
 | 부분 실패로 council 마비 | N≥2 중 1 생존 진행, 죽은 패널 무응답. ORCHESTRATION_FAIL 라운드 미산입 |
 | 합성 모호성 | 임의 채택 금지 — diff·교차리뷰·테스트 증거로 판정, 근거 synthesis.md 명시 |
