@@ -21,7 +21,9 @@ Claude = 두뇌(분석·계획·검증), Codex = 손(구현). 핵심 전제: **C
 
 ```bash
 bash "$SKILL_DIR/scripts/check-codex.sh"                          # read-only 점검
-RUN=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/ptc.<slug>.XXXXXX") && echo "$RUN"
+RUN=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/ptc.<slug>.XXXXXX") || { echo "RUN 생성 실패"; exit 1; }
+[ -d "$RUN" ] || { echo "RUN 생성 실패"; exit 1; }
+echo "$RUN"
 ```
 
 - `CODEX_INSTALLED=no` → stderr의 설치 HINT 안내 후 중단. `CODEX_AUTH=missing` → `! codex login` 요청 후 중단.
@@ -46,6 +48,7 @@ RUN=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/ptc.<slug>.XXXXXX") && echo "$RUN"
 [templates/HANDOFF.md.tmpl](templates/HANDOFF.md.tmpl) 기반으로 `$RUN/handoff.md` 작성.
 
 ```bash
+git -C "<프로젝트 루트>" rev-parse --is-inside-work-tree >/dev/null || { echo "프로젝트 루트가 git 저장소가 아닙니다"; exit 1; }
 git -C "<프로젝트 루트>" status --short > "$RUN/baseline.status"   # 위임 전 dirty 상태 고정
 ```
 
@@ -74,6 +77,8 @@ echo "round1_exit=$?" >> "$RUN/manifest"
 ```bash
 { echo "project_root=<프로젝트 루트>"
   grep -m1 'session id:' "$RUN/round1.log" | awk '{print "session_id="$NF}'
+  grep -m1 '^model:' "$RUN/round1.log"
+  grep -m1 '^reasoning effort:' "$RUN/round1.log"
 } >> "$RUN/manifest"
 ```
 
