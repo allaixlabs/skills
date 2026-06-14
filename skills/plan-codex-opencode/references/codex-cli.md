@@ -1,6 +1,6 @@
 # codex exec 레퍼런스 (plan-codex-opencode용)
 
-검증 기준: codex-cli 0.139.0 — resume 제약·sandbox 상속·`exec review` 서브커맨드는 **실측** 확인.
+검증 환경(실측): codex-cli 0.139.0 — resume 제약·sandbox 상속·`exec review` 서브커맨드를 이 버전에서 확인. 최소 요구는 0.139(`exec review` 신설).
 의심스러우면 `codex exec --help` / `codex exec resume --help` / `codex exec review --help`로 대조.
 이 스킬에서 codex는 패널의 한 백엔드(GPT 패밀리)이며, **교차리뷰의 1급 도구**다(`exec review`).
 

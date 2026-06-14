@@ -41,9 +41,13 @@
 
 ## 전제조건
 
-- **codex CLI** ≥ 0.139 (`npm install -g @openai/codex`) + `codex login`
+> **검증 환경(실측)**: codex-cli 0.139.0 · opencode 1.16.2 · omo 4.9.2 — CLI 플래그는 이 환경에서 확인했다. 아래는 동작을 기대하는 **최소 버전**이다.
+
+- **codex CLI** ≥ 0.139 (`npm install -g @openai/codex`) + `codex login` — `exec review`(교차리뷰)가 0.139 신설이라 이게 최소.
 - **opencode** ≥ 1.4 (`npm install -g opencode`) + 프로바이더 인증(`opencode providers login`)
-- **oh-my-openagent**(omo run 경로용): `bunx oh-my-openagent install`, 별칭은 `npm i -g oh-my-openagent` (⚠️ `bunx omo`/`npx omo` 금지)
+- **oh-my-openagent** ≥ 4.9 (omo run 경로용): `bunx oh-my-openagent install`, 별칭은 `npm i -g oh-my-openagent` (⚠️ `bunx omo`/`npx omo` 금지)
+
+> ⚠️ **비용·시간**: N개 패밀리를 고추론으로 병렬 위임하면 토큰·시간이 단일 위임의 N배 이상이다. 3-패널 xhigh는 수십 분 단위가 될 수 있고 omo run은 자체 타임아웃이 없다 → 백그라운드 + 완료 알림으로 관리하고, 단순 위임이면 plan-then-codex/opencode가 더 가볍다.
 
 사전 점검(read-only):
 ```bash

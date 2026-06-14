@@ -1,7 +1,7 @@
 # 라우팅 레퍼런스 — 호명 → 백엔드 (plan-codex-opencode 전용)
 
 사용자가 자연어로 부르는 모델명을 `(backend, model, effort/variant, dir/session 플래그)`로 정규화하는 단일 진실 소스.
-검증 기준: codex-cli 0.139.0 · opencode 1.16.2 · omo(oh-my-openagent) 4.9.2 — `opencode models` / 각 `--help` 실측.
+검증 환경(실측): codex-cli 0.139.0 · opencode 1.16.2 · omo(oh-my-openagent) 4.9.2 — `opencode models` / 각 `--help`로 확인. 최소 요구 버전은 README 전제조건 참조.
 
 ## 대원칙
 
