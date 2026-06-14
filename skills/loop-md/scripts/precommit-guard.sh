@@ -32,12 +32,116 @@ try: print(json.load(sys.stdin).get('tool_input',{}).get('command',''))
 except Exception: print('')" 2>/dev/null)
   else
     # python3 부재 시 휴리스틱(무해 통과 방지): 원문에서 git…commit 패턴을 직접 탐색
-    cmd=$(printf '%s' "$input" | grep -oE 'git[^"\\]*commit[^"\\]*' | head -1 || true)
+    cmd=$(printf '%s' "$input" | grep -oE '(^|[[:space:];|&])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)?)*[[:space:]]+commit([^[:alnum:]_-]|$)[^"\\]*' | head -1 || true)
   fi
 fi
 
 # git commit 이 아니면 무관 — 통과
-printf '%s' "$cmd" | grep -qE '(^|[^[:alnum:]])git[[:space:]].*commit' || exit 0
+is_git_commit_command() {
+  if command -v python3 >/dev/null 2>&1; then
+    LOOP_GIT_CMD=$1 python3 - <<'PY'
+import os
+import shlex
+import sys
+
+try:
+    tokens = shlex.split(os.environ.get("LOOP_GIT_CMD", ""))
+except ValueError:
+    tokens = os.environ.get("LOOP_GIT_CMD", "").split()
+
+i = 0
+while i < len(tokens):
+    token = tokens[i]
+    if token == "git" or token.endswith("/git"):
+        i += 1
+        while i < len(tokens):
+            option = tokens[i]
+            if option == "-c":
+                i += 2
+            elif option.startswith("-c") and option != "-c":
+                i += 1
+            elif option in ("-C", "--git-dir", "--work-tree", "--namespace", "--config-env"):
+                i += 2
+            elif option.startswith("--git-dir=") or option.startswith("--work-tree=") or option.startswith("--namespace=") or option.startswith("--config-env="):
+                i += 1
+            elif option.startswith("-"):
+                i += 1
+            else:
+                sys.exit(0 if option == "commit" else 1)
+        sys.exit(1)
+    i += 1
+sys.exit(1)
+PY
+  else
+    printf '%s' "$1" | grep -qE '(^|[^[:alnum:]_/-])git([[:space:]]+-[^[:space:]]+([[:space:]]+[^[:space:]]+)?)*[[:space:]]+commit([^[:alnum:]_-]|$)'
+  fi
+}
+
+commit_uses_all() {
+  if command -v python3 >/dev/null 2>&1; then
+    LOOP_GIT_CMD=$1 python3 - <<'PY'
+import os
+import shlex
+import sys
+
+try:
+    tokens = shlex.split(os.environ.get("LOOP_GIT_CMD", ""))
+except ValueError:
+    tokens = os.environ.get("LOOP_GIT_CMD", "").split()
+
+i = 0
+while i < len(tokens):
+    token = tokens[i]
+    if token == "git" or token.endswith("/git"):
+        i += 1
+        while i < len(tokens):
+            option = tokens[i]
+            if option == "-c":
+                i += 2
+            elif option.startswith("-c") and option != "-c":
+                i += 1
+            elif option in ("-C", "--git-dir", "--work-tree", "--namespace", "--config-env"):
+                i += 2
+            elif option.startswith("--git-dir=") or option.startswith("--work-tree=") or option.startswith("--namespace=") or option.startswith("--config-env="):
+                i += 1
+            elif option.startswith("-"):
+                i += 1
+            else:
+                if option != "commit":
+                    sys.exit(1)
+                i += 1
+                break
+        else:
+            sys.exit(1)
+        while i < len(tokens):
+            option = tokens[i]
+            if option == "--":
+                break
+            if option in ("-m", "--message", "-F", "--file"):
+                i += 2
+                continue
+            if option.startswith("--message=") or option.startswith("--file="):
+                i += 1
+                continue
+            if (option.startswith("-m") and option != "-m") or (option.startswith("-F") and option != "-F"):
+                i += 1
+                continue
+            if option == "--all":
+                sys.exit(0)
+            if option.startswith("-") and not option.startswith("--") and "a" in option[1:]:
+                sys.exit(0)
+            i += 1
+        sys.exit(1)
+    i += 1
+sys.exit(1)
+PY
+  else
+    stripped=$(printf '%s' "$1" | sed -E "s/(^|[[:space:]])(-m|--message|-F|--file)(=|[[:space:]])('[^']*'|\"[^\"]*\"|[^[:space:]]+)//g")
+    printf '%s' "$stripped" | grep -qE '(^|[[:space:]])-[^[:space:]]*a[^[:space:]]*([[:space:]]|$)|--all([[:space:]]|$)'
+  fi
+}
+
+is_git_commit_command "$cmd" || exit 0
 
 # git 저장소 루트 (아니면 무관)
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
@@ -57,7 +161,7 @@ printf '%s' "$cmd" | grep -q 'skip-loop' && bypass "skip-loop"
 # 단 -a/-am/--all 커밋은 unstaged 작업 파일까지 쓸려 들어가므로 claude-hook 모드에서는 면제하지 않는다.
 staged=$(git -C "$root" diff --cached --name-only 2>/dev/null)
 if [ -n "$staged" ] && [ "$(printf '%s\n' "$staged" | grep -cv '^docs/loop-md/')" -eq 0 ]; then
-  if [ "$MODE" = "git-hook" ] || ! printf '%s' "$cmd" | grep -qE '(^|[[:space:]])-(a|am)([[:space:]]|$)|--all([[:space:]]|$)'; then
+  if [ "$MODE" = "git-hook" ] || ! commit_uses_all "$cmd"; then
     exit 0
   fi
 fi
@@ -83,14 +187,14 @@ fi
 # 부분 스테이징 차단 — 검증은 worktree 전체 기준이므로 스테이징 밖 변경이 남으면 커밋 내용≠검증 내용.
 # (claude-hook 모드의 `git commit -a/-am/--all`은 커밋 시점에 전부 스테이징되므로 예외.
 #  git-hook 모드는 -a 스테이징 후 발동하므로 검사가 정확.)
-if [ "$MODE" = "git-hook" ] || ! printf '%s' "$cmd" | grep -qE '(^|[[:space:]])-(a|am)([[:space:]]|$)|--all([[:space:]]|$)'; then
+if [ "$MODE" = "git-hook" ] || ! commit_uses_all "$cmd"; then
   git -C "$root" diff --quiet 2>/dev/null \
     || block "스테이징되지 않은 변경이 있습니다 — 부분 커밋은 검증과 불일치합니다. 전부 스테이징하거나 stash 후 재검증하세요."
 fi
 
 # mtime 검사 — 마커보다 나중에 수정된 추적 텍스트 소스 탐색 (바이너리·생성물 제외, 첫 발견 시 중단)
 # lockfile(.lock)은 제외하지 않는다 — 의존성 변경도 DoD 검증 대상이다.
-newer=$(cd "$root" && git ls-files 2>/dev/null \
+newer=$(cd "$root" && git -c core.quotePath=false ls-files 2>/dev/null \
   | grep -vE '\.(pyc|pyo|so|o|class|jar|png|jpe?g|gif|svg|pdf|ico|woff2?|ttf|map)$|(^|/)(__pycache__|node_modules|vendor|dist|build|tmp|\.loop)/' \
   | while IFS= read -r f; do [ "$f" -nt "$marker" ] && { echo "$f"; break; }; done)
 

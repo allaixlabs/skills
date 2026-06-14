@@ -78,7 +78,7 @@ if [ -z "$PYDIR" ]; then
 fi
 if [ -n "$PYDIR" ]; then
   DETECTED="$DETECTED python"
-  PFX=""; [ "$PYDIR" != "." ] && PFX="cd $PYDIR && "
+  PFX=""; [ "$PYDIR" != "." ] && PFX="cd '$PYDIR' && "
   PYTHON_TEST="${PFX}pytest"
   PYTHON_COVERAGE="${PFX}pytest --cov"
   if [ -f "$PYDIR/pyrightconfig.json" ]; then PYTHON_TYPECHECK="${PFX}pyright"
@@ -117,6 +117,20 @@ fi
 
 IS_MULTI="no"; [ "$NSTACK" -gt 1 ] && IS_MULTI="yes"
 
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  MANIFESTS=$(git ls-files 2>/dev/null \
+    | grep -E '(^|/)(package\.json|Gemfile|go\.mod|pyproject\.toml|setup\.cfg|Cargo\.toml)$' \
+    | grep -vE '(^|/)(node_modules|vendor)/' | head -20) || true
+else
+  MANIFESTS=$(find . -maxdepth 4 \( -name node_modules -o -name vendor -o -name .git \) -prune -o \
+    -type f \( -name package.json -o -name Gemfile -o -name go.mod -o -name pyproject.toml -o -name Cargo.toml \) -print 2>/dev/null \
+    | sed 's|^\./||' | head -20) || true
+fi
+if [ -n "${MANIFESTS:-}" ]; then
+  MANIFEST_COUNT="$(printf '%s\n' "$MANIFESTS" | sed '/^[[:space:]]*$/d' | wc -l | tr -d ' ')"
+  [ "${MANIFEST_COUNT:-0}" -ge 2 ] && IS_MULTI="yes"
+fi
+
 # ----- 진단 (stderr) -----
 if [ "$IS_MULTI" = yes ]; then
   echo "경고: 다중 스택/서비스 감지($DETECTED). 단일 BUILD_CMD 등은 주 스택($PRIMARY) 기준이다." >&2
@@ -136,16 +150,6 @@ printf 'TEST_CMD=%s\n'         "$(ph "$TEST_CMD" 테스트 명령)"
 printf 'LINT_CMD=%s\n'         "$(ph "$LINT_CMD" 린트 명령)"
 printf 'COVERAGE_CMD=%s\n'     "$(ph "$COVERAGE_CMD" 커버리지 명령)"
 
-# 매니페스트 경로 나열 (서브디렉토리 서비스 종합용 — git 추적 기준, 비-git이면 find 4뎁스)
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  MANIFESTS=$(git ls-files 2>/dev/null \
-    | grep -E '(^|/)(package\.json|Gemfile|go\.mod|pyproject\.toml|setup\.cfg|Cargo\.toml)$' \
-    | grep -vE '(^|/)(node_modules|vendor)/' | head -20) || true
-else
-  MANIFESTS=$(find . -maxdepth 4 \( -name node_modules -o -name vendor -o -name .git \) -prune -o \
-    -type f \( -name package.json -o -name Gemfile -o -name go.mod -o -name pyproject.toml -o -name Cargo.toml \) -print 2>/dev/null \
-    | sed 's|^\./||' | head -20) || true
-fi
 [ -n "${MANIFESTS:-}" ] && printf 'MANIFEST_PATHS=%s\n' "$(printf '%s' "$MANIFESTS" | tr '\n' ' ')"
 
 # 감지된 스택별 상세 (다중일 때 Claude가 종합용으로 사용)
