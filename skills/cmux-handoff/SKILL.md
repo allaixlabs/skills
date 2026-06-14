@@ -60,7 +60,7 @@ runtime checks, never from Feed state alone.
      `cwd`/`kind` match the expected target, and execute only with the user's explicit approval.
 
 5. Send only deliberate input — pre-send checklist:
-   - Confirm the target with `cmux identify --surface <surface>` (documented; do **not** rely on the undocumented `--dry-run`) plus a fresh capture: surface, workspace, title, and visible task must all match.
+   - Confirm the target with `cmux list-panels` (use `--workspace` when needed) plus `cmux capture-pane --surface <surface> --scrollback --lines N`; ref, workspace/title/focused marker, and visible task must all match. Do **not** rely on the undocumented `--dry-run`.
    - If two or more panes are plausible targets, stop and ask the user instead of sending.
    - Capture twice 1–2 seconds apart; if output is still advancing, the pane is busy — do not send.
    - Report what you are about to send and to which surface, then send only the approved scope.
@@ -81,7 +81,7 @@ See [references/cmux-cli.md](references/cmux-cli.md) for command syntax and exam
 
 ```bash
 cmux list-panels
-cmux identify --surface surface:17                  # validate the target ref before sending
+cmux identify                                      # show this session's own surface/workspace context
 cmux capture-pane --surface surface:17 --scrollback --lines 120
 cmux send --surface surface:17 -- "Continue from the visible state and report blockers.\n"
 cmux send-key --surface surface:17 ctrl+c          # interrupt the pane (only if asked)

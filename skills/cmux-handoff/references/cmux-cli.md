@@ -14,7 +14,7 @@ Relevant environment variables:
 - `CMUX_SOCKET_PATH`: overrides the Unix socket path.
 - `CMUX_SOCKET_PASSWORD`: socket password source when needed.
 
-If no socket path is provided, cmux defaults to `~/Library/Application Support/cmux/cmux.sock` and can auto-discover tagged/debug sockets.
+If no socket path is provided, cmux defaults to `~/.local/state/cmux/cmux.sock` and can auto-discover tagged/debug sockets.
 
 ## Agent Integration (hooks)
 
@@ -29,8 +29,8 @@ cmux hooks <agent> uninstall     # remove one
 
 - **Claude Code** needs no manual install — the cmux Claude wrapper injects hooks
   automatically when Claude runs inside a cmux-managed pane.
-- Supported agents (per `cmux hooks setup` help): `codex, grok, opencode, pi, amp, cursor,
-  gemini, antigravity (agy), rovodev (rovo), hermes-agent, copilot, codebuddy, factory,
+- Supported agents (per `cmux hooks setup` help): `codex, grok, opencode, pi, omp, amp, cursor,
+  gemini, kiro, antigravity (agy), rovodev (rovo), hermes-agent, copilot, codebuddy, factory,
   qoder`. `opencode` accepts `--project`.
 - Full matrix: `cmux docs agents` → `docs/agent-hooks.md`.
 
@@ -55,8 +55,7 @@ cmux list-panels --workspace workspace:2
 cmux capture-pane [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] [--scrollback] [--lines <n>]
 ```
 
-Use this to read visible pane text. It is a tmux-compatible alias (not listed in the
-top-level `cmux --help` command list, but it has its own `--help` and works). `--surface`
+Use `read-screen` as the regular top-level command for visible pane text; `capture-pane` is the tmux-compatible alias with equivalent target/scrollback flags. `--surface`
 defaults to `CMUX_SURFACE_ID`; pass it explicitly when reading another panel.
 
 The default `--lines` value is a sample, not the full history. Gauge the real size with
@@ -96,9 +95,9 @@ cmux send --surface surface:17 -- "Please summarize the current blocker without 
 
 Pre-send checklist (agreed with the integrated-agent side):
 
-1. Validate the target with `cmux identify --surface <ref>` — documented and read-only.
+1. List candidate targets with `cmux list-panels` (add `--workspace` when needed) and compare ref, title, and focused marker.
    Do **not** rely on `send --dry-run`: it is absent from `cmux send --help` (undocumented).
-2. Cross-check with a fresh `capture-pane`: surface, workspace, title, and visible task must match.
+2. Cross-check actual visible content with `cmux capture-pane --surface <ref> --scrollback --lines N`; visible task context must match.
 3. Two or more plausible target panes → stop and ask the user.
 4. Capture twice 1–2 seconds apart; output still advancing = busy → do not send.
 5. Do not include `\n`/`\r` unless submission/execution is intended.

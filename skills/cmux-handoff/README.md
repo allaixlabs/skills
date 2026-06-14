@@ -7,7 +7,7 @@
 
 ## 무엇을 하나
 
-1. **패널 탐색** — `list-panels`로 후보 식별, `identify --surface <ref>`로 타깃 검증(문서화된 read-only 수단)
+1. **패널 탐색** — `list-panels`로 후보 식별, `capture-pane --surface <ref>`로 실제 가시 내용 대조
 2. **캡처** — `capture-pane --scrollback --lines 120`(120줄=시작 샘플). `pipe-pane 'wc -l'`로 전체 규모 파악, 캡처 범위·잘림 가능성 보고 의무
 3. **핸드오프 모드 결정** — 이 세션이 직접 이어받기 / 원 패널 에이전트에 후속 프롬프트 전송 / `pipe-pane`으로 추출·요약 / 종료된 패널은 `surface resume get`(아래 경계 참조)
 4. **전송** — pre-send 체크리스트: 타깃 일치 확인 → 다중 후보면 중단·사용자 확인 → 1~2초 2회 캡처로 busy 판정 → 제출 의도 없으면 `\n` 금지 → 보낼 내용 보고 후 전송
