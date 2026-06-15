@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# council-worktrees.sh — git worktree 격리 헬퍼 (누수 방지 캡슐화) — 정본(canonical)
-# ⚠️ 이 파일은 plan-codex-opencode·plan-fusion 두 스킬이 공유한다(plan-fusion은 이 파일로의 심링크).
-#    수정은 반드시 이 정본에만 — 두 스킬에 동시 반영된다.
+# council-worktrees.sh — git worktree 격리 헬퍼 (누수 방지 캡슐화)
+# ⚠️ 이 파일은 plan-codex-opencode(정본)·plan-fusion(동기 복제본) 두 곳에 동일 내용으로 존재한다.
+#    심링크가 아니라 실파일 복제다(Windows/core.symlinks 배포 호환). 수정은 정본(plan-codex-opencode)에서
+#    한 뒤 plan-fusion 쪽으로 복사해 동기화하라. plan-fusion/check-fusion.sh가 두 파일 diff로 드리프트를 경고한다.
 #
 # 같은 작업트리에 N개 패널을 동시 위임하면 파일 충돌·baseline 오염이 난다.
 # 패널마다 독립 브랜치의 worktree를 만들어 물리 격리하고, 정리까지 책임진다.

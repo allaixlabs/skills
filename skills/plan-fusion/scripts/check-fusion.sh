@@ -186,6 +186,20 @@ if [ "$PLUGIN_OK" = "no" ]; then
   echo "HINT: omo run 경로를 쓰려면 '! bunx oh-my-openagent install' 실행 (opencode 직접 경로는 불필요)." >&2
 fi
 
+echo "# ── council-worktrees.sh 동기화 점검 (정본↔복제본 — 심링크 대신 실파일 복제) ──"
+SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)
+CANON_WT="$SELF_DIR/../../plan-codex-opencode/scripts/council-worktrees.sh"
+if [ -f "$CANON_WT" ] && [ -f "$SELF_DIR/council-worktrees.sh" ]; then
+  if cmp -s "$SELF_DIR/council-worktrees.sh" "$CANON_WT"; then
+    echo "COUNCIL_WT_SYNC=ok"
+  else
+    echo "COUNCIL_WT_SYNC=DRIFT"
+    echo "WARN: council-worktrees.sh가 정본(plan-codex-opencode)과 다릅니다 — 정본에서 수정 후 복사해 동기화하세요." >&2
+  fi
+else
+  echo "COUNCIL_WT_SYNC=standalone(정본 미발견 — 복제본 단독 사용)"
+fi
+
 echo "# ── 종합 (Fusion 가용성) ────────────────────────────────"
 echo "CODEX_BACKEND_READY=$([ "$codex_ok" = 1 ] && echo yes || echo no)"
 echo "AGY_BACKEND_READY=$([ "$agy_ok" = 1 ] && echo yes || echo no)"
