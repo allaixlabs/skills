@@ -70,10 +70,24 @@ bash scripts/check-fusion.sh
 
 ## 설치
 
+### macOS / Linux
 ```bash
 git clone https://github.com/allaixlabs/skills.git ~/project/skills   # 이미 있으면 생략
 ln -s ~/project/skills/skills/plan-fusion ~/.claude/skills/plan-fusion
 ```
+
+### Windows
+이 스킬은 bash 스크립트 + Unix CLI(codex·agy·opencode)에 의존한다 → **WSL2 권장**(WSL 안에서는 위 macOS/Linux 절차를 그대로 사용).
+네이티브로 설치하려면(PowerShell, 개발자 모드 또는 관리자 권한 필요):
+```powershell
+git clone https://github.com/allaixlabs/skills.git $HOME\project\skills
+New-Item -ItemType SymbolicLink -Path "$HOME\.claude\skills\plan-fusion" `
+  -Target "$HOME\project\skills\skills\plan-fusion"
+# 심링크가 막히면 폴더 복사로 대체(단, 갱신 시 재복사 필요):
+# Copy-Item -Recurse "$HOME\project\skills\skills\plan-fusion" "$HOME\.claude\skills\plan-fusion"
+```
+> repo 내부 `council-worktrees.sh`는 심링크가 아닌 실파일이라 `core.symlinks` 설정과 무관하게 정상 체크아웃된다(배포 호환). 다만 스크립트 실행·worktree·CLI는 결국 Unix 환경을 필요로 하므로 Windows는 WSL2가 가장 매끄럽다.
+
 새 Claude Code 세션부터 자동 인식. **참가자 쪽 별도 설치 불필요** — HANDOFF가 stdin/인자로 전달되는 Claude Code 단독 오케스트레이션이다.
 
 ## 사용법
