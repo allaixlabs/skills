@@ -73,17 +73,18 @@ OMO_BIN=$(command -v omo 2>/dev/null || echo "bunx oh-my-openagent")
 AGENT="Sisyphus"   # 1단계 ANALYZE에서 선택한 에이전트로 치환(Prometheus/Sisyphus/Hephaestus)
 # ⚠️ `bunx omo` / `npx omo`는 다른 패키지가 설치되므로 절대 사용 금지
 
-$OMO_BIN run "$(cat "$RUN/handoff.md")" \
+$OMO_BIN run \
   --agent "$AGENT" \
   -d "<프로젝트 루트>" \
   --json \
+  "$(cat "$RUN/handoff.md")" \
   > "$RUN/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/manifest"
 ```
 
 **Session ID 추출** (resume용):
 ```bash
-SESSION_ID=$(grep -o '"session_id":"[^"]*"' "$RUN/round1.log" | head -1 | sed 's/.*"session_id":"\([^"]*\)".*/\1/')
+SESSION_ID=$(grep -o '"sessionId":"[^"]*"' "$RUN/round1.log" | head -1 | sed 's/.*"sessionId":"\([^"]*\)".*/\1/')
 # 실패 시 opencode session 목록에서 최신 세션 시도
 if [ -z "$SESSION_ID" ]; then
   # opencode session list --format json 의 JSON 필드명은 버전에 따라 다를 수 있음.
@@ -104,14 +105,15 @@ echo "session_id=$SESSION_ID" >> "$RUN/manifest"
 
 ```bash
 # 라운드 N resume
-$OMO_BIN run "다음 Acceptance Criteria를 확인하고 미달 항목을 수정하라. 수정 후 재검증 결과를 보고하라.
+$OMO_BIN run \
+  --session-id "$SESSION_ID" \
+  -d "<프로젝트 루트>" \
+  --json \
+  "다음 Acceptance Criteria를 확인하고 미달 항목을 수정하라. 수정 후 재검증 결과를 보고하라.
 
 $(awk '/^## Acceptance Criteria/{capture=1} capture && /^## / && !/^## Acceptance Criteria/{exit} capture {print}' "$RUN/handoff.md")
 
 미달이면 BLOCKED 형식으로 보고하라." \
-  --session-id "$SESSION_ID" \
-  -d "<프로젝트 루트>" \
-  --json \
   > "$RUN/roundN.log" 2>&1
 echo "roundN_exit=$?" >> "$RUN/manifest"
 ```

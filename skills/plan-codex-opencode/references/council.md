@@ -59,8 +59,9 @@ echo "round1_exit=$?" >> "$RUN/codex/manifest"
 
 # glm 패널 (omo — 구현 완수보장)
 OMO_BIN=$(command -v omo 2>/dev/null || echo "bunx oh-my-openagent")
-$OMO_BIN run "$(cat "$RUN/handoff.md")" --agent Sisyphus \
+$OMO_BIN run --agent Sisyphus \
   -m zai-coding-plan/glm-5.2 -d "$RUN/wt/glm" --json \
+  "$(cat "$RUN/handoff.md")" \
   > "$RUN/glm/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/glm/manifest"
 

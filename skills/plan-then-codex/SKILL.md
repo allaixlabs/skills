@@ -21,7 +21,8 @@ Claude = 두뇌(분석·계획·검증), Codex = 손(구현). 핵심 전제: **C
 
 ```bash
 bash "$SKILL_DIR/scripts/check-codex.sh"                          # read-only 점검
-RUN=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/ptc.<slug>.XXXXXX") || { echo "RUN 생성 실패"; exit 1; }
+slug=$(echo "<태스크 한 단어>" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | head -c20)
+RUN=$(umask 077; mktemp -d "${TMPDIR:-/tmp}/ptc.${slug}.XXXXXX") || { echo "RUN 생성 실패"; exit 1; }
 [ -d "$RUN" ] || { echo "RUN 생성 실패"; exit 1; }
 echo "$RUN"
 ```
@@ -100,7 +101,7 @@ echo "round1_exit=$?" >> "$RUN/manifest"
      "VERIFY 미달 항목만 수정하라: <기준별 실패 증거와 교정 지시>" > "$RUN/round2.log" 2>&1
    ```
 
-   - resume은 `-C`/`--sandbox`/`--add-dir` **미지원**(0.138.0 실측). sandbox는 원 세션에서 상속된다.
+   - resume은 `-C`/`--sandbox`/`--add-dir` **미지원**(0.139.0 실측). sandbox는 원 세션에서 상속된다.
      cwd/sandbox/쓰기 범위를 바꿔야 하면 resume 불가 → 새 HANDOFF로 fresh 재위임.
    - **라운드 산입 규칙**: Codex가 정상 실행된 구현 시도만 센다(최대 3라운드).
      CLI 플래그·설정·환경 실패는 `ORCHESTRATION_FAIL` — 라운드 미산입, Claude가 고치고 재시도.

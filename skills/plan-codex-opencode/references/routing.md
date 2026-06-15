@@ -56,7 +56,7 @@
 
 | 경로 | 명령 골격 | 특성 | 권장 용도 |
 |---|---|---|---|
-| **omo run** | `omo run "<msg>" --agent Sisyphus -m <prov/model> -d <dir> --json [--session-id <id>]` | Sisyphus 완수보장·병렬 서브태스크·todo완료+idle 자동종료 | **구현(쓰기)·다단계·끝까지 완수** |
+| **omo run** | `omo run --agent Sisyphus -m <prov/model> -d <dir> --json [--session-id <id>] "<msg>"` | Sisyphus 완수보장·병렬 서브태스크·todo완료+idle 자동종료 | **구현(쓰기)·다단계·끝까지 완수** |
 | **opencode run** | `opencode run -m <prov/model> --variant high --format json --dir <dir> [-s <id>] "<msg>"` | 경량 단발·오케스트레이션 없음·빠름 | **리뷰·분석·2nd opinion(읽기·단발)·N개 병렬** |
 
 - codex는 항상 `codex exec` (omo/opencode 경로 없음).
