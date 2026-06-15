@@ -1,0 +1,60 @@
+# Fusion 종합 — {{제목}}
+
+> Judge CLI와 Synthesizer CLI가 합성하고, **Claude가 검증·사실확인한 기록**.
+> 근거 없는 채택 금지 — 모든 판정에 증거(diff·교차리뷰·테스트·grep)를 단다.
+
+## 개요
+
+- **모드**: {{Fusion-Code / Fusion-Research}}
+- **참가자**: {{codex(gpt-5.5) · gemini(agy "Gemini 3.1 Pro (High)") · glm(zai-coding-plan/glm-5.2) · kimi(opencode-go/kimi-k2.7-code)}}
+- **Judge**: {{claude(Opus) — 비독립 여부 표기}} · **Synthesizer**: {{codex(GPT)}}
+- **각 참가자 상태**: {{codex=DONE · gemini=DONE · glm=DONE · kimi=BLOCKED(질문有) · …}}
+- **ORCHESTRATION_FAIL**: {{있으면 어느 참가자·원인}}
+- `$RUN`: {{경로}}
+
+## 1. Judge 판정 요지 (`$RUN/judge.md`)
+
+- **최강 후보**: {{id 또는 "합성"}}
+- **합의점**: {{Judge가 본 다수 일치 항목}}
+- **충돌점**: {{쟁점 + 각 후보 입장}}
+- **위험·미검증 주장**: {{Judge가 표시 → §3에서 Claude가 사실확인}}
+- {{⚠️ Judge 동족 비독립이면: "Judge=Opus이고 Opus가 참가자 → 판정 신뢰도 할인" 명시}}
+
+## 2. Synthesizer 최종 (`$RUN/final.md` / `handoff.synth.md`)
+
+- **방식**: {{단일 채택 / 장점 합성}}
+- **구성**: {{"codex 알고리즘 + glm 테스트 + kimi 에러처리" 등 — 출처 추적}}
+- {{Fusion-Research면 최종 답변 요지 / Fusion-Code면 합성 HANDOFF 위임 백엔드}}
+
+## 3. Claude 검증 (불가양도 — 여기가 핵심)
+
+<!-- Fusion-Research -->
+- **위험 주장 사실확인**: {{Judge가 표시한 주장 → Claude가 grep/코드 직접 확인 → 실재/불일치 판정}}
+  - {{주장 X → `path:line` 확인 결과}}
+- **충돌점 결론**: {{다수결 아님 — 코드 근거로 어느 쪽이 맞는지}}
+
+<!-- Fusion-Code -->
+- **직접 실행 증거**: {{빌드/타입/테스트/린트 명령 + exit + 출력 인용}}
+- **Acceptance Criteria 대조**: {{항목별 충족/미충족 + 증거}}
+- **baseline 보존·범위 준수**: {{확인}}
+
+## 4. 참가자별 비교 (코드 — Fusion-Code)
+
+| 참가자 | diff 요약(stat) | 접근 특징 | 강점 | 약점/리스크 | Out-of-scope 침범 |
+|---|---|---|---|---|---|
+| codex | {{+N/-M, k파일}} | {{}} | {{}} | {{}} | {{없음/있음}} |
+| gemini | {{}} | {{}} | {{}} | {{}} | {{}} |
+| glm | {{}} | {{}} | {{}} | {{}} | {{}} |
+| kimi | {{}} | {{}} | {{}} | {{}} | {{}} |
+
+## 5. 교차리뷰 (다른 패밀리가 리뷰 — `$RUN/xreview/`)
+
+- **codex → glm 변경**: {{지적 요지}}
+- **gemini → codex 변경**: {{지적 요지}}
+- 리뷰로 드러난 결함: {{회귀/엣지/범위일탈}}
+
+## 6. 최종 권고 / 다음 단계
+
+- {{권고}}
+- {{남은 질문 / 인간 승인 필요 영역(스키마·보안·키·결제·배포·아키텍처) / 추가 검증}}
+- {{채택 vs 합성 경로 · 최종 변경 파일 목록 · 적용 결과(final.patch)}}
