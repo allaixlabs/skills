@@ -85,7 +85,7 @@ echo "round1_exit=$?" >> "$RUN/kimi/manifest"
 | `-c, --continue` | 마지막 세션 이어가기 — **병렬 패널에선 금지**(다른 패널 세션 오선택) |
 | `--agent <name>` | 에이전트 |
 | `-f, --file <path>` | 메시지에 파일 첨부 |
-| `--dangerously-skip-permissions` | 권한 자동승인 — **비코드 read-only 위임에선 쓰지 말 것**(권한 프롬프트가 쓰기 차단 보조) |
+| `--dangerously-skip-permissions` | 권한 자동승인. Fusion-Research에선 **읽기전용 `cp -a` 사본 안에서** 이 플래그와 함께 실행한다(헤드리스 권한 교착 회피 + 쓰기는 throwaway 사본에만) |
 
 ---
 
@@ -130,13 +130,14 @@ opencode run -m <prov/model> -s "$SESSION_ID" --dir "<원 디렉토리>" --forma
 ```
 방향이 크게 틀렸으면 resume 대신 새 HANDOFF로 fresh 재위임.
 
-## 비코드(read-only) 위임 — 샌드박스 플래그 없음 → 지시 + 사후 검증
+## 비코드(read-only) 위임 — 강제 샌드박스 없음 → `cp -a` 사본으로 예방
 
-opencode/omo는 codex의 `-s read-only` 같은 강제 샌드박스가 없다. 두 겹으로 방어:
-1. HANDOFF(또는 RESEARCH-BRIEF) 상단에 **"파일 쓰기·git 변경 절대 금지, 분석/답변만"** 명시 + Out-of-scope에 "모든 쓰기 금지".
-2. `--dangerously-skip-permissions`를 **쓰지 않는다**(권한 프롬프트가 보조 차단).
-3. 위임 후 `git -C "<root>" status --short`로 baseline 대비 변경 0 검증 → 더러우면 그 패널 종합 제외·보고.
-4. 비코드는 omo의 완수보장 가치가 낮으니 **opencode run 직접 경로 권장**(가볍게 N개 병렬).
+opencode/omo는 codex의 `-s read-only` 같은 강제 샌드박스가 없다. "권한 프롬프트가 쓰기를 차단"한다는 가정은 헤드리스에서 미검증이라 의존하지 않는다. 대신 **구조적 예방**:
+1. **읽기전용 `cp -a` 사본에서 실행**한다 — `RO="$RUN/ro/$id"; cp -a "$ROOT" "$RO"` 후 `--dir "$RO"`. 쓰기가 떨어져도 원본 무해.
+2. 사본에선 `--dangerously-skip-permissions`를 **써도 된다**(헤드리스 권한 교착 회피). 어차피 throwaway라 안전.
+3. HANDOFF 상단에 **"파일 쓰기·git 변경 금지, 분석/답변만"** 명시(이중 방어).
+4. 보조 탐지: 위임 후 `git -C "$ROOT" status --short`로 원본 불변 재확인. 종료 후 `rm -rf "$RUN/ro"`.
+5. 비코드는 omo의 완수보장 가치가 낮으니 **opencode run 직접 경로 권장**(가볍게 N개 병렬).
 
 ## codex exec 대비 차이 요약
 

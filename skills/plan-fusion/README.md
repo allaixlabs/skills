@@ -7,7 +7,7 @@
 
 ## 존재 이유 (한 줄)
 
-단일 위임도, Claude가 직접 종합하는 단순 교차검증도 아니라 — **서로 다른 모델 5개(백엔드 4: codex·agy·opencode·claude; GPT·Gemini·GLM·Kimi·Opus)를 각자 CLI로 독립 실행 → Judge CLI가 후보 평가 → Synthesizer CLI가 최종 합성 → Claude가 검증**하는 **CLI Fusion** 구조. 종합 자체를 모델에 위임해 Claude의 단일 관점 편향을 줄이고, Claude는 **실행 증거 기반 검증**에 집중한다.
+단일 위임도, Claude가 직접 종합하는 단순 교차검증도 아니라 — **서로 다른 모델을 각자 CLI로 독립 실행 → Judge CLI가 후보 평가 → Synthesizer CLI가 최종 합성 → Claude가 검증**하는 **CLI Fusion** 구조. 지원 범위는 **모델 최대 5 / 백엔드 4**(codex·agy·opencode·claude; GPT·Gemini·GLM·Kimi·Opus)이고, **기본 패널은 4모델/3백엔드**(GPT·Gemini·GLM·Kimi). 종합 자체를 모델에 위임해 Claude의 단일 관점 편향을 줄이고, Claude는 **실행 증거 기반 검증**에 집중한다.
 
 ## plan-codex-opencode와의 차이
 아래 비교표의 왼쪽 열은 부모 스킬 `plan-codex-opencode` 설명이다.

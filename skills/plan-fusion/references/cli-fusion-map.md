@@ -22,8 +22,9 @@
 ## 신규 백엔드 ① agy (Antigravity CLI — Gemini)
 
 ```bash
-# 함수 래퍼(.zshrc) 회피 위해 'command agy' + PATH에 /opt/homebrew/bin
-export PATH="/opt/homebrew/bin:$PATH"
+# 함수 래퍼(.zshrc) 회피 위해 'command agy' + PATH 보강.
+# macOS Apple Silicon=/opt/homebrew/bin, Intel=/usr/local/bin, Linuxbrew=/home/linuxbrew/.linuxbrew/bin.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"
 
 # 참가자 — 코드(쓰기): worktree에서 cd 후 실행, 쓰기 권한 자동승인
 ( cd "$RUN/wt/gemini" && command agy \
@@ -74,12 +75,12 @@ RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"; cp -a "$ROOT" "$RO"   # 대용량이면
 ## 신규 백엔드 ② claude (Claude Code — Opus, 기본 Judge)
 
 ```bash
-# claude로 판정(읽기). 프롬프트 = 템플릿 + judge-input.
-JUDGE_PROMPT="$(cat "$SKILL_DIR/templates/fusion-judge.md.tmpl")
-$(cat "$RUN/judge-input.md")"
-( cd "$ROOT" && claude --print --model opus "$JUDGE_PROMPT" ) > "$RUN/judge.md" 2>"$RUN/judge.err"
+# claude로 판정(읽기). 프롬프트(템플릿+judge-input)는 파일로 만들어 stdin 전달 — argv는 E2BIG 위험.
+{ cat "$SKILL_DIR/templates/fusion-judge.md.tmpl"; echo; cat "$RUN/judge-input.md"; } > "$RUN/judge-prompt.md"
+# 중립 디렉토리($RUN, 비-git)에서 실행 → 프로젝트 CLAUDE.md/hooks/MCP 간섭 최소화. claude는 --print에서 stdin 수용(실측).
+( cd "$RUN" && claude --print --model opus < "$RUN/judge-prompt.md" ) > "$RUN/judge.md" 2>"$RUN/judge.err"
 echo "judge_exit=$?" >> "$RUN/manifest"
-# 주의: judge-input이 클 때(대형 diff 다수)는 argv 길이 한도(E2BIG) 위험 → Judge를 codex(`- < FILE` stdin)로 돌리거나 입력을 축약.
+# 항상 stdin: claude·codex 모두 `< FILE`/`- < FILE` 지원. 대형 diff면 argv는 즉사(E2BIG).
 
 # 참가자 — 코드(쓰기, highEnd/codeSecurity 프리셋에서만): worktree에서
 ( cd "$RUN/wt/opus" && claude --print --model opus \
@@ -126,9 +127,11 @@ $RUN/<id>/manifest      # worktree= / branch= / round1_exit= / session(or conver
 $RUN/<id>/round1.log    # stdout+stderr 전체 (agy/claude/omo/opencode는 이게 result)
 $RUN/<id>/result.md     # codex 패널만 (-o)
 $RUN/handoff.md         # 모든 참가자 공유 단일 스펙
-$RUN/judge-input.md     # handoff + 참가자별 라벨 답변 (Judge 입력)
+$RUN/judge-input.md     # handoff + 참가자별 라벨 답변 (Judge 입력, 데이터 펜스로 감쌈)
+$RUN/judge-prompt.md    # 템플릿 + judge-input (Judge에 stdin 전달)
 $RUN/judge.md           # Judge CLI 판정
-$RUN/final.md           # Synthesizer CLI 최종(Research) / 합성 HANDOFF(Code)
+$RUN/final.md           # Synthesizer CLI 최종 답변 (Fusion-Research)
+$RUN/handoff.synth.md   # Synthesizer 합성 HANDOFF (Fusion-Code — 실제 구현은 백엔드 위임)
 ```
 
 읽는 순서: 모든 참가자 완료 알림 → manifest exit → codex는 `result.md`, 그 외는 `round1.log`.

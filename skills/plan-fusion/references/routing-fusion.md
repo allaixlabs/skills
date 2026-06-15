@@ -63,10 +63,10 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | **default**(호명 없을 때) | codex `gpt-5.5` · agy `"Gemini 3.1 Pro (High)"` · opencode `glm-5.2` · opencode `kimi-k2.7-code` | claude(Opus) | codex(GPT) | 일반 — 4개 모델(백엔드 3: codex·agy·opencode)로 다양성 확보 |
 | **highEnd** | gpt-5.5 · **Opus 4.8(claude)** · Gemini 3.1 Pro · glm-5.2 | Opus ⚠️비독립 | GPT | 고성능(Opus 참가) |
 | **codeSecurity**(스펙 추천) | highEnd + `kimi-k2.7-code` | Opus ⚠️비독립 | GPT | 취약점·보안·코드리뷰·PoC |
-| **fullPower** | codeSecurity + agy `"Gemini 3.5 Flash (High)"` | Opus | GPT | 최종보고서·중대판단(느림) |
+| **fullPower** | codeSecurity + agy `"Gemini 3.5 Flash (High)"` | Opus ⚠️비독립 | GPT | 최종보고서·중대판단(느림) |
 | **budget** | agy `"Gemini 3.5 Flash (Low)"` · glm-5.2 · kimi-k2.7-code | Opus | Opus ⚠️(동족 — 비용절감 예외, synthesis.md에 비독립 표기) | 비용절감 |
 
-- `⚠️비독립` 표기는 아래 동족 편향 경고의 명시 예외다. highEnd/codeSecurity는 Opus 참가자와 Judge가 같은 계열이므로 Judge 독립성이 할인된다.
+- `⚠️비독립` 표기는 아래 동족 편향 경고의 명시 예외다. highEnd/codeSecurity/**fullPower**는 Opus 참가자와 Judge가 같은 계열이므로 Judge 독립성이 할인된다(synthesis.md에 명시).
 - budget은 비용 절감을 위해 Judge=Synth=Opus를 허용한다. 이 경우 `synthesis.md`에 "비독립 할인" 명시 필수.
 - 추천 시 한 줄 이유 제시: 예) "GPT·Gemini·GLM·Kimi 4개 모델(백엔드 3)로 교차검증 독립성을 확보하고, Opus가 판정·GPT가 합성합니다."
 - 참가자 백엔드 수는 `check-fusion.sh`의 `PARTICIPANT_FAMILIES`로 확인. 가용 백엔드에 맞춰 프리셋을 축소한다(예: agy 미설치 → Gemini 빼고 백엔드 2(codex·opencode)).
@@ -100,5 +100,7 @@ codex는 항상 `codex exec`, gemini는 항상 `agy --print`, opus는 항상 `cl
 | claude | **`cd <dir>`**+`--add-dir` | `--model opus` | (alias) | `--continue`/`-r <id>` | **stdout**/`--output-format` | `--dangerously-skip-permissions` |
 | omo | `-d <dir>` | `-m <prov/model>` | (없음) | `--session-id <id>` | stdout | (기본 허용) |
 | opencode | `--dir <dir>` | `-m <prov/model>` | `--variant <v>` | `-s <id>` | stdout | (기본 허용) |
+
+> ⚠️ "쓰기 허용=기본 허용"(omo/opencode)은 **강제 read-only 샌드박스가 없다**는 뜻이다. 따라서 **Fusion-Research에선 live 루트에서 돌리지 말고 `cp -a` 사본에서 실행**해 쓰기를 throwaway로 떨어뜨린다(`fusion.md` §1). 과거 "권한 프롬프트가 쓰기를 차단" 가정은 헤드리스 미검증이라 폐기.
 
 상세 매트릭스·예시는 `references/cli-fusion-map.md`. codex/opencode 상세는 `references/codex-cli.md` · `references/opencode-cli.md`.

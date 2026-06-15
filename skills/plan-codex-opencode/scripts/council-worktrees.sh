@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# council-worktrees.sh — Council-Code 모드의 git worktree 격리 헬퍼 (누수 방지 캡슐화)
+# council-worktrees.sh — git worktree 격리 헬퍼 (누수 방지 캡슐화) — 정본(canonical)
+# ⚠️ 이 파일은 plan-codex-opencode·plan-fusion 두 스킬이 공유한다(plan-fusion은 이 파일로의 심링크).
+#    수정은 반드시 이 정본에만 — 두 스킬에 동시 반영된다.
 #
 # 같은 작업트리에 N개 패널을 동시 위임하면 파일 충돌·baseline 오염이 난다.
 # 패널마다 독립 브랜치의 worktree를 만들어 물리 격리하고, 정리까지 책임진다.
@@ -36,22 +38,32 @@ council_wt_setup() {
   local stash; stash=$(git -C "$ROOT" stash create 2>/dev/null || echo "")
   printf '%s' "$stash" > "$RUN/stash.sha"
   git -C "$ROOT" rev-parse HEAD > "$RUN/baseline.head" 2>/dev/null
-  local id wt br
+  local id wt br ok=0 fail=0
   for id in "${ids[@]}"; do
-    wt="$RUN/wt/$id"; br="council/${SLUG}-${id}-${ts}"
+    # ts-PID 접미로 동일 slug 동시/연속 실행의 브랜치명 충돌 방지
+    wt="$RUN/wt/$id"; br="council/${SLUG}-${id}-${ts}-$$"
     mkdir -p "$RUN/$id"
     if git -C "$ROOT" worktree add -b "$br" "$wt" HEAD >>"$RUN/$id/setup.log" 2>&1; then
       echo "worktree=$wt" >> "$RUN/$id/manifest"
       echo "branch=$br"   >> "$RUN/$id/manifest"
       if [ -n "$stash" ]; then
-        git -C "$wt" stash apply "$stash" >>"$RUN/$id/setup.log" 2>&1 \
-          || echo "WARN: stash apply 실패 (baseline 변경 미적용) in $id" >> "$RUN/$id/manifest"
+        if git -C "$wt" stash apply "$stash" >>"$RUN/$id/setup.log" 2>&1; then :; else
+          echo "WARN: stash apply 실패 (baseline 변경 미적용) in $id" >> "$RUN/$id/manifest"
+          # ⚠️ 출발선(사용자 dirty) 불일치 — worktree는 쓸 수 있으나 baseline이 다름. 호출측 인지용 신호.
+          echo "WT_STASH_FAIL[$id]=$wt" >&2
+        fi
       fi
       echo "WT_READY[$id]=$wt"
+      ok=$((ok+1))
     else
       echo "WT_FAIL[$id] — $RUN/$id/setup.log 확인" >&2
+      fail=$((fail+1))
     fi
   done
+  # 결과 집계: 호출측이 setup 성공/부분/전체실패를 신뢰성 있게 판정(이전엔 항상 0 반환).
+  if [ "$ok" -eq 0 ]; then echo "WT_SETUP_RESULT=fail (0/$((ok+fail)))" >&2; return 1
+  elif [ "$fail" -gt 0 ]; then echo "WT_SETUP_RESULT=partial ($ok/$((ok+fail)))"
+  else echo "WT_SETUP_RESULT=ok ($ok/$((ok+fail)))"; fi
 }
 
 # council_wt_diffbase <RUN> — 패널 "순수 기여분" diff의 base 커밋을 stdout으로.
@@ -99,20 +111,29 @@ council_wt_adopt() {
   # diff base는 패널 worktree의 출발점(stash 있으면 stash 커밋, 없으면 HEAD) — 사용자 dirty가
   # patch에 섞여 ROOT 기존 dirty와 충돌하는 것을 막는다. 상세는 council_wt_diffbase 주석.
   diffbase=$(council_wt_diffbase "$RUN")
+  # 채택 전 전제 검증: diffbase·worktree 부재를 "빈 diff(변경 없음)"와 혼동하면 실패를 성공으로 오판한다.
+  if [ -z "$diffbase" ]; then
+    echo "ABORT: diffbase 산출 실패(stash.sha·baseline.head 부재) — 채택 불가." >&2; return 2
+  fi
+  if [ ! -d "$RUN/wt/$id" ]; then
+    echo "ABORT: 채택 대상 worktree 없음: $RUN/wt/$id (setup 실패 가능)." >&2; return 2
+  fi
   # ⚠️ git diff <base>는 untracked(패널이 새로 만든 파일)를 빠뜨린다 → add -A 후 인덱스 기준 diff로
   #    신규 파일까지 패치에 포함한다(조용한 누락 방지). worktree 인덱스만 건드리므로 ROOT엔 영향 없음.
-  git -C "$RUN/wt/$id" add -A >/dev/null 2>&1
-  git -C "$RUN/wt/$id" --no-pager diff --cached "$diffbase" -- > "$RUN/final.patch" 2>/dev/null
+  #    오류를 삼키지 않도록 stderr는 setup.log로(이전엔 2>/dev/null로 조용히 흡수).
+  git -C "$RUN/wt/$id" add -A 2>>"$RUN/$id/setup.log"
+  git -C "$RUN/wt/$id" --no-pager diff --cached "$diffbase" -- > "$RUN/final.patch" 2>>"$RUN/$id/setup.log"
   if [ ! -s "$RUN/final.patch" ]; then
-    echo "NOTE: 채택 패널 '$id' 변경 없음(빈 diff)." >&2
+    echo "NOTE: 채택 패널 '$id' 변경 없음(빈 diff) — 전제 정상, 실제로 더한 변경이 없음." >&2
     return 0
   fi
-  # 머지 대신 patch apply --3way: 메인 히스토리 오염 방지 + baseline dirty 충돌을 표면화
-  if git -C "$ROOT" apply --3way "$RUN/final.patch" 2>/dev/null \
-     || git -C "$ROOT" apply "$RUN/final.patch"; then
+  # 머지 대신 patch apply --3way: 메인 히스토리 오염 방지 + baseline dirty 충돌을 표면화.
+  # ⚠️ --3way 실패 후 plain apply 재시도는 금물 — plain은 --3way보다 엄격해 무조건 실패하고
+  #    충돌 상태만 가중시킨다. 단일 --3way로 시도하고 실패 시 그대로 표면화한다.
+  if git -C "$ROOT" apply --3way "$RUN/final.patch"; then
     echo "ADOPTED: $id → $ROOT ($RUN/final.patch 적용)"
   else
-    echo "APPLY_CONFLICT: $RUN/final.patch 수동 머지 필요 (사용자 dirty와 충돌 가능)" >&2
+    echo "APPLY_CONFLICT: $RUN/final.patch 가 깨끗이 적용되지 않음(사용자 dirty와 충돌 가능) — 수동 머지 필요." >&2
     return 1
   fi
 }
@@ -132,6 +153,27 @@ if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE[0]}" = "${0}" ]; then  # zsh엔
   branch_leak=$(git -C "$TMP" branch --list 'council/*' | wc -l | tr -d ' ')
   echo "WORKTREE_LEAK_COUNT=$wt_leak  (0이어야 정상)"
   echo "BRANCH_LEAK_COUNT=$branch_leak  (0이어야 정상)"
-  rm -rf "$TMP" "$RUN"
-  [ "$wt_leak" = "0" ] && [ "$branch_leak" = "0" ] && echo "SELFTEST=pass" || echo "SELFTEST=FAIL"
+
+  # ── 실패 경로 점검 (N-B 계약: 실패가 성공으로 둔갑하지 않는지) ──
+  echo "--- 실패 경로 ---"
+  RUN2=$(mktemp -d "${TMPDIR:-/tmp}/cwt-run2.XXXXXX")
+  if council_wt_setup "$TMP/NO_SUCH_REPO" "$RUN2" "selftest" x >/dev/null 2>&1; then setup_fail_ok="FAIL"; else setup_fail_ok="pass"; fi
+  echo "SETUP_ALLFAIL_RETURNS_NONZERO=$setup_fail_ok"
+  RUN3=$(mktemp -d "${TMPDIR:-/tmp}/cwt-run3.XXXXXX")
+  council_wt_setup "$TMP" "$RUN3" "selftest" solo >/dev/null 2>&1
+  council_wt_adopt "$TMP" "$RUN3" "ghost" >/dev/null 2>&1; rc=$?
+  [ "$rc" = "2" ] && adopt_missing_ok="pass" || adopt_missing_ok="FAIL(rc=$rc)"
+  echo "ADOPT_MISSING_WT_RETURNS_2=$adopt_missing_ok"
+  council_wt_adopt "$TMP" "$RUN3" "solo" >/dev/null 2>&1; rc=$?
+  [ "$rc" = "0" ] && adopt_empty_ok="pass" || adopt_empty_ok="FAIL(rc=$rc)"
+  echo "ADOPT_EMPTY_DIFF_RETURNS_0=$adopt_empty_ok"
+  council_wt_cleanup "$TMP" "$RUN3"
+
+  rm -rf "$TMP" "$RUN" "$RUN2" "$RUN3"
+  if [ "$wt_leak" = "0" ] && [ "$branch_leak" = "0" ] \
+     && [ "$setup_fail_ok" = "pass" ] && [ "$adopt_missing_ok" = "pass" ] && [ "$adopt_empty_ok" = "pass" ]; then
+    echo "SELFTEST=pass"
+  else
+    echo "SELFTEST=FAIL"
+  fi
 fi
