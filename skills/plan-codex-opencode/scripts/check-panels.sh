@@ -78,6 +78,9 @@ fi
 # (omo·opencode 직접 두 경로 모두 이 opencode 자격을 공유)
 if [ "$OC_INSTALLED" = "1" ]; then
   PROV=$(opencode providers list 2>/dev/null || echo "")
+  AUTH_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
+  AUTH_KEYS=""
+  [ -s "$AUTH_FILE" ] && AUTH_KEYS=$(sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p' "$AUTH_FILE" | tr '\n' ' ')
   check_prov() {  # $1=표시키 $2=grep 패턴 (인증된 provider는 ●로 표시됨)
     if printf '%s\n' "$PROV" | grep -qiE "●.*($2)"; then
       echo "PROVIDER_$1=ok"
@@ -92,9 +95,19 @@ if [ "$OC_INSTALLED" = "1" ]; then
   if printf '%s\n' "$PROV" | grep -qE '●'; then
     echo "OPENCODE_AUTH=ok"
     opencode_ok=1
-  else
+  elif [ -n "$AUTH_KEYS" ]; then
+    echo "OPENCODE_AUTH=ok(auth-file)"
+    opencode_ok=1
+  elif printf '%s\n' "$PROV" | grep -qiE '0 credentials|no credentials|not logged in'; then
     echo "OPENCODE_AUTH=none_configured"
     echo "HINT: 'opencode providers login' 으로 프로바이더를 설정하세요." >&2
+  elif [ -n "$PROV" ]; then
+    echo "OPENCODE_AUTH=unknown(marker-missing)"
+    echo "WARN: opencode provider 출력에서 인증 마커를 확인하지 못했습니다. auth.json도 비어 있으면 'opencode providers login'을 확인하세요." >&2
+    opencode_ok=1
+  else
+    echo "OPENCODE_AUTH=unknown(provider-list-empty)"
+    echo "WARN: opencode providers list 출력이 비어 인증 상태를 판정하지 못했습니다." >&2
   fi
 else
   echo "OPENCODE_AUTH=unknown(opencode-missing)"

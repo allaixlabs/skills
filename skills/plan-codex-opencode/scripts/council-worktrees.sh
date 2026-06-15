@@ -7,10 +7,8 @@
 # 사용 (source 후 함수 호출):
 #   source "$SKILL_DIR/scripts/council-worktrees.sh"
 #   council_wt_setup   "<ROOT>" "<RUN>" "<slug>" codex glm kimi
-#   trap 'council_wt_cleanup "<ROOT>" "<RUN>"' EXIT      # 누수 방지 (프로세스 death 대비)
 #   # 위임: codex exec -C "$RUN/wt/codex" ... / omo run -d "$RUN/wt/glm" ... / opencode run --dir "$RUN/wt/kimi" ...
 #   council_wt_adopt   "<ROOT>" "<RUN>" "<채택 id>"      # 채택 패널 diff를 메인에 apply --3way
-#   council_wt_cleanup "<ROOT>" "<RUN>"                  # 전체 worktree 제거 + prune
 #
 # 직접 실행하면 임시 레포에서 setup→cleanup 누수 0을 자가 점검한다 (E2E 검증용):
 #   bash scripts/council-worktrees.sh
@@ -26,6 +24,7 @@ set -u
 council_wt_setup() {
   local ROOT="$1" RUN="$2" SLUG="$3"; shift 3
   local ids=("$@")
+  [ "${#ids[@]}" -eq 0 ] && { echo "WT_FAIL: no panel ids" >&2; return 1; }
   local ts; ts=$(date +%s 2>/dev/null || echo 0)
   mkdir -p "$RUN/wt"
   # 사용자 dirty 변경 스냅샷 (워킹트리 불변 — stash 목록에 push 하지 않음)
@@ -67,15 +66,23 @@ council_wt_diffbase() {
   if [ -n "$stash" ]; then printf '%s' "$stash"; else cat "$RUN/baseline.head" 2>/dev/null; fi
 }
 
-# council_wt_cleanup <ROOT> <RUN> — 모든 council worktree 제거 + stale 등록 prune
 council_wt_cleanup() {
-  local ROOT="$1" RUN="$2" d
+  local ROOT="$1" RUN="$2" keep_id="${3:-}" d manifest id br
   for d in "$RUN"/wt/*; do
     [ -d "$d" ] || continue
     git -C "$ROOT" worktree remove --force "$d" 2>/dev/null
   done
   git -C "$ROOT" worktree prune 2>/dev/null
-  # 비채택 council/* 브랜치 삭제는 호출측에서 명시적으로 (채택 브랜치 보존 위해 자동삭제 안 함)
+  for manifest in "$RUN"/*/manifest; do
+    [ -f "$manifest" ] || continue
+    id=$(basename "$(dirname "$manifest")")
+    [ -n "$keep_id" ] && [ "$id" = "$keep_id" ] && continue
+    br=$(sed -n 's/^branch=//p' "$manifest" | head -1)
+    [ -n "$br" ] || continue
+    case "$br" in
+      council/*) git -C "$ROOT" branch -D "$br" >/dev/null 2>&1 || true ;;
+    esac
+  done
 }
 
 # council_wt_adopt <ROOT> <RUN> <id> — 채택 패널 변경을 메인 작업트리에 안전 반영
@@ -101,7 +108,8 @@ council_wt_adopt() {
     return 0
   fi
   # 머지 대신 patch apply --3way: 메인 히스토리 오염 방지 + baseline dirty 충돌을 표면화
-  if git -C "$ROOT" apply --3way "$RUN/final.patch"; then
+  if git -C "$ROOT" apply --3way "$RUN/final.patch" 2>/dev/null \
+     || git -C "$ROOT" apply "$RUN/final.patch"; then
     echo "ADOPTED: $id → $ROOT ($RUN/final.patch 적용)"
   else
     echo "APPLY_CONFLICT: $RUN/final.patch 수동 머지 필요 (사용자 dirty와 충돌 가능)" >&2
@@ -120,8 +128,10 @@ if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE[0]}" = "${0}" ]; then  # zsh엔
   echo "--- worktree list (메인 + 2개 = 3행 기대) ---"; git -C "$TMP" worktree list
   council_wt_cleanup "$TMP" "$RUN"
   echo "--- cleanup 후 (메인 1행만 기대) ---"; git -C "$TMP" worktree list
-  leak=$(git -C "$TMP" worktree list | grep -c "$RUN" || true)
-  echo "LEAK_COUNT=$leak  (0이어야 정상)"
+  wt_leak=$(git -C "$TMP" worktree list | grep -c "$RUN" || true)
+  branch_leak=$(git -C "$TMP" branch --list 'council/*' | wc -l | tr -d ' ')
+  echo "WORKTREE_LEAK_COUNT=$wt_leak  (0이어야 정상)"
+  echo "BRANCH_LEAK_COUNT=$branch_leak  (0이어야 정상)"
   rm -rf "$TMP" "$RUN"
-  [ "$leak" = "0" ] && echo "SELFTEST=pass" || echo "SELFTEST=FAIL"
+  [ "$wt_leak" = "0" ] && [ "$branch_leak" = "0" ] && echo "SELFTEST=pass" || echo "SELFTEST=FAIL"
 fi

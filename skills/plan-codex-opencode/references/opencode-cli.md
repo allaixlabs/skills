@@ -1,7 +1,7 @@
 # opencode 백엔드 레퍼런스 (omo run / opencode run 직접)
 
 두 실행 경로 — **omo run**(Sisyphus 오케스트레이션·완수보장)과 **opencode run 직접**(경량 단발) — 의 실측 노트.
-검증 환경(실측): omo(oh-my-openagent) 4.9.2 · opencode 1.16.2 — `omo run --help` / `opencode run --help`로 확인. 최소 요구 버전은 README 전제조건 참조.
+검증 환경(실측): omo(oh-my-openagent) 4.10.0 · opencode 1.16.2 — `omo run --help` / `opencode run --help`로 확인. 최소 요구 버전은 README 전제조건 참조.
 모델은 동일(glm·kimi·deepseek 등), **실행기만 다르다**. 라우팅은 `references/routing.md` 참조.
 
 ---
@@ -41,7 +41,7 @@ echo "round1_exit=$?" >> "$RUN/glm/manifest"
 | **Prometheus** | 전략 플래너. 인터뷰→범위 확정→계획 | 요구사항 모호, 설계 먼저 |
 | **Sisyphus** | 오케스트레이터. 병렬 서브태스크 완수 | 다단계 복잡 구현 (기본) |
 | **Hephaestus** | 자율 심층 작업자. 탐색→end-to-end | 범위 명확한 단일 작업 |
-| **Atlas** | (4.9.2 코어 에이전트) | omo `run --help` 참조 |
+| **Atlas** | (4.10.0 코어 에이전트) | omo `run --help` 참조 |
 
 에이전트 결정 우선순위: `--agent` → `OPENCODE_DEFAULT_AGENT` → 설정 `default_run_agent` → 기본 **Sisyphus**.
 
@@ -52,6 +52,8 @@ omo run은 **두 조건 모두 충족 시에만** 자동 종료:
 - 모든 백그라운드 자식 세션이 idle
 
 외부 폴링 불필요. 단 타임아웃 설정 없음 → 장시간 태스크는 백그라운드 + 완료 알림으로 관리.
+
+백그라운드 패널에는 Claude 쪽 wall-clock 상한을 둔다(예: 30분 또는 handoff에서 정한 제한). 상한을 넘긴 패널은 `무응답`으로 표시하고 `ORCHESTRATION_FAIL`에 기록한 뒤, N≥2 중 생존 패널이 있으면 종합을 진행한다. 모든 패널이 미완료면 BLOCKED로 보고한다.
 
 ---
 

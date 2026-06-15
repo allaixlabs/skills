@@ -3,7 +3,7 @@
 **Claude = 두뇌(분석·계획·패널선택·종합·검증), 여러 AI 모델 패밀리 = 손** — "codex랑 glm5.2, kimi k2.7 같은 여러 AI와 대화하여 정리해" 류 요청을 표준 워크플로우로 패키징한 Claude Code 스킬.
 
 > 핵심 전제: 패널 모델들은 Claude의 대화 컨텍스트를 모른다. 위임 품질은 **자기완결적 HANDOFF**가 결정하고, 교차검증 가치는 **서로 다른 모델 패밀리**에서 나온다.
-> CLI 사용법은 추정이 아니라 **codex-cli 0.139.0 · opencode 1.16.2 · omo 4.9.2 실측**(`exec review`, `opencode run` 직접 경로, worktree 격리, provider 인증 매트릭스)으로 검증했다.
+> CLI 사용법은 추정이 아니라 **codex-cli 0.139.0 · opencode 1.16.2 · omo 4.10.0 실측**(`exec review`, `opencode run` 직접 경로, worktree 격리, provider 인증 매트릭스)으로 검증했다.
 
 ## 존재 이유 (한 줄)
 
@@ -15,7 +15,7 @@
 2. **모드 선택** — Council(다양성) / Pipeline(검증깊이) / Council-Research(비코드 분석)를 작업 유형으로 분기.
 3. **계획(HANDOFF)** — 모든 패널이 공유하는 **단일 자기완결 스펙** 작성(Baseline·Out-of-scope·BLOCKED·Acceptance Criteria).
 4. **위임** — Council은 **git worktree 격리** 병렬, Pipeline은 구현→리뷰→수정 순차. 전부 백그라운드 + 패널별 manifest.
-5. **종합** — 패널별 diff/답변 비교 → **교차리뷰**(`codex exec review`로 다른 패밀리가 리뷰) → 합의/충돌/고유통찰 + 판정 근거를 `synthesis.md`로. 코드면 채택/합성을 `apply --3way`로 메인 반영.
+5. **종합** — 패널별 diff/답변 비교 → **교차리뷰**(`codex exec review`로 다른 패밀리가 리뷰) → 합의/충돌/고유통찰 + 판정 근거를 `synthesis.md`로. 코드면 채택/합성을 `apply --3way` 후 plain `git apply` 폴백으로 메인 반영.
 6. **검증·리포트** — 직접 실행 증거로 검증(result 주장은 근거 아님), loop-md 연동, 패널·모드·근거 보고.
 
 ## 모드 가이드
@@ -41,7 +41,7 @@
 
 ## 전제조건
 
-> **검증 환경(실측)**: codex-cli 0.139.0 · opencode 1.16.2 · omo 4.9.2 — CLI 플래그는 이 환경에서 확인했다. 아래는 동작을 기대하는 **최소 버전**이다.
+> **검증 환경(실측)**: codex-cli 0.139.0 · opencode 1.16.2 · omo 4.10.0 — CLI 플래그는 이 환경에서 확인했다. 아래는 동작을 기대하는 **최소 버전**이다.
 
 - **codex CLI** ≥ 0.139 (`npm install -g @openai/codex`) + `codex login` — `exec review`(교차리뷰)가 0.139 신설이라 이게 최소.
 - **opencode** ≥ 1.4 (`npm install -g opencode`) + 프로바이더 인증(`opencode providers login`)
