@@ -133,8 +133,8 @@ opencode run -m <prov/model> -s "$SESSION_ID" --dir "<원 디렉토리>" --forma
 ## 비코드(read-only) 위임 — 강제 샌드박스 없음 → `cp -a` 사본으로 예방
 
 opencode/omo는 codex의 `-s read-only` 같은 강제 샌드박스가 없다. "권한 프롬프트가 쓰기를 차단"한다는 가정은 헤드리스에서 미검증이라 의존하지 않는다. 대신 **구조적 예방**:
-1. **읽기전용 `cp -a` 사본에서 실행**한다 — `RO="$RUN/ro/$id"; cp -a "$ROOT" "$RO"` 후 `--dir "$RO"`. 쓰기가 떨어져도 원본 무해.
-2. 사본에선 `--dangerously-skip-permissions`를 **써도 된다**(헤드리스 권한 교착 회피). 어차피 throwaway라 안전.
+1. **읽기전용 사본에서 실행**한다 — `RO="$RUN/ro/$id"`. ⚠️ `cp -a`는 `.git`(원본 리모트·자격증명)·out-of-tree 심링크를 보존하므로 사본 단독으론 `git push`·시크릿 유출·심링크 탈출을 못 막는다 → `rsync -a --safe-links --exclude '.git' --exclude node_modules "$ROOT/" "$RO/"`(없으면 `cp -a "$ROOT" "$RO" && rm -rf "$RO/.git" && find "$RO" -type l -delete`) 후 `--dir "$RO"`. 그러면 로컬 원본 쓰기가 떨어져도 무해.
+2. 사본에선 `--dangerously-skip-permissions`를 **써도 된다**(헤드리스 권한 교착 회피). 단 이는 OS 샌드박스가 아니라 네트워크 차단이 없으므로, 진짜 차단이 필요하면 codex `-s read-only` 백엔드를 쓴다.
 3. HANDOFF 상단에 **"파일 쓰기·git 변경 금지, 분석/답변만"** 명시(이중 방어).
 4. 보조 탐지: 위임 후 `git -C "$ROOT" status --short`로 원본 불변 재확인. 종료 후 `rm -rf "$RUN/ro"`.
 5. 비코드는 omo의 완수보장 가치가 낮으니 **opencode run 직접 경로 권장**(가볍게 N개 병렬).

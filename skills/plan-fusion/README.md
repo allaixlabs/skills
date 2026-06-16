@@ -64,7 +64,7 @@
 사전 점검:
 ```bash
 bash scripts/check-fusion.sh
-# CODEX/AGY/OPENCODE/CLAUDE_BACKEND_READY · PARTICIPANT_FAMILIES · FUSION_CAPABILITY 출력
+# CODEX/AGY/OPENCODE/CLAUDE_BACKEND_READY · PARTICIPANT_FAMILIES · JUDGE_DEFAULT/SYNTH_DEFAULT · FUSION_CAPABILITY 출력
 ```
 참가자 백엔드 2개 이상이어야 Fusion 성립(1개뿐이면 교차검증 독립성 없음 → plan-then-*).
 
@@ -112,7 +112,7 @@ plan-fusion/
 ├── README.md                         # 이 문서
 ├── references/
 │   ├── routing-fusion.md             # 호명→백엔드(+agy/claude) · 프리셋 · disabledModels · 동족경고
-│   ├── cli-fusion-map.md             # 5-백엔드 실행 매트릭스 + agy·claude 상세(실측)
+│   ├── cli-fusion-map.md             # 5-CLI 실행경로 매트릭스 + agy·claude 상세(실측)
 │   ├── codex-cli.md                  # codex exec — 참가자+Synth+exec review(교차리뷰)
 │   ├── opencode-cli.md               # omo run + opencode run 직접 · session 추출
 │   └── fusion.md                     # 격리 · 참가자 위임 · Judge→Synth 프로토콜 · 위험표

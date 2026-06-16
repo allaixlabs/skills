@@ -96,7 +96,8 @@ fi
 echo "# ── opencode 백엔드 (GLM / Kimi / DeepSeek / …) ──────────"
 if command -v omo >/dev/null 2>&1; then
   echo "OMO_BIN=omo"
-  echo "OMO_VERSION=$(omo --version 2>/dev/null | tr -d '[:space:]' || echo '<unknown>')"
+  # ⚠️ `omo … | tr` 의 `|| echo`는 죽은 코드(tr이 빈 입력에도 exit 0) → 결과를 변수로 받아 빈값을 폴백.
+  _omov=$(omo --version 2>/dev/null | tr -d '[:space:]'); echo "OMO_VERSION=${_omov:-<unknown>}"
 elif command -v bunx >/dev/null 2>&1; then
   echo "OMO_BIN=bunx oh-my-openagent"
   echo "OMO_VERSION=<bunx-resolved>"
@@ -130,7 +131,12 @@ if [ "$OC_INSTALLED" = "1" ]; then
   PROV=$(_t 15 opencode providers list 2>/dev/null || echo "")
   AUTH_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
   AUTH_KEYS=""
-  [ -s "$AUTH_FILE" ] && AUTH_KEYS=$(sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p' "$AUTH_FILE" | tr '\n' ' ')
+  # ⚠️ 포맷 무관 추출: jq(있으면) 최상위 키 → minified/pretty 모두 안전. 줄앵커 sed는 minified JSON에서 0개 추출.
+  if [ -s "$AUTH_FILE" ]; then
+    command -v jq >/dev/null 2>&1 && AUTH_KEYS=$(jq -r 'keys[]?' "$AUTH_FILE" 2>/dev/null | tr '\n' ' ')
+    # jq 없거나 비표준이면 grep 폴백 — 줄앵커 없이 키 패턴을 직접 잡아 minified에도 견딘다(과매칭은 무해).
+    [ -n "$AUTH_KEYS" ] || AUTH_KEYS=$(grep -oE '"[A-Za-z0-9_.-]+"[[:space:]]*:' "$AUTH_FILE" 2>/dev/null | tr -d '": ' | tr '\n' ' ')
+  fi
   check_prov() {
     if printf '%s\n' "$PROV" | grep -qiE "●.*($2)"; then
       echo "PROVIDER_$1=ok"
@@ -234,6 +240,10 @@ echo "SYNTH_DEFAULT=$([ "$codex_ok" = 1 ] && echo 'codex(GPT)' || { [ "$claude_o
 # 차단 판정은 EFFECTIVE_BACKENDS 기준(codex+claude처럼 families=1이라도 독립 2백엔드면 Fusion 성립).
 if [ "$effective" -ge 2 ]; then
   echo "FUSION_CAPABILITY=full(participant=$families, effective=$effective)"
+  if [ "$effective" -eq 2 ]; then
+    echo "NOTE: 백엔드 2개 — 참가자 2 패밀리와 '독립' Judge를 동시에 둘 수 없다(한 백엔드가 참가자+Judge 겸직)."
+    echo "      Judge=self(오케스트레이터 Claude) 폴백을 권장하거나, 겸직하면 synthesis.md에 '비독립 할인'을 명시하라." >&2
+  fi
   exit 0
 elif [ "$effective" -eq 1 ]; then
   echo "FUSION_CAPABILITY=degraded(1 backend)"

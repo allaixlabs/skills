@@ -1,4 +1,5 @@
-# CLI Fusion Map — 5-백엔드 실행 매트릭스 (plan-fusion용)
+# CLI Fusion Map — 5-CLI 실행경로 매트릭스 (plan-fusion용)
+> "5-CLI 실행경로"=codex·agy·claude·omo·opencode(omo·opencode는 같은 opencode 패밀리의 두 실행기). **백엔드 패밀리는 4**(codex·agy·opencode·claude).
 
 각 모델 패밀리를 자기 CLI로 독립 실행하는 방법의 단일 참조. codex/opencode 상세는 `codex-cli.md`·`opencode-cli.md`에,
 **신규 백엔드 agy(Gemini)·claude(Opus)** 상세는 이 문서에 둔다. 호명→정규화는 `routing-fusion.md`.
@@ -11,7 +12,7 @@
 |-|-|-|-|-|-|-|-|-|
 | **codex** | GPT | `codex exec - < FILE` | `-C <dir>` | `-m gpt-5.5` | `-c model_reasoning_effort="xhigh"` | `-o FILE` | `exec resume <id>` | `-s read-only` ✅ |
 | **agy** | Gemini | `agy --print "<msg>"` | **`cd <dir>`** | `--model "Gemini 3.1 Pro (High)"` | 모델 문자열 내장 | **stdout 리다이렉트** | `--conversation <id>` | ❌(아래) |
-| **claude** | Opus | `claude --print "<msg>"` | **`cd <dir>`** (+`--add-dir`) | `--model opus` | (alias) | **stdout**/`--output-format` | `--continue`/`-r <id>` | ⚠️(아래) |
+| **claude** | Opus | `claude --print "<msg>"` | **`cd <dir>`** (+`--add-dir`) | `--model opus` | (alias) | **stdout**/`--output-format` | `--continue`(최근)/`--resume <id>`(`-r`) | ⚠️(아래) |
 | **omo** | GLM/Kimi/… | `omo run "<msg>"` | `-d <dir>` | `-m zai-coding-plan/glm-5.2` | (없음) | stdout | `--session-id <id>` | ❌(지시+검증) |
 | **opencode** | GLM/Kimi/… | `opencode run "<msg>"` | `--dir <dir>` | `-m opencode-go/kimi-k2.7-code` | `--variant high` | stdout | `-s <id>` | ❌(지시+검증) |
 
@@ -35,11 +36,14 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$PA
 echo "round1_exit=$?" >> "$RUN/gemini/manifest"
 
 # 참가자 — 리서치(읽기): 읽기전용 사본 + skip-permissions (아래 ⚠️ 교착주의 참조)
-RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"; cp -a "$ROOT" "$RO"   # 대용량이면 rsync --exclude node_modules
+# ⚠️ cp -a는 .git(리모트·자격증명)·out-of-tree 심링크 보존 → push·시크릿·심링크탈출 미방어. .git 제외 + 심링크 차단:
+RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"
+rsync -a --safe-links --exclude '.git' --exclude node_modules "$ROOT/" "$RO/" 2>/dev/null \
+  || { cp -a "$ROOT" "$RO" && rm -rf "$RO/.git" && find "$RO" -type l -delete; }
 ( cd "$RO" && command agy --print-timeout 600s --dangerously-skip-permissions \
     --model "Gemini 3.1 Pro (High)" \
     --print "$(cat "$RUN/handoff.md")" ) > "$RUN/gemini/round1.log" 2>&1
-# 사본이라 쓰기가 떨어져도 원본 무해. 분석 종료 후: rm -rf "$RO"
+# 로컬 원본 쓰기는 무해(네트워크 차단은 별도). 분석 종료 후: rm -rf "$RO"
 ```
 
 ### 주요 플래그 (실측 `agy --help`)
@@ -99,7 +103,7 @@ echo "round1_exit=$?" >> "$RUN/opus/manifest"
 | `--output-format <fmt>` | `--print` 전용 출력 형식(text/json/stream-json) |
 | `--json-schema <schema>` | 구조화 출력(`--print` 전용) — Judge 판정을 구조화하고 싶을 때 |
 | `--dangerously-skip-permissions` | 모든 권한 우회 (쓰기 참가자에 필요) |
-| `--continue` / `-r <id>` | 세션 이어가기 / 특정 세션 resume(`--print`) |
+| `--continue`(`-c`, 최근) / `--resume <id>`(`-r`, 특정 세션) | 세션 이어가기 / 특정 세션 resume(`--print`). ⚠️ `-r`은 `--resume`의 단축이지 `--continue`가 아님 |
 | `--fallback-model <model>` | 기본 모델 실패 시 폴백 |
 
 ### ⚠️ 동족 주의 (가장 중요)

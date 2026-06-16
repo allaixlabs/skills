@@ -23,7 +23,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | gpt5.5 fast / pro | `codex exec` | `gpt-5.5-fast` / `gpt-5.5-pro` | `-c model_reasoning_effort="<v>"` | `-C` | 〃 |
 | **gemini / "gemini 3.1 pro" / "gemini pro"** | `agy --print` | `"Gemini 3.1 Pro (High)"` | **모델 문자열에 내장**(High/Low) | **`cd`** (`-C` 없음) | `--conversation <id>` |
 | **gemini flash / "gemini 3.5 flash"** | `agy --print` | `"Gemini 3.5 Flash (Medium)"` | 〃 (Low/Medium/High) | **`cd`** | `--conversation <id>` |
-| **opus / "opus 4.8" / claude** | `claude --print` | `opus` (alias) 또는 `claude-opus-4-8` | (모델 alias) | **`cd`** (`--add-dir` 보조) | `--continue` / `-r <id>` |
+| **opus / "opus 4.8" / claude** | `claude --print` | `opus` (alias) 또는 `claude-opus-4-8` | (모델 alias) | **`cd`** (`--add-dir` 보조) | `--continue`(최근) / `--resume <id>`(`-r`) |
 | glm5.2 / "glm 5.2" | opencode | `zai-coding-plan/glm-5.2` | `--variant high` | `-d`(omo)/`--dir`(opencode) | `--session-id`/`-s` |
 | glm5.1 / glm4.7 | opencode | `zai-coding-plan/glm-5.1` / `glm-4.7` | `--variant high` | `-d`/`--dir` | 〃 |
 | kimi k2.7 / kimi | opencode | `opencode-go/kimi-k2.7-code` | `--variant high` | `-d`/`--dir` | 〃 |
@@ -81,6 +81,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 - **Opus를 참가자로도 쓰면** → 참가자·Judge·오케스트레이터가 모두 같은 패밀리 → 교차검증 독립성이 떨어지고, Judge가 자기(동족) 후보를 심사하는 **확증편향**이 생긴다.
 - 기본 권장: **Opus는 Judge 전용**(default 프리셋). highEnd/codeSecurity처럼 Opus가 참가자인 프리셋에서는 ① Judge를 다른 패밀리(예: Gemini)로 바꾸거나 ② 그대로 둘 거면 `synthesis.md`에 "**Judge 비독립(동족) — 판정 신뢰도 할인**"을 명시한다.
 - Synthesizer는 기본 GPT(codex)로 두어 Judge(Opus)와 다른 패밀리가 합성을 맡게 한다.
+- **Synth 동족 주의(약):** default 패널은 참가자에 GPT가 있고 Synth도 GPT다 → Synth가 자기(동족) 후보를 과대대표할 여지가 있다(Judge 자기심사와 동형, 단 약함). Synth 템플릿이 "Judge 판정·근거 강도로만 선별"하도록 제약해 실효 위험은 제한적이지만, Synth가 참가자와 동족이면 `synthesis.md`에 약하게 표기하거나 Synth를 비참가 패밀리로 두는 편이 깔끔하다.
 
 ## 백엔드 선택: omo vs opencode 직접 (모델 동일, 실행기만 다름)
 
@@ -91,13 +92,13 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 
 codex는 항상 `codex exec`, gemini는 항상 `agy --print`, opus는 항상 `claude --print`.
 
-## ⚠️ 백엔드별 플래그 차이 (5-백엔드 — Fusion 병렬에서 디렉토리/세션 섞임 방지)
+## ⚠️ 백엔드별 플래그 차이 (5-CLI 실행경로 — Fusion 병렬에서 디렉토리/세션 섞임 방지)
 
 | | 작업 디렉토리 | 모델 | effort | resume | 출력 | 쓰기 허용 |
 |---|---|---|---|---|---|---|
 | codex | `-C <dir>` | `-m gpt-5.5` | `-c model_reasoning_effort="<v>"` | `exec resume <id>` | `-o FILE` | `--sandbox workspace-write` |
 | agy | **`cd <dir>`** | `--model "<문자열>"` | (모델 문자열 내장) | `--conversation <id>` | **stdout** | `--dangerously-skip-permissions` |
-| claude | **`cd <dir>`**+`--add-dir` | `--model opus` | (alias) | `--continue`/`-r <id>` | **stdout**/`--output-format` | `--dangerously-skip-permissions` |
+| claude | **`cd <dir>`**+`--add-dir` | `--model opus` | (alias) | `--continue`/`--resume <id>`(`-r`) | **stdout**/`--output-format` | `--dangerously-skip-permissions` |
 | omo | `-d <dir>` | `-m <prov/model>` | (없음) | `--session-id <id>` | stdout | (기본 허용) |
 | opencode | `--dir <dir>` | `-m <prov/model>` | `--variant <v>` | `-s <id>` | stdout | (기본 허용) |
 
