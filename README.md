@@ -142,8 +142,6 @@ skills/
 | **Allaix Labs** | "AI로 문제를 해결합니다" — 기획부터 개발·자동화·운영까지, 조직 문제 중심의 맞춤형 AI 시스템을 설계한다. | [allaix.kr](https://allaix.kr) · `allaixlabs@gmail.com` |
 | **LETSECU** (주식회사 렛시큐) | "Human Insight × AI Engine" — AI 기반 정보보안 솔루션·컨설팅(보안 지침 설계, 웹 취약점 진단, 보안 컨설팅)을 제공한다. | [letsecu.com](https://letsecu.com) · [blog](https://blog.letsecu.com) |
 
-> Allaix Labs는 아직 법인 미등록(브랜드/랩) 단계라, 아래 사업자 정보는 공동 운영사인 **주식회사 렛시큐** 기준이다.
-
 **사업자 정보 — 주식회사 렛시큐 (LETSECU)**
 - 대표 **김민호** · 사업자등록번호 **370-87-03101**
 - 주소: 서울특별시 관악구 남부순환로 1677-20 (봉천동 949-14) 2층
