@@ -111,16 +111,28 @@ OC_INSTALLED=0
 PROV=""
 if command -v opencode >/dev/null 2>&1; then
   echo "OPENCODE_INSTALLED=yes"
-  OC_VERSION=$(opencode --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "0.0.0")
+  # ⚠️ 파이프 종료코드는 마지막 head(빈입력에도 exit0)라 과거 '|| echo "0.0.0"'는 죽은 코드였다
+  #    (grep 미매칭이어도 head가 exit0 → || 미실행 → OC_VERSION="" 빈 문자열 출력). 변수 폴백으로 교정.
+  OC_VERSION=$(opencode --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  OC_VERSION=${OC_VERSION:-0.0.0}
   echo "OPENCODE_VERSION=$OC_VERSION"
   OC_MAJOR=$(echo "$OC_VERSION" | cut -d. -f1); OC_MAJOR=${OC_MAJOR:-0}
   OC_MINOR=$(echo "$OC_VERSION" | cut -d. -f2); OC_MINOR=${OC_MINOR:-0}
+  OC_PATCH=$(echo "$OC_VERSION" | cut -d. -f3); OC_PATCH=${OC_PATCH:-0}
   if [ "$OC_MAJOR" -lt 1 ] || { [ "$OC_MAJOR" -eq 1 ] && [ "$OC_MINOR" -lt 4 ]; }; then
     echo "OPENCODE_VERSION_OK=no"
     echo "HINT: opencode >= 1.4.0 필요. 현재 $OC_VERSION. 'opencode upgrade' 실행." >&2
   else
     echo "OPENCODE_VERSION_OK=yes"
     OC_INSTALLED=1
+    # 하드 게이트는 ≥1.4지만, --variant/--format json/run 플래그는 1.16.2에서만 실측됐다(1.4~1.15 미검증).
+    # 1.16.2 미만이면 소프트 경고 — 플래그 오류 시 upgrade 권장(opencode-cli.md 경고와 일치).
+    if [ "$OC_MAJOR" -eq 1 ] && { [ "$OC_MINOR" -lt 16 ] || { [ "$OC_MINOR" -eq 16 ] && [ "$OC_PATCH" -lt 2 ]; }; }; then
+      echo "OPENCODE_FLAGS_VERIFIED=no(<1.16.2 — 플래그 미실측)"
+      echo "HINT: opencode $OC_VERSION는 게이트(≥1.4)는 통과하나 --variant/--format 플래그가 1.16.2에서만 실측됨. 플래그 오류 시 'opencode upgrade'." >&2
+    else
+      echo "OPENCODE_FLAGS_VERIFIED=yes(>=1.16.2)"
+    fi
   fi
 else
   echo "OPENCODE_INSTALLED=no"

@@ -7,14 +7,14 @@
 
 ## 존재 이유 (한 줄)
 
-단일 위임도, Claude가 직접 종합하는 단순 교차검증도 아니라 — **서로 다른 모델을 각자 CLI로 독립 실행 → Judge CLI가 후보 평가 → Synthesizer CLI가 최종 합성 → Claude가 검증**하는 **CLI Fusion** 구조. 지원 범위는 **모델 최대 5 / 백엔드 4**(codex·agy·opencode·claude; GPT·Gemini·GLM·Kimi·Opus)이고, **기본 패널은 4모델/3백엔드**(GPT·Gemini·GLM·Kimi). 종합 자체를 모델에 위임해 Claude의 단일 관점 편향을 줄이고, Claude는 **실행 증거 기반 검증**에 집중한다.
+단일 위임도, Claude가 직접 종합하는 단순 교차검증도 아니라 — **서로 다른 모델을 각자 CLI로 독립 실행 → Judge CLI가 후보 평가 → Synthesizer CLI가 최종 합성 → Claude가 검증**하는 **CLI Fusion** 구조. 지원 범위는 **백엔드 패밀리 4 / 대표 모델 5종**(codex·agy·opencode·claude; GPT·Gemini·GLM·Kimi·Opus)이고("최대 5"는 패밀리 기준 — fullPower처럼 같은 패밀리 다중 variant면 참가자 슬롯은 6까지 늘 수 있음), **기본 패널은 4모델/3백엔드**(GPT·Gemini·GLM·Kimi). 종합 자체를 모델에 위임해 Claude의 단일 관점 편향을 줄이고, Claude는 **실행 증거 기반 검증**에 집중한다.
 
 ## plan-codex-opencode와의 차이
 아래 비교표의 왼쪽 열은 부모 스킬 `plan-codex-opencode` 설명이다.
 
 | | plan-codex-opencode | **plan-fusion** |
 |-|-|-|
-| 백엔드 | codex · opencode · omo (2 백엔드) | **+ agy(Gemini) + claude(Opus) = 모델 최대 5 / 백엔드 4** |
+| 백엔드 | codex · opencode · omo (2 백엔드) | **+ agy(Gemini) + claude(Opus) = 대표 모델 5종 / 백엔드 4** |
 | 종합 주체 | **Claude 직접** | **Judge CLI → Synthesizer CLI** 위임 |
 | Claude 역할 | 분석·계획·종합·검증 | 분석·계획·**검증·사실확인**(종합 위임) |
 | 주 모드 | Council / Pipeline | **Fusion-Research / Fusion-Code** |
@@ -66,7 +66,7 @@
 bash scripts/check-fusion.sh
 # CODEX/AGY/OPENCODE/CLAUDE_BACKEND_READY · PARTICIPANT_FAMILIES · JUDGE_DEFAULT/SYNTH_DEFAULT · FUSION_CAPABILITY 출력
 ```
-참가자 백엔드 2개 이상이어야 Fusion 성립(1개뿐이면 교차검증 독립성 없음 → plan-then-*).
+유효 백엔드(`EFFECTIVE_BACKENDS` = 참가자 패밀리 + claude-as-participant) 2개 이상이어야 Fusion 성립 — codex+claude처럼 참가자 패밀리가 1이어도 독립 백엔드가 2면 성립한다(SKILL §0.1과 동일 기준). 1개뿐이면 교차검증 독립성이 없으니 plan-then-*로.
 
 ## 설치
 

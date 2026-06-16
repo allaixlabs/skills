@@ -31,6 +31,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | deepseek / pro / flash | opencode | `opencode-go/deepseek-v4-pro` / `-flash` | `--variant high` | `-d`/`--dir` | 〃 |
 | qwen / minimax / mimo … | opencode | `opencode-go/<model>` | `--variant high` | `-d`/`--dir` | 〃 |
 
+> ⚠️ **위 표의 `--variant high`는 opencode 직접 경로(`opencode run`) 전용이다.** omo run엔 `--variant`가 없으므로(아래 'effort / variant 매핑' 참조), 기본 구현 경로인 **omo run으로 위임할 때는 `--variant`를 빼라** — 미지원 플래그는 `ORCHESTRATION_FAIL`이 된다. dir 플래그도 omo는 `-d`, opencode는 `--dir`로 갈린다(한 행에 병기했을 뿐 동시 사용 아님).
 > ⚠️ **Gemini 모델명은 실측 문자열 그대로** 쓴다(`agy models` 출력). 스펙에서 본 `gemini-3.5-pro`는 **존재하지 않음** — 실재는 **Gemini 3.1 Pro**(High/Low) + **Gemini 3.5 Flash**(Low/Medium/High). effort는 별도 플래그가 아니라 모델 문자열의 `(High/Medium/Low)`로 지정한다.
 > ⚠️ **Opus 4.8은 `claude` 직접 호출**로만 얻는다. agy의 Claude 모델은 4.6, opencode의 `dgrid/claude-opus-4-8`도 경로가 다르다 → Opus 호명은 `claude --print --model opus`.
 

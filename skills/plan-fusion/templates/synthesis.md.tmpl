@@ -6,7 +6,8 @@
 ## 개요
 
 - **모드**: {{Fusion-Code / Fusion-Research}}
-- **참가자**: {{codex(gpt-5.5) · gemini(agy "Gemini 3.1 Pro (High)") · glm(zai-coding-plan/glm-5.2) · kimi(opencode-go/kimi-k2.7-code)}}
+<!-- 참가자/비교표는 실제 panel대로 가감(아래는 default 4개 예시 — Opus 참가/budget/deepseek/qwen 프리셋이면 행 교체). manifest의 panel= 기준. -->
+- **참가자**: {{codex(gpt-5.5) · gemini(agy "Gemini 3.1 Pro (High)") · glm(zai-coding-plan/glm-5.2) · kimi(opencode-go/kimi-k2.7-code) — 실제 panel대로}}
 - **Judge**: {{claude(Opus) — 비독립 여부 표기}} · **Synthesizer**: {{codex(GPT)}}
 - **각 참가자 상태**: {{codex=DONE · gemini=DONE · glm=DONE · kimi=BLOCKED(질문有) · …}}
 - **ORCHESTRATION_FAIL**: {{있으면 어느 참가자·원인}}
@@ -31,6 +32,8 @@
 <!-- Fusion-Research -->
 - **위험 주장 사실확인**: {{Judge가 표시한 주장 → Claude가 grep/코드 직접 확인 → 실재/불일치 판정}}
   - {{주장 X → `path:line` 확인 결과}}
+- **Judge 밖 독립 spot-check**(Judge→Synth 직렬 맹점 보강): {{Judge가 '합의점·높은 신뢰'로 분류해 표시하지 '않은' 핵심 주장 1~2개를 Claude가 독립 검증한 결과 — Judge 커버리지에 종속되지 않기 위함(SKILL §5·fusion.md §4 정책)}}
+  - {{독립 검증한 주장 → `path:line` 결과}}
 - **충돌점 결론**: {{다수결 아님 — 코드 근거로 어느 쪽이 맞는지}}
 
 <!-- Fusion-Code -->

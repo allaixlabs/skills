@@ -39,7 +39,7 @@ echo "round1_exit=$?" >> "$RUN/gemini/manifest"
 # ⚠️ cp -a는 .git(리모트·자격증명)·out-of-tree 심링크 보존 → push·시크릿·심링크탈출 미방어. .git 제외 + 심링크 차단:
 RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"
 rsync -a --safe-links --exclude '.git' --exclude node_modules "$ROOT/" "$RO/" 2>/dev/null \
-  || { cp -a "$ROOT" "$RO" && rm -rf "$RO/.git" && find "$RO" -type l -delete; }
+  || { rm -rf "$RO"; cp -a "$ROOT" "$RO" && rm -rf "$RO/.git" && find "$RO" -type l -delete; }   # rm 선행: rsync 부분실패 시 cp가 $RO/<basename>/로 중첩되는 것 방지
 ( cd "$RO" && command agy --print-timeout 600s --dangerously-skip-permissions \
     --model "Gemini 3.1 Pro (High)" \
     --print "$(cat "$RUN/handoff.md")" ) > "$RUN/gemini/round1.log" 2>&1

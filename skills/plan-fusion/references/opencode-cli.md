@@ -1,7 +1,7 @@
 # opencode 백엔드 레퍼런스 (omo run / opencode run 직접)
 
 두 실행 경로 — **omo run**(Sisyphus 오케스트레이션·완수보장)과 **opencode run 직접**(경량 단발) — 의 실측 노트.
-검증 환경(실측): omo(oh-my-openagent) 4.10.0 · opencode 1.16.2 — `omo run --help` / `opencode run --help`로 확인. 최소 요구 버전은 README 전제조건 참조.
+검증 환경(실측): omo(oh-my-openagent) 4.10.0 · opencode 1.16.2 — `omo run --help` / `opencode run --help`로 확인. 최소 요구 버전은 README 전제조건 참조(게이트는 ≥1.4). ⚠️ 단 이 문서의 플래그(`--variant`·`--format json`·`run` 등)는 **1.16.2에서만 실측**됐다 — 1.4~1.15에서 동일 동작 보장은 없으니, 게이트를 통과해도 플래그 오류가 나면 `opencode upgrade`로 최신을 권장.
 모델은 동일(glm·kimi·deepseek 등), **실행기만 다르다**. 라우팅은 `references/routing-fusion.md` 참조.
 
 ---
@@ -133,7 +133,7 @@ opencode run -m <prov/model> -s "$SESSION_ID" --dir "<원 디렉토리>" --forma
 ## 비코드(read-only) 위임 — 강제 샌드박스 없음 → `cp -a` 사본으로 예방
 
 opencode/omo는 codex의 `-s read-only` 같은 강제 샌드박스가 없다. "권한 프롬프트가 쓰기를 차단"한다는 가정은 헤드리스에서 미검증이라 의존하지 않는다. 대신 **구조적 예방**:
-1. **읽기전용 사본에서 실행**한다 — `RO="$RUN/ro/$id"`. ⚠️ `cp -a`는 `.git`(원본 리모트·자격증명)·out-of-tree 심링크를 보존하므로 사본 단독으론 `git push`·시크릿 유출·심링크 탈출을 못 막는다 → `rsync -a --safe-links --exclude '.git' --exclude node_modules "$ROOT/" "$RO/"`(없으면 `cp -a "$ROOT" "$RO" && rm -rf "$RO/.git" && find "$RO" -type l -delete`) 후 `--dir "$RO"`. 그러면 로컬 원본 쓰기가 떨어져도 무해.
+1. **읽기전용 사본에서 실행**한다 — `RO="$RUN/ro/$id"`. ⚠️ `cp -a`는 `.git`(원본 리모트·자격증명)·out-of-tree 심링크를 보존하므로 사본 단독으론 `git push`·시크릿 유출·심링크 탈출을 못 막는다 → `rsync -a --safe-links --exclude '.git' --exclude node_modules "$ROOT/" "$RO/"`(없으면 `rm -rf "$RO"; cp -a "$ROOT" "$RO" && rm -rf "$RO/.git" && find "$RO" -type l -delete` — `rm` 선행으로 rsync 부분실패 시 cp 중첩 방지) 후 `--dir "$RO"`. 그러면 로컬 원본 쓰기가 떨어져도 무해.
 2. 사본에선 `--dangerously-skip-permissions`를 **써도 된다**(헤드리스 권한 교착 회피). 단 이는 OS 샌드박스가 아니라 네트워크 차단이 없으므로, 진짜 차단이 필요하면 codex `-s read-only` 백엔드를 쓴다.
 3. HANDOFF 상단에 **"파일 쓰기·git 변경 금지, 분석/답변만"** 명시(이중 방어).
 4. 보조 탐지: 위임 후 `git -C "$ROOT" status --short`로 원본 불변 재확인. 종료 후 `rm -rf "$RUN/ro"`.

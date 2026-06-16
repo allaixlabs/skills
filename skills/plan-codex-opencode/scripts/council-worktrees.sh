@@ -17,7 +17,7 @@
 #   bash scripts/council-worktrees.sh
 #
 # 설계 원칙:
-#   - 각 패널은 council/<slug>-<id>-<ts> 독립 브랜치 worktree에서 작업 → 동시 충돌 0
+#   - 각 패널은 council/<slug>-<id>-<ts>-<pid>-<run> 독립 브랜치 worktree에서 작업 → 동시 충돌 0
 #   - 사용자 uncommitted 변경은 git stash create(워킹트리 불변) → 각 worktree에 apply (동일 출발선)
 #   - cleanup은 worktree remove --force + prune 까지 (폴더만 지우면 .git/worktrees 에 stale 등록 잔존)
 #   - 채택 브랜치는 자동 삭제하지 않는다 (호출측이 보존 여부 결정)
@@ -41,8 +41,9 @@ council_wt_setup() {
   git -C "$ROOT" rev-parse HEAD > "$RUN/baseline.head" 2>/dev/null
   local id wt br ok=0 fail=0
   for id in "${ids[@]}"; do
-    # ts-PID 접미로 동일 slug 동시/연속 실행의 브랜치명 충돌 방지
-    wt="$RUN/wt/$id"; br="council/${SLUG}-${id}-${ts}-$$"
+    # ts-PID-RUN 접미로 동일 slug 동시/연속 실행의 브랜치명 충돌 방지.
+    # RUN basename은 mktemp -d로 런별 유니크 → 같은 초·같은 PID로 두 번 setup해도 브랜치명이 충돌하지 않는다.
+    wt="$RUN/wt/$id"; br="council/${SLUG}-${id}-${ts}-$$-$(basename "$RUN")"
     mkdir -p "$RUN/$id"
     if git -C "$ROOT" worktree add -b "$br" "$wt" HEAD >>"$RUN/$id/setup.log" 2>&1; then
       echo "worktree=$wt" >> "$RUN/$id/manifest"
@@ -83,6 +84,9 @@ council_wt_cleanup() {
   local ROOT="$1" RUN="$2" keep_id="${3:-}" d manifest id br
   for d in "$RUN"/wt/*; do
     [ -d "$d" ] || continue
+    # keep_id worktree는 보존(호출측이 명시 보존 요청 — 미커밋 작업 유실 방지). 이전엔 keep_id가 아래 branch 루프에서
+    # 브랜치만 보존하고 worktree는 여기서 force-remove해, keep_id 디렉토리의 미커밋 변경이 삭제되는 버그가 있었다.
+    [ -n "$keep_id" ] && [ "$(basename "$d")" = "$keep_id" ] && continue
     git -C "$ROOT" worktree remove --force "$d" 2>/dev/null
   done
   git -C "$ROOT" worktree prune 2>/dev/null
@@ -119,11 +123,23 @@ council_wt_adopt() {
   if [ ! -d "$RUN/wt/$id" ]; then
     echo "ABORT: 채택 대상 worktree 없음: $RUN/wt/$id (setup 실패 가능)." >&2; return 2
   fi
+  # ⚠️ stash apply가 실패한 패널은 사용자 dirty가 worktree에 반영되지 않았는데 diffbase는 stash 커밋(HEAD+dirty)이라,
+  #    diff에 사용자 dirty를 되돌리는 역헝크가 섞여 ROOT에 손상 patch가 적용된다(사용자 미커밋 작업 유실 위험).
+  #    setup이 manifest에 남긴 'stash apply 실패' 마커를 보고 그 패널은 채택을 거부한다(diffbase가 HEAD가 아닌 경우만 위험).
+  if [ -f "$RUN/$id/manifest" ] && grep -q 'stash apply 실패' "$RUN/$id/manifest" 2>/dev/null; then
+    echo "ABORT: 패널 '$id'는 stash apply 실패로 baseline 불일치(worktree에 사용자 dirty 미반영) — diffbase(stash)와 어긋나 손상 patch 위험. 채택 불가(수동 확인)." >&2
+    return 2
+  fi
   # ⚠️ git diff <base>는 untracked(패널이 새로 만든 파일)를 빠뜨린다 → add -A 후 인덱스 기준 diff로
   #    신규 파일까지 패치에 포함한다(조용한 누락 방지). worktree 인덱스만 건드리므로 ROOT엔 영향 없음.
   #    오류를 삼키지 않도록 stderr는 setup.log로(이전엔 2>/dev/null로 조용히 흡수).
-  git -C "$RUN/wt/$id" add -A 2>>"$RUN/$id/setup.log"
-  git -C "$RUN/wt/$id" --no-pager diff --cached "$diffbase" -- > "$RUN/final.patch" 2>>"$RUN/$id/setup.log"
+  # ⚠️ git add/diff 종료코드를 검사한다 — index lock·권한 오류로 실패하면 final.patch가 비거나 깨지는데,
+  #    아래 'if [ ! -s final.patch ]'가 그걸 "변경 없음(return 0)"으로 오판하면 채택 실패를 성공으로 둔갑시킨다.
+  #    (git diff는 --exit-code 미지정이라 정상 시 항상 0, 실제 오류일 때만 nonzero → 빈 diff를 오류로 오판하지 않음.)
+  git -C "$RUN/wt/$id" add -A 2>>"$RUN/$id/setup.log" || {
+    echo "ABORT: '$id' git add -A 실패(index lock·권한 등) — 빈 diff를 '변경 없음'으로 오판 방지." >&2; return 2; }
+  git -C "$RUN/wt/$id" --no-pager diff --cached "$diffbase" -- > "$RUN/final.patch" 2>>"$RUN/$id/setup.log" || {
+    echo "ABORT: '$id' git diff 실패 — final.patch 신뢰 불가." >&2; return 2; }
   if [ ! -s "$RUN/final.patch" ]; then
     echo "NOTE: 채택 패널 '$id' 변경 없음(빈 diff) — 전제 정상, 실제로 더한 변경이 없음." >&2
     return 0
@@ -170,9 +186,34 @@ if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE[0]}" = "${0}" ]; then  # zsh엔
   echo "ADOPT_EMPTY_DIFF_RETURNS_0=$adopt_empty_ok"
   council_wt_cleanup "$TMP" "$RUN3"
 
-  rm -rf "$TMP" "$RUN" "$RUN2" "$RUN3"
+  # ── stash-fail 패널은 adopt가 거부(rc=2) — 손상 patch 방지 가드 검증 ──
+  RUN4=$(mktemp -d "${TMPDIR:-/tmp}/cwt-run4.XXXXXX")
+  council_wt_setup "$TMP" "$RUN4" "selftest" sf >/dev/null 2>&1
+  echo "WARN: stash apply 실패 (baseline 변경 미적용) in sf" >> "$RUN4/sf/manifest"
+  council_wt_adopt "$TMP" "$RUN4" "sf" >/dev/null 2>&1; rc=$?
+  [ "$rc" = "2" ] && adopt_stashfail_ok="pass" || adopt_stashfail_ok="FAIL(rc=$rc)"
+  echo "ADOPT_STASHFAIL_RETURNS_2=$adopt_stashfail_ok"
+  council_wt_cleanup "$TMP" "$RUN4"
+
+  # ── cleanup keep_id가 worktree까지 보존하는지(이전 버그: 브랜치만 보존, worktree는 force-remove) ──
+  RUN5=$(mktemp -d "${TMPDIR:-/tmp}/cwt-run5.XXXXXX")
+  council_wt_setup "$TMP" "$RUN5" "selftest" kp >/dev/null 2>&1
+  council_wt_cleanup "$TMP" "$RUN5" kp   # keep_id=kp → wt/kp 보존 기대
+  [ -d "$RUN5/wt/kp" ] && cleanup_keep_ok="pass" || cleanup_keep_ok="FAIL(worktree 삭제됨)"
+  echo "CLEANUP_KEEP_PRESERVES_WT=$cleanup_keep_ok"
+  council_wt_cleanup "$TMP" "$RUN5"   # 이제 완전 정리
+
+  # ── adopt+cleanup 경로(RUN3/RUN4)까지 누수 0 재검증 (이전엔 happy-path RUN 직후 캡처값만 평가 — 사각 보강) ──
+  wt_leak_final=$(git -C "$TMP" worktree list | grep -c -F -e "$RUN" -e "$RUN3" -e "$RUN4" -e "$RUN5" || true)
+  branch_leak_final=$(git -C "$TMP" branch --list 'council/*' | wc -l | tr -d ' ')
+  echo "WORKTREE_LEAK_FINAL=$wt_leak_final  (adopt+cleanup 경로 후 0 기대)"
+  echo "BRANCH_LEAK_FINAL=$branch_leak_final  (0 기대)"
+
+  rm -rf "$TMP" "$RUN" "$RUN2" "$RUN3" "$RUN4" "$RUN5"
   if [ "$wt_leak" = "0" ] && [ "$branch_leak" = "0" ] \
-     && [ "$setup_fail_ok" = "pass" ] && [ "$adopt_missing_ok" = "pass" ] && [ "$adopt_empty_ok" = "pass" ]; then
+     && [ "$wt_leak_final" = "0" ] && [ "$branch_leak_final" = "0" ] \
+     && [ "$setup_fail_ok" = "pass" ] && [ "$adopt_missing_ok" = "pass" ] && [ "$adopt_empty_ok" = "pass" ] \
+     && [ "$adopt_stashfail_ok" = "pass" ] && [ "$cleanup_keep_ok" = "pass" ]; then
     echo "SELFTEST=pass"
   else
     echo "SELFTEST=FAIL"

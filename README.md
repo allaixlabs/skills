@@ -9,6 +9,7 @@
 - `plan-then-codex`: Claude가 분석·계획·검증을 맡고 실제 구현은 `codex exec`에 위임하는 split-brain 워크플로우. "분석은 claude, 구현은 codex gpt5.5 xhigh" 류 요청 전용. 상세: [`skills/plan-then-codex/README.md`](skills/plan-then-codex/README.md)
 - `plan-then-opencode`: Claude가 분석·계획·에이전트 선택·검증을 맡고 실제 구현은 `omo run`(oh-my-openagent)에 위임하는 split-brain 워크플로우. Prometheus·Sisyphus·Hephaestus 에이전트 선택 + 멀티 프로바이더 지원. 상세: [`skills/plan-then-opencode/README.md`](skills/plan-then-opencode/README.md)
 - `plan-codex-opencode`: Claude가 분석·계획·패널선택·종합·검증을 맡고, 실제 실행은 **서로 다른 모델 패밀리**(codex/GPT · opencode·omo의 GLM·Kimi 등)에 위임해 **Council(병렬 교차검증)** 또는 **Pipeline(구현→타모델 리뷰→종합)**으로 돌리는 멀티모델 워크플로우. "codex랑 glm5.2, kimi k2.7로 교차검증해서 정리" 류 요청 전용. 상세: [`skills/plan-codex-opencode/README.md`](skills/plan-codex-opencode/README.md)
+- `plan-fusion`: 같은 작업을 codex(GPT)·agy(Gemini)·opencode/omo(GLM·Kimi·DeepSeek 등)·claude(Opus) CLI에 독립 실행시킨 뒤 **Judge CLI → Synthesizer CLI**로 후보를 평가·합성하고 Claude가 검증하는 CLI Fusion 워크플로우. "GPT랑 Gemini, GLM, Kimi로 풀고 Opus가 판정·GPT가 종합" 류 요청 전용. 모델 최대 5 / 백엔드 4, 기본 패널은 GPT·Gemini·GLM·Kimi. 상세: [`skills/plan-fusion/README.md`](skills/plan-fusion/README.md)
 
 ## loop-md
 
@@ -34,9 +35,10 @@ npx skills add allaixlabs/skills --skill cmux-handoff
 npx skills add allaixlabs/skills --skill plan-then-codex
 npx skills add allaixlabs/skills --skill plan-then-opencode
 npx skills add allaixlabs/skills --skill plan-codex-opencode
+npx skills add allaixlabs/skills --skill plan-fusion
 npx skills add allaixlabs/skills --skill '*'   # 전부 설치
 ```
-새 세션에서 `/loop-md` 등으로 호출.
+새 세션에서 `/loop-md`, `/plan-fusion` 등으로 호출.
 
 ### 수동 설치 (Claude Code)
 ```bash
@@ -61,6 +63,7 @@ skills/
 ├── cmux-handoff/               # 멈춘 에이전트 패널 읽기·이어받기 — SKILL + README + cmux CLI 실측 노트
 ├── plan-then-codex/            # Claude 계획 → codex exec 구현 위임 — SKILL + README + HANDOFF 템플릿 + 사전점검
 ├── plan-then-opencode/         # Claude 계획 → omo run(oh-my-openagent) 위임 — Sisyphus/Hephaestus/Prometheus 에이전트 선택
-└── plan-codex-opencode/        # Claude 계획 → 멀티모델 패널(codex+opencode) Council/Pipeline 교차검증 — 라우팅·worktree 격리·종합
+├── plan-codex-opencode/        # Claude 계획 → 멀티모델 패널(codex+opencode) Council/Pipeline 교차검증 — 라우팅·worktree 격리·종합
+└── plan-fusion/                # Claude 계획 → GPT·Gemini·GLM·Kimi 후보 실행 → Judge CLI 판정 → Synth CLI 합성 → Claude 검증
 
 ```
