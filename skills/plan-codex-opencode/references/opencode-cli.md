@@ -54,7 +54,7 @@ omo run은 **두 조건 모두 충족 시에만** 자동 종료:
 
 외부 폴링 불필요. 단 타임아웃 설정 없음 → 장시간 태스크는 백그라운드 + 완료 알림으로 관리.
 
-백그라운드 패널에는 Claude 쪽 wall-clock 상한을 둔다(예: 30분 또는 handoff에서 정한 제한). 상한을 넘긴 패널은 `무응답`으로 표시하고 `ORCHESTRATION_FAIL`에 기록한 뒤, N≥2 중 생존 패널이 있으면 종합을 진행한다. 모든 패널이 미완료면 BLOCKED로 보고한다.
+백그라운드 패널에는 Claude 쪽 wall-clock 상한을 둔다(예: 30분 또는 handoff에서 정한 제한). 상한을 넘긴 패널은 `무응답`으로 표시하고 `ORCHESTRATION_FAIL`에 기록한다. 생존 모델 패밀리 ≥2면 Council을 진행하고, 1패밀리만 생존하면 단일위임 결과 + `Council 미성립` 표기로 격하한다. 모든 패널이 미완료면 BLOCKED로 보고한다.
 
 ---
 
@@ -85,7 +85,7 @@ echo "round1_exit=$?" >> "$RUN/kimi/manifest"
 | `-c, --continue` | 마지막 세션 이어가기 — **병렬 패널에선 금지**(다른 패널 세션 오선택) |
 | `--agent <name>` | 에이전트 |
 | `-f, --file <path>` | 메시지에 파일 첨부 |
-| `--dangerously-skip-permissions` | 권한 자동승인 — **비코드 read-only 위임에선 쓰지 말 것**(권한 프롬프트가 쓰기 차단 보조) |
+| `--dangerously-skip-permissions` | 권한 자동승인 — **비코드 read-only 위임은 읽기전용 사본에서 사용**(헤드리스 권한 프롬프트 교착 회피) |
 
 ---
 
@@ -130,13 +130,16 @@ opencode run -m <prov/model> -s "$SESSION_ID" --dir "<원 디렉토리>" --forma
 ```
 방향이 크게 틀렸으면 resume 대신 새 HANDOFF로 fresh 재위임.
 
-## 비코드(read-only) 위임 — 샌드박스 플래그 없음 → 지시 + 사후 검증
+## 비코드(read-only) 위임 — 읽기전용 사본 + skip-permissions
 
-opencode/omo는 codex의 `-s read-only` 같은 강제 샌드박스가 없다. 두 겹으로 방어:
-1. HANDOFF(또는 RESEARCH-BRIEF) 상단에 **"파일 쓰기·git 변경 절대 금지, 분석/답변만"** 명시 + Out-of-scope에 "모든 쓰기 금지".
-2. `--dangerously-skip-permissions`를 **쓰지 않는다**(권한 프롬프트가 보조 차단).
-3. 위임 후 `git -C "<root>" status --short`로 baseline 대비 변경 0 검증 → 더러우면 그 패널 종합 제외·보고.
-4. 비코드는 omo의 완수보장 가치가 낮으니 **opencode run 직접 경로 권장**(가볍게 N개 병렬).
+opencode/omo는 codex의 `-s read-only` 같은 강제 샌드박스가 없다. 기본은 원본 루트가 아니라 `.git`을 제외하고 심링크를 삭제한 읽기전용 사본에서 실행한다.
+
+1. HANDOFF(또는 프롬프트)에 **"파일 쓰기·git 변경 절대 금지, 분석/답변만"** 명시.
+2. `$RUN/ro/<id>` 사본을 만들고 `.git` 제거·심링크 삭제를 확인한다. 실패하면 ABORT하고 동일 루트로 폴백하지 않는다.
+3. 사본에서 `--dangerously-skip-permissions`로 실행한다. 헤드리스 권한 프롬프트 교착을 피하기 위한 기본값이다.
+4. `git -C "<root>" status --short`는 원본 오염을 확인하는 보조 탐지로만 둔다.
+
+권한 프롬프트가 쓰기를 보조 차단한다는 가정은 헤드리스에서 검증되지 않았고 프롬프트 교착을 만들 수 있으므로 폐기한다.
 
 ## codex exec 대비 차이 요약
 

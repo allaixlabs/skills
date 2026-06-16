@@ -172,15 +172,13 @@ if [ "$OC_INSTALLED" = "1" ]; then
     echo "OPENCODE_AUTH=unknown(auth-file: 알려진 provider 키 없음)"
     echo "OPENCODE_READY_CONFIDENCE=low"
     echo "WARN: auth.json에 키는 있으나 zai/opencode-go/openai 등 알려진 provider가 아님 — 기본 패널 인증 불확실." >&2
-    opencode_ok=1
   elif printf '%s\n' "$PROV" | grep -qiE '0 credentials|no credentials|not logged in'; then
     echo "OPENCODE_AUTH=none_configured"
     echo "HINT: 'opencode providers login' 으로 프로바이더를 설정하세요." >&2
   elif [ -n "$PROV" ]; then
     echo "OPENCODE_AUTH=unknown(marker-missing)"
     echo "OPENCODE_READY_CONFIDENCE=low"
-    echo "WARN: opencode provider 출력에서 인증 마커(●)를 확인하지 못했습니다 — ready로 집계하나 신뢰도 낮음." >&2
-    opencode_ok=1
+    echo "WARN: opencode provider 출력에서 인증 마커(●)를 확인하지 못했습니다 — ready로 집계하지 않고 보수적으로 미가용 처리." >&2
   else
     echo "OPENCODE_AUTH=unknown(provider-list-empty)"
     echo "WARN: opencode providers list 출력이 비어 인증 상태를 판정하지 못했습니다." >&2
