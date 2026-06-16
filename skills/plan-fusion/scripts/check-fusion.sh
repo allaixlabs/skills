@@ -249,12 +249,23 @@ echo "EFFECTIVE_BACKENDS=$effective (participant families + claude-as-participan
 echo "JUDGE_DEFAULT=$([ "$claude_ok" = 1 ] && echo 'claude(Opus)' || { [ "$codex_ok" = 1 ] && echo 'codex(GPT) fallback' || echo 'Claude-orchestrator self'; })"
 echo "SYNTH_DEFAULT=$([ "$codex_ok" = 1 ] && echo 'codex(GPT)' || { [ "$claude_ok" = 1 ] && echo 'claude(Opus) fallback' || echo 'best-participant'; })"
 
-# 차단 판정은 EFFECTIVE_BACKENDS 기준(codex+claude처럼 families=1이라도 독립 2백엔드면 Fusion 성립).
+# 차단 판정은 EFFECTIVE_BACKENDS 기준(codex+claude처럼 families=1이라도 독립 2백엔드면 Fusion '가능'으로 통과).
 if [ "$effective" -ge 2 ]; then
-  echo "FUSION_CAPABILITY=full(participant=$families, effective=$effective)"
+  # ⚠️ FUSION_CAPABILITY 값은 런타임 quorum(fusion.md의 참가자 family 카운트)과 일치해야 한다 — 참가자 패밀리<2면
+  #    기본 패널(claude=Judge)은 런타임에서 1패밀리뿐이라 'Fusion 미성립'으로 격하된다. 그래서 families<2일 때
+  #    'full'이라 말하면 preflight가 런타임과 모순된다 → 'conditional'로 표기해 claude를 '참가자'로 써야 성립함을 못박는다.
+  if [ "$families" -ge 2 ]; then
+    echo "FUSION_CAPABILITY=full(participant=$families, effective=$effective)"
+  else
+    echo "FUSION_CAPABILITY=conditional(participant=$families<2, effective=$effective — claude를 '참가자'로 써야 교차검증 2패밀리 성립; 기본 Judge-only면 런타임 quorum이 'Fusion 미성립'으로 격하한다)"
+  fi
   if [ "$effective" -eq 2 ]; then
     echo "NOTE: 백엔드 2개 — 참가자 2 패밀리와 '독립' Judge를 동시에 둘 수 없다(한 백엔드가 참가자+Judge 겸직)."
     echo "      Judge=self(오케스트레이터 Claude) 폴백을 권장하거나, 겸직하면 synthesis.md에 '비독립 할인'을 명시하라." >&2
+    if [ "$families" -lt 2 ]; then
+      echo "      ⚠️ 참가자 패밀리=$families(<2): effective=2는 claude를 '참가자'로 쓸 때만(예: codex+claude-participant) 교차검증 2패밀리가 된다." >&2
+      echo "         claude가 '기본 Judge'로만 쓰이면 실제 참가자는 1패밀리뿐 → 진짜 교차검증 아님(단일 위임 격하 고려). 또 claude_ok는 설치만 확인한 assumed-ok다." >&2
+    fi
   fi
   exit 0
 elif [ "$effective" -eq 1 ]; then

@@ -59,14 +59,14 @@
 - **claude CLI** — 기본 Judge(Opus). 오케스트레이터 자신과 동족이라 참가자로는 신중히.
 - **opencode** ≥ 1.4 + 프로바이더 인증, **oh-my-openagent** ≥ 4.9(omo run 경로) — GLM/Kimi/DeepSeek 등.
 
-> ⚠️ **비용·시간**: N참가자 + Judge 1 + Synth 1 = 단일 위임의 N+2배 이상. 고추론 5패밀리 fullPower는 수십 분 단위 → 백그라운드 + 완료 알림으로 관리. 단순 위임이면 plan-then-*가 더 가볍다.
+> ⚠️ **비용·시간**: N참가자 + Judge 1 + Synth 1 = 단일 위임의 N+2배 이상. 고추론 fullPower(참가자 6슬롯 / 백엔드 4)는 수십 분 단위 → 백그라운드 + 완료 알림으로 관리. 단순 위임이면 plan-then-*가 더 가볍다.
 
 사전 점검:
 ```bash
 bash scripts/check-fusion.sh
 # CODEX/AGY/OPENCODE/CLAUDE_BACKEND_READY · PARTICIPANT_FAMILIES · JUDGE_DEFAULT/SYNTH_DEFAULT · FUSION_CAPABILITY 출력
 ```
-유효 백엔드(`EFFECTIVE_BACKENDS` = 참가자 패밀리 + claude-as-participant) 2개 이상이어야 Fusion 성립 — codex+claude처럼 참가자 패밀리가 1이어도 독립 백엔드가 2면 성립한다(SKILL §0.1과 동일 기준). 1개뿐이면 교차검증 독립성이 없으니 plan-then-*로.
+유효 백엔드(`EFFECTIVE_BACKENDS` = 참가자 패밀리 + claude-as-participant) 2개 이상이어야 Fusion 성립 — codex+claude처럼 참가자 패밀리가 1이어도 독립 백엔드가 2면 성립한다(SKILL §0.1과 동일 기준). ⚠️ 단 이 경우 **claude를 '참가자'로 써야** 교차검증 2패밀리가 된다 — claude를 기본 Judge로만 쓰면 실제 참가자는 1패밀리뿐이라 런타임 quorum이 'Fusion 미성립'으로 격하한다(그래서 `FUSION_CAPABILITY=conditional`로 표기). 1개뿐이면 교차검증 독립성이 없으니 plan-then-*로.
 
 ## 설치
 

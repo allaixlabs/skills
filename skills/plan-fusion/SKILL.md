@@ -25,7 +25,7 @@ GLM·Kimi는 같은 opencode 백엔드(런타임·인증 공유)라 **모델 다
 
 ## 0. 사전점검 + 요청 파싱 + 모드/패널 결정
 
-1. **사전 점검**(read-only): `bash "$SKILL_DIR/scripts/check-fusion.sh"` → `CODEX/AGY/OPENCODE/CLAUDE_BACKEND_READY` · `PARTICIPANT_FAMILIES` · `EFFECTIVE_BACKENDS` · `JUDGE_DEFAULT`/`SYNTH_DEFAULT` · provider 인증 매트릭스 · `FUSION_CAPABILITY`. 차단 게이트는 `EFFECTIVE_BACKENDS`(= 참가자 패밀리 + claude-as-participant) 기준이다 — **`EFFECTIVE_BACKENDS`<2면 exit 1**(Fusion 불성립, plan-then-* 또는 누락 백엔드 설정 안내·중단). codex+claude처럼 참가자 패밀리=1이라도 독립 백엔드가 2면 성립(exit 0).
+1. **사전 점검**(read-only): `bash "$SKILL_DIR/scripts/check-fusion.sh"` → `CODEX/AGY/OPENCODE/CLAUDE_BACKEND_READY` · `PARTICIPANT_FAMILIES` · `EFFECTIVE_BACKENDS` · `JUDGE_DEFAULT`/`SYNTH_DEFAULT` · provider 인증 매트릭스 · `FUSION_CAPABILITY`. 차단 게이트는 `EFFECTIVE_BACKENDS`(= 참가자 패밀리 + claude-as-participant) 기준이다 — **`EFFECTIVE_BACKENDS`<2면 exit 1**(Fusion 불성립, plan-then-* 또는 누락 백엔드 설정 안내·중단). codex+claude처럼 참가자 패밀리=1이라도 독립 백엔드가 2면 통과(exit 0). ⚠️ 단 그 경우 **claude를 '참가자'로 써야** 교차검증 2패밀리가 된다 — claude를 기본 Judge로만 쓰면 참가자 1패밀리뿐이라 런타임 quorum(§4)이 'Fusion 미성립'으로 격하한다(preflight는 이를 `FUSION_CAPABILITY=conditional`로 표기).
 2. **호명 파싱**(`references/routing-fusion.md`): 부른 모델("gpt5.5, gemini, glm5.2, kimi")을 각각 `(backend, model, effort/variant, dir/session 플래그)`로 정규화. **호명 없으면 기본 패널 추천**(default: GPT·Gemini·GLM·Kimi **4개 모델**(백엔드는 codex·agy·opencode **3개**), Judge=Opus, Synth=GPT) + **1줄 이유**. 프리셋(highEnd/codeSecurity/fullPower/budget)은 라우팅 문서 표 참조.
    - **disabledModels**: `fable-5`·`mythos-5`는 참가자·Judge·Synth 어디에도 쓰지 않는다(사용자 정책).
    - **동족 경고**: 오케스트레이터가 Opus다. Opus가 참가자이면서 Judge면 자기심사 확증편향 → 기본은 Opus=Judge 전용, 참가 프리셋이면 Judge를 Gemini로 바꾸거나 synthesis에 "Judge 비독립" 명시.
