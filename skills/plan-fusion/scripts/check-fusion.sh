@@ -9,11 +9,21 @@
 # 각 백엔드 가용성 + 프로바이더 인증 매트릭스 + Judge/Synth 후보를 한 번에 점검한다.
 # plan-codex-opencode/check-panels.sh 를 확장(agy·claude 추가)했다.
 #
-# stdout: KEY=VALUE. exit 0 = 백엔드 ≥2 (Fusion 성립), exit 1 = <2 (교차 합성 불가).
+# stdout: 사람이 읽는 KEY=VALUE (값에 공백/괄호 포함 가능 — 엄격한 cut -d= 파싱은 비전제).
+#   exit 0 = 위임 가능 독립 백엔드 ≥2 (Fusion 성립), exit 1 = <2 (교차 합성 불가).
 set -u
 
 # agy 는 zsh 함수로 래핑될 수 있다(.zshrc). bash 스크립트에선 함수 미로드 → 바이너리를 직접 찾는다.
-case ":$PATH:" in *":/opt/homebrew/bin:"*) ;; *) PATH="/opt/homebrew/bin:$PATH" ;; esac
+# 일반 설치 경로 보강(macOS Apple Silicon/Intel·Linuxbrew). ${PATH:-}로 set -u 가드.
+for _p in /opt/homebrew/bin /usr/local/bin /home/linuxbrew/.linuxbrew/bin; do
+  case ":${PATH:-}:" in *":$_p:"*) ;; *) [ -d "$_p" ] && PATH="$_p:${PATH:-}" ;; esac
+done
+
+# 외부 CLI 호출용 타임아웃 래퍼: timeout/gtimeout 있으면 사용, 없으면(macOS 기본 등) 직접 실행.
+# 사용: _t <초> <cmd> [args...] — 네트워크/키체인/권한 지연으로 사전점검이 행되는 것 방지.
+if command -v timeout  >/dev/null 2>&1; then _t() { timeout  "$@"; }
+elif command -v gtimeout >/dev/null 2>&1; then _t() { gtimeout "$@"; }
+else _t() { shift; "$@"; }; fi
 
 codex_ok=0
 opencode_ok=0
@@ -24,7 +34,7 @@ echo "# ── codex 백엔드 (OpenAI / GPT) — 참가자 + 기본 Synthesizer
 if command -v codex >/dev/null 2>&1; then
   echo "CODEX_INSTALLED=yes"
   echo "CODEX_VERSION=$(codex --version 2>/dev/null | awk '{print $NF}')"
-  if codex login status >/dev/null 2>&1; then
+  if _t 15 codex login status >/dev/null 2>&1; then
     echo "CODEX_AUTH=ok"
     codex_ok=1
   else
@@ -54,10 +64,12 @@ if command -v agy >/dev/null 2>&1 || [ -x /opt/homebrew/bin/agy ]; then
   echo "AGY_VERSION=${AGY_VER:-<unknown>}"
   # 인증/응답 프록시: 'agy models'가 알려진 모델명을 반환하면 ready로 본다.
   # (진짜 인증은 첫 --print에서 확정 — 사전점검에서 토큰 소모 호출은 피한다.)
-  AGY_MODELS=$(command agy models </dev/null 2>/dev/null)
+  AGY_MODELS=$(_t 25 agy models </dev/null 2>/dev/null)
   if printf '%s\n' "$AGY_MODELS" | grep -qiE 'Gemini'; then
     echo "AGY_AUTH=ok"
     echo "AGY_MODELS_SAMPLE=$(printf '%s' "$AGY_MODELS" | grep -iE 'Gemini' | head -3 | paste -sd'|' -)"
+    # 기본 패널 모델이 실제 존재하는지(샘플 head -3는 정렬상 Flash만 보일 수 있어 별도 확인).
+    echo "AGY_DEFAULT_MODEL_PRESENT=$(printf '%s\n' "$AGY_MODELS" | grep -qiF 'Gemini 3.1 Pro (High)' && echo yes || echo no)"
     agy_ok=1
   else
     echo "AGY_AUTH=unknown(models-empty)"
@@ -84,7 +96,8 @@ fi
 echo "# ── opencode 백엔드 (GLM / Kimi / DeepSeek / …) ──────────"
 if command -v omo >/dev/null 2>&1; then
   echo "OMO_BIN=omo"
-  echo "OMO_VERSION=$(omo --version 2>/dev/null | tr -d '[:space:]' || echo '<unknown>')"
+  # ⚠️ `omo … | tr` 의 `|| echo`는 죽은 코드(tr이 빈 입력에도 exit 0) → 결과를 변수로 받아 빈값을 폴백.
+  _omov=$(omo --version 2>/dev/null | tr -d '[:space:]'); echo "OMO_VERSION=${_omov:-<unknown>}"
 elif command -v bunx >/dev/null 2>&1; then
   echo "OMO_BIN=bunx oh-my-openagent"
   echo "OMO_VERSION=<bunx-resolved>"
@@ -98,16 +111,28 @@ OC_INSTALLED=0
 PROV=""
 if command -v opencode >/dev/null 2>&1; then
   echo "OPENCODE_INSTALLED=yes"
-  OC_VERSION=$(opencode --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "0.0.0")
+  # ⚠️ 파이프 종료코드는 마지막 head(빈입력에도 exit0)라 과거 '|| echo "0.0.0"'는 죽은 코드였다
+  #    (grep 미매칭이어도 head가 exit0 → || 미실행 → OC_VERSION="" 빈 문자열 출력). 변수 폴백으로 교정.
+  OC_VERSION=$(opencode --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  OC_VERSION=${OC_VERSION:-0.0.0}
   echo "OPENCODE_VERSION=$OC_VERSION"
   OC_MAJOR=$(echo "$OC_VERSION" | cut -d. -f1); OC_MAJOR=${OC_MAJOR:-0}
   OC_MINOR=$(echo "$OC_VERSION" | cut -d. -f2); OC_MINOR=${OC_MINOR:-0}
+  OC_PATCH=$(echo "$OC_VERSION" | cut -d. -f3); OC_PATCH=${OC_PATCH:-0}
   if [ "$OC_MAJOR" -lt 1 ] || { [ "$OC_MAJOR" -eq 1 ] && [ "$OC_MINOR" -lt 4 ]; }; then
     echo "OPENCODE_VERSION_OK=no"
     echo "HINT: opencode >= 1.4.0 필요. 현재 $OC_VERSION. 'opencode upgrade' 실행." >&2
   else
     echo "OPENCODE_VERSION_OK=yes"
     OC_INSTALLED=1
+    # 하드 게이트는 ≥1.4지만, --variant/--format json/run 플래그는 1.16.2에서만 실측됐다(1.4~1.15 미검증).
+    # 1.16.2 미만이면 소프트 경고 — 플래그 오류 시 upgrade 권장(opencode-cli.md 경고와 일치).
+    if [ "$OC_MAJOR" -eq 1 ] && { [ "$OC_MINOR" -lt 16 ] || { [ "$OC_MINOR" -eq 16 ] && [ "$OC_PATCH" -lt 2 ]; }; }; then
+      echo "OPENCODE_FLAGS_VERIFIED=no(<1.16.2 — 플래그 미실측)"
+      echo "HINT: opencode $OC_VERSION는 게이트(≥1.4)는 통과하나 --variant/--format 플래그가 1.16.2에서만 실측됨. 플래그 오류 시 'opencode upgrade'." >&2
+    else
+      echo "OPENCODE_FLAGS_VERIFIED=yes(>=1.16.2)"
+    fi
   fi
 else
   echo "OPENCODE_INSTALLED=no"
@@ -115,10 +140,15 @@ else
 fi
 
 if [ "$OC_INSTALLED" = "1" ]; then
-  PROV=$(opencode providers list 2>/dev/null || echo "")
+  PROV=$(_t 15 opencode providers list 2>/dev/null || echo "")
   AUTH_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
   AUTH_KEYS=""
-  [ -s "$AUTH_FILE" ] && AUTH_KEYS=$(sed -n 's/^[[:space:]]*"\([^"]*\)".*/\1/p' "$AUTH_FILE" | tr '\n' ' ')
+  # ⚠️ 포맷 무관 추출: jq(있으면) 최상위 키 → minified/pretty 모두 안전. 줄앵커 sed는 minified JSON에서 0개 추출.
+  if [ -s "$AUTH_FILE" ]; then
+    command -v jq >/dev/null 2>&1 && AUTH_KEYS=$(jq -r 'keys[]?' "$AUTH_FILE" 2>/dev/null | tr '\n' ' ')
+    # jq 없거나 비표준이면 grep 폴백 — 줄앵커 없이 키 패턴을 직접 잡아 minified에도 견딘다(과매칭은 무해).
+    [ -n "$AUTH_KEYS" ] || AUTH_KEYS=$(grep -oE '"[A-Za-z0-9_.-]+"[[:space:]]*:' "$AUTH_FILE" 2>/dev/null | tr -d '": ' | tr '\n' ' ')
+  fi
   check_prov() {
     if printf '%s\n' "$PROV" | grep -qiE "●.*($2)"; then
       echo "PROVIDER_$1=ok"
@@ -135,15 +165,21 @@ if [ "$OC_INSTALLED" = "1" ]; then
   if printf '%s\n' "$PROV" | grep -qE '●'; then
     echo "OPENCODE_AUTH=ok"
     opencode_ok=1
+  elif printf '%s' "$AUTH_KEYS" | grep -qiE 'zai|opencode-go|openai|dgrid|anthropic'; then
+    echo "OPENCODE_AUTH=ok(auth-file: 알려진 provider 키)"
+    opencode_ok=1
   elif [ -n "$AUTH_KEYS" ]; then
-    echo "OPENCODE_AUTH=ok(auth-file)"
+    echo "OPENCODE_AUTH=unknown(auth-file: 알려진 provider 키 없음)"
+    echo "OPENCODE_READY_CONFIDENCE=low"
+    echo "WARN: auth.json에 키는 있으나 zai/opencode-go/openai 등 알려진 provider가 아님 — 기본 패널 인증 불확실." >&2
     opencode_ok=1
   elif printf '%s\n' "$PROV" | grep -qiE '0 credentials|no credentials|not logged in'; then
     echo "OPENCODE_AUTH=none_configured"
     echo "HINT: 'opencode providers login' 으로 프로바이더를 설정하세요." >&2
   elif [ -n "$PROV" ]; then
     echo "OPENCODE_AUTH=unknown(marker-missing)"
-    echo "WARN: opencode provider 출력에서 인증 마커를 확인하지 못했습니다." >&2
+    echo "OPENCODE_READY_CONFIDENCE=low"
+    echo "WARN: opencode provider 출력에서 인증 마커(●)를 확인하지 못했습니다 — ready로 집계하나 신뢰도 낮음." >&2
     opencode_ok=1
   else
     echo "OPENCODE_AUTH=unknown(provider-list-empty)"
@@ -168,6 +204,20 @@ if [ "$PLUGIN_OK" = "no" ]; then
   echo "HINT: omo run 경로를 쓰려면 '! bunx oh-my-openagent install' 실행 (opencode 직접 경로는 불필요)." >&2
 fi
 
+echo "# ── council-worktrees.sh 동기화 점검 (정본↔복제본 — 심링크 대신 실파일 복제) ──"
+SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)
+CANON_WT="$SELF_DIR/../../plan-codex-opencode/scripts/council-worktrees.sh"
+if [ -f "$CANON_WT" ] && [ -f "$SELF_DIR/council-worktrees.sh" ]; then
+  if cmp -s "$SELF_DIR/council-worktrees.sh" "$CANON_WT"; then
+    echo "COUNCIL_WT_SYNC=ok"
+  else
+    echo "COUNCIL_WT_SYNC=DRIFT"
+    echo "WARN: council-worktrees.sh가 정본(plan-codex-opencode)과 다릅니다 — 정본에서 수정 후 복사해 동기화하세요." >&2
+  fi
+else
+  echo "COUNCIL_WT_SYNC=standalone(정본 미발견 — 복제본 단독 사용)"
+fi
+
 echo "# ── 종합 (Fusion 가용성) ────────────────────────────────"
 echo "CODEX_BACKEND_READY=$([ "$codex_ok" = 1 ] && echo yes || echo no)"
 echo "AGY_BACKEND_READY=$([ "$agy_ok" = 1 ] && echo yes || echo no)"
@@ -187,22 +237,33 @@ families=0
 [ "$codex_ok" = 1 ]    && families=$((families+1))
 [ "$agy_ok" = 1 ]      && families=$((families+1))
 [ "$opencode_ok" = 1 ] && families=$((families+1))
-echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready 백엔드 수 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; 모델 다양성 ≠ 백엔드 다양성; claude는 Judge 전용 제외)"
+echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready 백엔드 수 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; 모델 다양성 ≠ 백엔드 다양성; claude는 기본 Judge 전용이라 제외)"
+# claude(Opus)는 기본 Judge 전용이라 families에서 제외하지만, highEnd/codeSecurity 등 Opus가 '참가자'인
+# 프리셋에선 독립 백엔드(GPT vs Opus는 서로 다른 패밀리)로 쓸 수 있다. 차단 판정엔 이를 포함한 값을 쓴다.
+# (claude를 참가자로 쓰면 Judge는 비-claude로 — JUDGE_DEFAULT 폴백 참조.)
+effective=$families
+[ "$claude_ok" = 1 ] && effective=$((effective+1))
+echo "EFFECTIVE_BACKENDS=$effective (participant families + claude-as-participant 후보)"
 
 # Judge/Synth 후보 신호
 echo "JUDGE_DEFAULT=$([ "$claude_ok" = 1 ] && echo 'claude(Opus)' || { [ "$codex_ok" = 1 ] && echo 'codex(GPT) fallback' || echo 'Claude-orchestrator self'; })"
 echo "SYNTH_DEFAULT=$([ "$codex_ok" = 1 ] && echo 'codex(GPT)' || { [ "$claude_ok" = 1 ] && echo 'claude(Opus) fallback' || echo 'best-participant'; })"
 
-if [ "$families" -ge 2 ]; then
-  echo "FUSION_CAPABILITY=full($families participant backends)"
+# 차단 판정은 EFFECTIVE_BACKENDS 기준(codex+claude처럼 families=1이라도 독립 2백엔드면 Fusion 성립).
+if [ "$effective" -ge 2 ]; then
+  echo "FUSION_CAPABILITY=full(participant=$families, effective=$effective)"
+  if [ "$effective" -eq 2 ]; then
+    echo "NOTE: 백엔드 2개 — 참가자 2 패밀리와 '독립' Judge를 동시에 둘 수 없다(한 백엔드가 참가자+Judge 겸직)."
+    echo "      Judge=self(오케스트레이터 Claude) 폴백을 권장하거나, 겸직하면 synthesis.md에 '비독립 할인'을 명시하라." >&2
+  fi
   exit 0
-elif [ "$families" -eq 1 ]; then
+elif [ "$effective" -eq 1 ]; then
   echo "FUSION_CAPABILITY=degraded(1 backend)"
-  echo "HINT: 참가자 백엔드가 1개뿐 — CLI Fusion의 교차검증 독립성이 성립하지 않습니다. 단일 위임이면" >&2
+  echo "HINT: 위임 가능한 독립 백엔드가 1개뿐 — CLI Fusion의 교차검증 독립성이 성립하지 않습니다. 단일 위임이면" >&2
   echo "      plan-then-codex/plan-then-opencode를, 2 백엔드 확보가 목표면 누락 백엔드를 설정하세요." >&2
   exit 1
 else
   echo "FUSION_CAPABILITY=none"
-  echo "HINT: 위임 가능한 참가자 백엔드가 없습니다. codex·agy·opencode 중 최소 2개를 설정하세요." >&2
+  echo "HINT: 위임 가능한 백엔드가 없습니다. codex·agy·opencode·claude 중 최소 2개를 설정하세요." >&2
   exit 1
 fi

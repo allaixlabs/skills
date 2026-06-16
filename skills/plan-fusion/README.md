@@ -7,14 +7,14 @@
 
 ## 존재 이유 (한 줄)
 
-단일 위임도, Claude가 직접 종합하는 단순 교차검증도 아니라 — **서로 다른 모델 5개(백엔드 4: codex·agy·opencode·claude; GPT·Gemini·GLM·Kimi·Opus)를 각자 CLI로 독립 실행 → Judge CLI가 후보 평가 → Synthesizer CLI가 최종 합성 → Claude가 검증**하는 **CLI Fusion** 구조. 종합 자체를 모델에 위임해 Claude의 단일 관점 편향을 줄이고, Claude는 **실행 증거 기반 검증**에 집중한다.
+단일 위임도, Claude가 직접 종합하는 단순 교차검증도 아니라 — **서로 다른 모델을 각자 CLI로 독립 실행 → Judge CLI가 후보 평가 → Synthesizer CLI가 최종 합성 → Claude가 검증**하는 **CLI Fusion** 구조. 지원 범위는 **백엔드 패밀리 4 / 대표 모델 5종**(codex·agy·opencode·claude; GPT·Gemini·GLM·Kimi·Opus)이고("최대 5"는 패밀리 기준 — fullPower처럼 같은 패밀리 다중 variant면 참가자 슬롯은 6까지 늘 수 있음), **기본 패널은 4모델/3백엔드**(GPT·Gemini·GLM·Kimi). 종합 자체를 모델에 위임해 Claude의 단일 관점 편향을 줄이고, Claude는 **실행 증거 기반 검증**에 집중한다.
 
 ## plan-codex-opencode와의 차이
 아래 비교표의 왼쪽 열은 부모 스킬 `plan-codex-opencode` 설명이다.
 
 | | plan-codex-opencode | **plan-fusion** |
 |-|-|-|
-| 백엔드 | codex · opencode · omo (2 백엔드) | **+ agy(Gemini) + claude(Opus) = 모델 최대 5 / 백엔드 4** |
+| 백엔드 | codex · opencode · omo (2 백엔드) | **+ agy(Gemini) + claude(Opus) = 대표 모델 5종 / 백엔드 4** |
 | 종합 주체 | **Claude 직접** | **Judge CLI → Synthesizer CLI** 위임 |
 | Claude 역할 | 분석·계획·종합·검증 | 분석·계획·**검증·사실확인**(종합 위임) |
 | 주 모드 | Council / Pipeline | **Fusion-Research / Fusion-Code** |
@@ -64,16 +64,30 @@
 사전 점검:
 ```bash
 bash scripts/check-fusion.sh
-# CODEX/AGY/OPENCODE/CLAUDE_BACKEND_READY · PARTICIPANT_FAMILIES · FUSION_CAPABILITY 출력
+# CODEX/AGY/OPENCODE/CLAUDE_BACKEND_READY · PARTICIPANT_FAMILIES · JUDGE_DEFAULT/SYNTH_DEFAULT · FUSION_CAPABILITY 출력
 ```
-참가자 백엔드 2개 이상이어야 Fusion 성립(1개뿐이면 교차검증 독립성 없음 → plan-then-*).
+유효 백엔드(`EFFECTIVE_BACKENDS` = 참가자 패밀리 + claude-as-participant) 2개 이상이어야 Fusion 성립 — codex+claude처럼 참가자 패밀리가 1이어도 독립 백엔드가 2면 성립한다(SKILL §0.1과 동일 기준). 1개뿐이면 교차검증 독립성이 없으니 plan-then-*로.
 
 ## 설치
 
+### macOS / Linux
 ```bash
 git clone https://github.com/allaixlabs/skills.git ~/project/skills   # 이미 있으면 생략
 ln -s ~/project/skills/skills/plan-fusion ~/.claude/skills/plan-fusion
 ```
+
+### Windows
+이 스킬은 bash 스크립트 + Unix CLI(codex·agy·opencode)에 의존한다 → **WSL2 권장**(WSL 안에서는 위 macOS/Linux 절차를 그대로 사용).
+네이티브로 설치하려면(PowerShell, 개발자 모드 또는 관리자 권한 필요):
+```powershell
+git clone https://github.com/allaixlabs/skills.git $HOME\project\skills
+New-Item -ItemType SymbolicLink -Path "$HOME\.claude\skills\plan-fusion" `
+  -Target "$HOME\project\skills\skills\plan-fusion"
+# 심링크가 막히면 폴더 복사로 대체(단, 갱신 시 재복사 필요):
+# Copy-Item -Recurse "$HOME\project\skills\skills\plan-fusion" "$HOME\.claude\skills\plan-fusion"
+```
+> repo 내부 `council-worktrees.sh`는 심링크가 아닌 실파일이라 `core.symlinks` 설정과 무관하게 정상 체크아웃된다(배포 호환). 다만 스크립트 실행·worktree·CLI는 결국 Unix 환경을 필요로 하므로 Windows는 WSL2가 가장 매끄럽다.
+
 새 Claude Code 세션부터 자동 인식. **참가자 쪽 별도 설치 불필요** — HANDOFF가 stdin/인자로 전달되는 Claude Code 단독 오케스트레이션이다.
 
 ## 사용법
@@ -98,7 +112,7 @@ plan-fusion/
 ├── README.md                         # 이 문서
 ├── references/
 │   ├── routing-fusion.md             # 호명→백엔드(+agy/claude) · 프리셋 · disabledModels · 동족경고
-│   ├── cli-fusion-map.md             # 5-백엔드 실행 매트릭스 + agy·claude 상세(실측)
+│   ├── cli-fusion-map.md             # 5-CLI 실행경로 매트릭스 + agy·claude 상세(실측)
 │   ├── codex-cli.md                  # codex exec — 참가자+Synth+exec review(교차리뷰)
 │   ├── opencode-cli.md               # omo run + opencode run 직접 · session 추출
 │   └── fusion.md                     # 격리 · 참가자 위임 · Judge→Synth 프로토콜 · 위험표

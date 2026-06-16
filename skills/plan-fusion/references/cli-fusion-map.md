@@ -1,4 +1,5 @@
-# CLI Fusion Map — 5-백엔드 실행 매트릭스 (plan-fusion용)
+# CLI Fusion Map — 5-CLI 실행경로 매트릭스 (plan-fusion용)
+> "5-CLI 실행경로"=codex·agy·claude·omo·opencode(omo·opencode는 같은 opencode 패밀리의 두 실행기). **백엔드 패밀리는 4**(codex·agy·opencode·claude).
 
 각 모델 패밀리를 자기 CLI로 독립 실행하는 방법의 단일 참조. codex/opencode 상세는 `codex-cli.md`·`opencode-cli.md`에,
 **신규 백엔드 agy(Gemini)·claude(Opus)** 상세는 이 문서에 둔다. 호명→정규화는 `routing-fusion.md`.
@@ -11,7 +12,7 @@
 |-|-|-|-|-|-|-|-|-|
 | **codex** | GPT | `codex exec - < FILE` | `-C <dir>` | `-m gpt-5.5` | `-c model_reasoning_effort="xhigh"` | `-o FILE` | `exec resume <id>` | `-s read-only` ✅ |
 | **agy** | Gemini | `agy --print "<msg>"` | **`cd <dir>`** | `--model "Gemini 3.1 Pro (High)"` | 모델 문자열 내장 | **stdout 리다이렉트** | `--conversation <id>` | ❌(아래) |
-| **claude** | Opus | `claude --print "<msg>"` | **`cd <dir>`** (+`--add-dir`) | `--model opus` | (alias) | **stdout**/`--output-format` | `--continue`/`-r <id>` | ⚠️(아래) |
+| **claude** | Opus | `claude --print "<msg>"` | **`cd <dir>`** (+`--add-dir`) | `--model opus` | (alias) | **stdout**/`--output-format` | `--continue`(최근)/`--resume <id>`(`-r`) | ⚠️(아래) |
 | **omo** | GLM/Kimi/… | `omo run "<msg>"` | `-d <dir>` | `-m zai-coding-plan/glm-5.2` | (없음) | stdout | `--session-id <id>` | ❌(지시+검증) |
 | **opencode** | GLM/Kimi/… | `opencode run "<msg>"` | `--dir <dir>` | `-m opencode-go/kimi-k2.7-code` | `--variant high` | stdout | `-s <id>` | ❌(지시+검증) |
 
@@ -22,8 +23,9 @@
 ## 신규 백엔드 ① agy (Antigravity CLI — Gemini)
 
 ```bash
-# 함수 래퍼(.zshrc) 회피 위해 'command agy' + PATH에 /opt/homebrew/bin
-export PATH="/opt/homebrew/bin:$PATH"
+# 함수 래퍼(.zshrc) 회피 위해 'command agy' + PATH 보강.
+# macOS Apple Silicon=/opt/homebrew/bin, Intel=/usr/local/bin, Linuxbrew=/home/linuxbrew/.linuxbrew/bin.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"
 
 # 참가자 — 코드(쓰기): worktree에서 cd 후 실행, 쓰기 권한 자동승인
 ( cd "$RUN/wt/gemini" && command agy \
@@ -34,11 +36,14 @@ export PATH="/opt/homebrew/bin:$PATH"
 echo "round1_exit=$?" >> "$RUN/gemini/manifest"
 
 # 참가자 — 리서치(읽기): 읽기전용 사본 + skip-permissions (아래 ⚠️ 교착주의 참조)
-RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"; cp -a "$ROOT" "$RO"   # 대용량이면 rsync --exclude node_modules
+# ⚠️ cp -a는 .git(리모트·자격증명)·out-of-tree 심링크 보존 → push·시크릿·심링크탈출 미방어. .git 제외 + 심링크 차단:
+RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"
+rsync -a --safe-links --exclude '.git' --exclude node_modules "$ROOT/" "$RO/" 2>/dev/null \
+  || { rm -rf "$RO"; cp -a "$ROOT" "$RO" && rm -rf "$RO/.git" && find "$RO" -type l -delete; }   # rm 선행: rsync 부분실패 시 cp가 $RO/<basename>/로 중첩되는 것 방지
 ( cd "$RO" && command agy --print-timeout 600s --dangerously-skip-permissions \
     --model "Gemini 3.1 Pro (High)" \
     --print "$(cat "$RUN/handoff.md")" ) > "$RUN/gemini/round1.log" 2>&1
-# 사본이라 쓰기가 떨어져도 원본 무해. 분석 종료 후: rm -rf "$RO"
+# 로컬 원본 쓰기는 무해(네트워크 차단은 별도). 분석 종료 후: rm -rf "$RO"
 ```
 
 ### 주요 플래그 (실측 `agy --help`)
@@ -74,12 +79,12 @@ RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"; cp -a "$ROOT" "$RO"   # 대용량이면
 ## 신규 백엔드 ② claude (Claude Code — Opus, 기본 Judge)
 
 ```bash
-# claude로 판정(읽기). 프롬프트 = 템플릿 + judge-input.
-JUDGE_PROMPT="$(cat "$SKILL_DIR/templates/fusion-judge.md.tmpl")
-$(cat "$RUN/judge-input.md")"
-( cd "$ROOT" && claude --print --model opus "$JUDGE_PROMPT" ) > "$RUN/judge.md" 2>"$RUN/judge.err"
+# claude로 판정(읽기). 프롬프트(템플릿+judge-input)는 파일로 만들어 stdin 전달 — argv는 E2BIG 위험.
+{ cat "$SKILL_DIR/templates/fusion-judge.md.tmpl"; echo; cat "$RUN/judge-input.md"; } > "$RUN/judge-prompt.md"
+# 중립 디렉토리($RUN, 비-git)에서 실행 → 프로젝트 CLAUDE.md/hooks/MCP 간섭 최소화. claude는 --print에서 stdin 수용(실측).
+( cd "$RUN" && claude --print --model opus < "$RUN/judge-prompt.md" ) > "$RUN/judge.md" 2>"$RUN/judge.err"
 echo "judge_exit=$?" >> "$RUN/manifest"
-# 주의: judge-input이 클 때(대형 diff 다수)는 argv 길이 한도(E2BIG) 위험 → Judge를 codex(`- < FILE` stdin)로 돌리거나 입력을 축약.
+# 항상 stdin: claude·codex 모두 `< FILE`/`- < FILE` 지원. 대형 diff면 argv는 즉사(E2BIG).
 
 # 참가자 — 코드(쓰기, highEnd/codeSecurity 프리셋에서만): worktree에서
 ( cd "$RUN/wt/opus" && claude --print --model opus \
@@ -98,7 +103,7 @@ echo "round1_exit=$?" >> "$RUN/opus/manifest"
 | `--output-format <fmt>` | `--print` 전용 출력 형식(text/json/stream-json) |
 | `--json-schema <schema>` | 구조화 출력(`--print` 전용) — Judge 판정을 구조화하고 싶을 때 |
 | `--dangerously-skip-permissions` | 모든 권한 우회 (쓰기 참가자에 필요) |
-| `--continue` / `-r <id>` | 세션 이어가기 / 특정 세션 resume(`--print`) |
+| `--continue`(`-c`, 최근) / `--resume <id>`(`-r`, 특정 세션) | 세션 이어가기 / 특정 세션 resume(`--print`). ⚠️ `-r`은 `--resume`의 단축이지 `--continue`가 아님 |
 | `--fallback-model <model>` | 기본 모델 실패 시 폴백 |
 
 ### ⚠️ 동족 주의 (가장 중요)
@@ -126,9 +131,11 @@ $RUN/<id>/manifest      # worktree= / branch= / round1_exit= / session(or conver
 $RUN/<id>/round1.log    # stdout+stderr 전체 (agy/claude/omo/opencode는 이게 result)
 $RUN/<id>/result.md     # codex 패널만 (-o)
 $RUN/handoff.md         # 모든 참가자 공유 단일 스펙
-$RUN/judge-input.md     # handoff + 참가자별 라벨 답변 (Judge 입력)
+$RUN/judge-input.md     # handoff + 참가자별 라벨 답변 (Judge 입력, 데이터 펜스로 감쌈)
+$RUN/judge-prompt.md    # 템플릿 + judge-input (Judge에 stdin 전달)
 $RUN/judge.md           # Judge CLI 판정
-$RUN/final.md           # Synthesizer CLI 최종(Research) / 합성 HANDOFF(Code)
+$RUN/final.md           # Synthesizer CLI 최종 답변 (Fusion-Research)
+$RUN/handoff.synth.md   # Synthesizer 합성 HANDOFF (Fusion-Code — 실제 구현은 백엔드 위임)
 ```
 
 읽는 순서: 모든 참가자 완료 알림 → manifest exit → codex는 `result.md`, 그 외는 `round1.log`.

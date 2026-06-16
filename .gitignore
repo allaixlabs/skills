@@ -1,14 +1,17 @@
-# OS
-.DS_Store
-Thumbs.db
+# 배포 범위: skills/ 폴더와 README.md 만 추적·푸시한다.
+# 그 외 루트 항목(loop.md·AGENTS.md·scripts/·docs/·.claude/·.loop/·.serena/ 등
+# 로컬 DoD 툴링/설정)은 전부 무시 — 디스크엔 남지만 git에는 올라가지 않는다.
+#
+# "모두 무시 → 필요한 것만 허용(whitelist)" 패턴:
+/*
+!/.gitignore
+!/README.md
+!/skills/
 
-# 에디터
-.vscode/
-.idea/
+# skills/ 내부에 끼어드는 OS/에디터/임시 산물은 계속 무시
+**/.DS_Store
+**/Thumbs.db
 *.swp
-.serena/
-
-# 임시
 *.log
 tmp/
 .tmp/
