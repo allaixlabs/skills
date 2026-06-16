@@ -141,23 +141,83 @@ PY
   fi
 }
 
+git_root_hint_from_cmd() {
+  if command -v python3 >/dev/null 2>&1; then
+    LOOP_GIT_CMD=$1 python3 - <<'PY'
+import os
+import shlex
+import sys
+
+try:
+    tokens = shlex.split(os.environ.get("LOOP_GIT_CMD", ""))
+except ValueError:
+    tokens = os.environ.get("LOOP_GIT_CMD", "").split()
+
+i = 0
+while i < len(tokens):
+    token = tokens[i]
+    if token == "git" or token.endswith("/git"):
+        i += 1
+        while i < len(tokens):
+            option = tokens[i]
+            if option == "-C" and i + 1 < len(tokens):
+                print(tokens[i + 1])
+                sys.exit(0)
+            if option == "--git-dir" and i + 1 < len(tokens):
+                print(tokens[i + 1])
+                sys.exit(0)
+            if option.startswith("--git-dir="):
+                print(option.split("=", 1)[1])
+                sys.exit(0)
+            if option == "-c":
+                i += 2
+                continue
+            if option.startswith("-c") and option != "-c":
+                i += 1
+                continue
+            if option in ("--work-tree", "--namespace", "--config-env"):
+                i += 2
+                continue
+            if option == "--":
+                sys.exit(1)
+            if option == "commit":
+                sys.exit(1)
+            i += 1
+        sys.exit(1)
+    i += 1
+sys.exit(1)
+PY
+  else
+    candidate=$(printf '%s' "$1" | grep -oE '(^|[[:space:];|&])git([^;&|]*[[:space:]])(-C[[:space:]]+[^[:space:];|&]+|--git-dir(=|[[:space:]]+)[^[:space:];|&]+)' | head -1 || true)
+    printf '%s\n' "$candidate" | sed -nE 's/.*-C[[:space:]]+([^[:space:];|&]+).*/\1/p; s/.*--git-dir=([^[:space:];|&]+).*/\1/p; s/.*--git-dir[[:space:]]+([^[:space:];|&]+).*/\1/p' | head -1
+  fi
+}
+
 is_git_commit_command "$cmd" || exit 0
 
 # git 저장소 루트 (아니면 무관)
-root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+root_hint=""
+if [ "$MODE" = "claude-hook" ]; then
+  root_hint=$(git_root_hint_from_cmd "$cmd" 2>/dev/null || true)
+fi
+if [ -n "$root_hint" ]; then
+  root=$(git -C "$root_hint" rev-parse --show-toplevel 2>/dev/null) || root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+else
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+fi
 [ -f "$root/loop.md" ] || exit 0   # loop.md 없는 프로젝트는 가드하지 않음
 
 # 긴급 우회 — 반드시 감사 로그를 남긴다
 bypass() {
   mkdir -p "$root/.loop" 2>/dev/null
-  printf '%s bypass=%s mode=%s cmd=%s\n' "$(date '+%F %T')" "$1" "$MODE" "$cmd" >> "$root/.loop/bypass.log" 2>/dev/null
+  { printf '%s bypass=%s mode=%s cmd=%s\n' "$(date '+%F %T')" "$1" "$MODE" "$cmd" >> "$root/.loop/bypass.log"; } 2>/dev/null || printf '⚠️ bypass 감사로그 기록 실패(.loop 쓰기 불가) — 우회는 진행됩니다.\n' >&2
   exit 0
 }
-printf '%s' "$cmd" | grep -q 'skip-loop' && bypass "skip-loop"
+printf '%s' "$cmd" | grep -q '\[skip-loop\]' && bypass "skip-loop"
 [ "${LOOP_SKIP:-}" = "1" ] && bypass "LOOP_SKIP=1"
 
-# lessons 등 docs/loop-md/ 전용 커밋은 게이트 면제 — 지식 증류는 검증 대상 작업이 아니며,
-# 작업 커밋과 섞이지 않게 즉시 분리 커밋하는 것이 규칙이다. (FAIL 라운드 중에도 허용)
+# docs/loop-md/ 디렉토리 전체 커밋(lessons.md 외 메타 문서 포함)은 게이트 면제
+# 지식 증류·메타 기록은 검증 대상 작업이 아니다. (FAIL 라운드 중에도 허용)
 # 단 -a/-am/--all 커밋은 unstaged 작업 파일까지 쓸려 들어가므로 claude-hook 모드에서는 면제하지 않는다.
 staged=$(git -C "$root" diff --cached --name-only 2>/dev/null)
 if [ -n "$staged" ] && [ "$(printf '%s\n' "$staged" | grep -cv '^docs/loop-md/')" -eq 0 ]; then

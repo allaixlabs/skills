@@ -62,7 +62,7 @@ chmod +x .git/hooks/pre-commit
 가드가 검사하는 것: 마커 존재 → **마커 HEAD = 현재 HEAD**(브랜치 전환/rebase 후 stale 마커 차단) →
 **부분 스테이징 없음**(커밋 내용=검증 내용 보장) → 마커 이후 추적 소스 무변경(mtime, lockfile 포함).
 - Verify 통과 시 마커에 검증 시점 HEAD가 기록되어 커밋이 허용된다.
-- **우회**(자가치유·긴급): 커밋 메시지에 `[skip-loop]` 또는 `LOOP_SKIP=1` — 우회는 `.loop/bypass.log`에 감사 기록된다.
+- **우회**(자가치유·긴급): 커밋 메시지에 `[skip-loop]` 또는 `LOOP_SKIP=1` — 우회는 `.loop/bypass.log`에 best-effort로 기록된다(기록 실패 시 stderr 경고, 우회는 진행).
 - 위협 모델: **부주의한 완료 선언 차단**이다. 리포트는 수동 규약이므로 악의적 증거 위조까지 기계적으로 막지는 않는다(자동 runner는 후속 과제).
 
 ## 구조
