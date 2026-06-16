@@ -24,7 +24,8 @@ while true; do
 done
 ```
 
-> 실제로는 사용자가 `/loop 5m` 또는 Monitor 도구로 가동한다. 위 스니펫이 그 command 본문이다.
+> 실제로는 사용자가 `/loop 5m <command>` 또는 Monitor 도구로 가동한다. 위 스니펫이 그 command 본문이다.
+> ⚠️ **`/loop`은 항상 명시 프롬프트/명령과 함께** 쓴다(`/loop <간격> "<명시>"`). **인자 없는 bare `/loop`은 쓰지 말 것** — 루트 `loop.md`(loop-md DoD 기준문)를 "매 tick 실행 task"로 오인 픽업해 5번 롤백 명령(`git stash`/`git restore`)이 매 tick 실행될 수 있다(상세: `SKILL.md`의 "`/loop` 스케줄러와의 관계"). `/loop`의 dynamic pacing(ScheduleWakeup, 기본 1200s)·3-tick 무작업 자동중단은 feature-flag/환경 의존이라 **선택적 참고**로만 둔다(기본 OFF).
 
 ---
 
@@ -102,5 +103,5 @@ done
 
 ## 안전 수칙
 - 모든 자동 푸시는 R&R 자동 영역 + 허용 브랜치(`ai/*` 등)에서만.
-- 무한 루프 방지: 최대 재시도 횟수와 동일 원인 반복 감지를 둔다.
+- 무한 루프 방지: 최대 재시도 횟수와 동일 원인 반복 감지를 둔다. (loop-md의 "동일 게이트 3회 실패 중단"과 `/loop`의 "3-tick 무작업 중단"은 충돌이 아니라 서로 다른 축의 탈출 조건 — 둘 다 두면 상호보완.)
 - 폴링 간격은 원격 API 30초+, 로컬 0.5~1초.
