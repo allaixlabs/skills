@@ -92,16 +92,18 @@ cmux의 Unix 소켓 CLI로 다른 터미널 패널(Claude/Codex/opencode/셸)의
 ## 설치
 
 ### npx skills (권장)
-[skills CLI](https://github.com/vercel-labs/skills)로 원하는 스킬만 골라 설치:
+[skills CLI](https://github.com/vercel-labs/skills)로 원하는 스킬만, 원하는 에이전트에만 골라 설치:
 ```bash
-npx skills add allaixlabs/skills --skill loop-md
-npx skills add allaixlabs/skills --skill cmux-handoff
-npx skills add allaixlabs/skills --skill plan-then-codex
-npx skills add allaixlabs/skills --skill plan-then-opencode
-npx skills add allaixlabs/skills --skill plan-codex-opencode
-npx skills add allaixlabs/skills --skill plan-fusion
-npx skills add allaixlabs/skills --skill '*'   # 전부 설치
+npx skills add allaixlabs/skills --skill loop-md --agent claude-code
+npx skills add allaixlabs/skills --skill cmux-handoff --agent claude-code
+npx skills add allaixlabs/skills --skill plan-then-codex --agent claude-code
+npx skills add allaixlabs/skills --skill plan-then-opencode --agent claude-code
+npx skills add allaixlabs/skills --skill plan-codex-opencode --agent claude-code
+npx skills add allaixlabs/skills --skill plan-fusion --agent claude-code
+npx skills add allaixlabs/skills --skill '*' --agent claude-code   # 전부 설치
 ```
+
+> **`--agent`를 생략하면** 감지된 **모든 에이전트**(Cursor·Codex·Gemini CLI 등 십수 개)에 한꺼번에 설치된다 — 한 에이전트에만 깔려면 위처럼 `--agent`를 명시한다(대상이 다르면 `--agent codex`·`--agent cursor` 등으로 변경, 공백으로 복수 지정 가능). 기본은 심볼릭 링크 설치라 원본을 덮어쓰지 않는다.
 새 세션에서 `/loop-md`, `/plan-fusion` 등으로 호출하거나, 각 스킬의 description 트리거(자연어)로 발동한다.
 
 ### 수동 설치 (Claude Code)
