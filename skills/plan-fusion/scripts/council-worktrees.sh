@@ -39,6 +39,7 @@ council_wt_setup() {
   local stash; stash=$(git -C "$ROOT" stash create 2>/dev/null || echo "")
   printf '%s' "$stash" > "$RUN/stash.sha"
   git -C "$ROOT" rev-parse HEAD > "$RUN/baseline.head" 2>/dev/null
+  git -C "$ROOT" status --porcelain=v1 --untracked-files=all > "$RUN/baseline.status" 2>/dev/null || :
   local id wt br ok=0 fail=0
   for id in "${ids[@]}"; do
     # ts-PID-RUN 접미로 동일 slug 동시/연속 실행의 브랜치명 충돌 방지.
@@ -82,12 +83,16 @@ council_wt_diffbase() {
 
 council_wt_cleanup() {
   local ROOT="$1" RUN="$2" keep_id="${3:-}" d manifest id br
+  local cleanup_failed=0 cleanup_failed_items=""
   for d in "$RUN"/wt/*; do
     [ -d "$d" ] || continue
     # keep_id worktree는 보존(호출측이 명시 보존 요청 — 미커밋 작업 유실 방지). 이전엔 keep_id가 아래 branch 루프에서
     # 브랜치만 보존하고 worktree는 여기서 force-remove해, keep_id 디렉토리의 미커밋 변경이 삭제되는 버그가 있었다.
     [ -n "$keep_id" ] && [ "$(basename "$d")" = "$keep_id" ] && continue
-    git -C "$ROOT" worktree remove --force "$d" 2>/dev/null
+    if ! git -C "$ROOT" worktree remove --force "$d" 2>/dev/null; then
+      cleanup_failed=$((cleanup_failed+1))
+      cleanup_failed_items="${cleanup_failed_items} worktree:$d"
+    fi
   done
   git -C "$ROOT" worktree prune 2>/dev/null
   for manifest in "$RUN"/*/manifest; do
@@ -97,9 +102,18 @@ council_wt_cleanup() {
     br=$(sed -n 's/^branch=//p' "$manifest" | head -1)
     [ -n "$br" ] || continue
     case "$br" in
-      council/*) git -C "$ROOT" branch -D "$br" >/dev/null 2>&1 || true ;;
+      council/*)
+        if ! git -C "$ROOT" branch -D "$br" >/dev/null 2>&1; then
+          cleanup_failed=$((cleanup_failed+1))
+          cleanup_failed_items="${cleanup_failed_items} branch:$br"
+        fi
+        ;;
     esac
   done
+  if [ "$cleanup_failed" -gt 0 ]; then
+    echo "CLEANUP_FAILED=$cleanup_failed$cleanup_failed_items" >&2
+  fi
+  return 0
 }
 
 # council_wt_adopt <ROOT> <RUN> <id> — 채택 패널 변경을 메인 작업트리에 안전 반영
@@ -147,6 +161,12 @@ council_wt_adopt() {
   # 머지 대신 patch apply --3way: 메인 히스토리 오염 방지 + baseline dirty 충돌을 표면화.
   # ⚠️ --3way 실패 후 plain apply 재시도는 금물 — plain은 --3way보다 엄격해 무조건 실패하고
   #    충돌 상태만 가중시킨다. 단일 --3way로 시도하고 실패 시 그대로 표면화한다.
+  local baseline_status now_status
+  baseline_status=$(cat "$RUN/baseline.status" 2>/dev/null || echo "")
+  now_status=$(git -C "$ROOT" status --porcelain=v1 --untracked-files=all 2>/dev/null || echo "")
+  if [ "$baseline_status" != "$now_status" ]; then
+    echo "WARN: council 시작 후 ROOT에 새 변경 감지, --3way 충돌 가능" >&2
+  fi
   if git -C "$ROOT" apply --3way "$RUN/final.patch"; then
     echo "ADOPTED: $id → $ROOT ($RUN/final.patch 적용)"
   else

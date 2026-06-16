@@ -74,13 +74,22 @@ if command -v opencode >/dev/null 2>&1; then
   OC_MINOR=$(echo "$OC_VERSION" | cut -d. -f2); OC_MINOR=${OC_MINOR:-0}
   if [ "$OC_MAJOR" -lt 1 ] || { [ "$OC_MAJOR" -eq 1 ] && [ "$OC_MINOR" -lt 4 ]; }; then
     echo "OPENCODE_VERSION_OK=no"
+    echo "OPENCODE_FLAGS_VERIFIED=no"
     echo "HINT: opencode >= 1.4.0 필요. 현재 $OC_VERSION. 'opencode upgrade' 실행." >&2
   else
     echo "OPENCODE_VERSION_OK=yes"
     OC_INSTALLED=1
+    OC_RUN_HELP=$(_t 10 opencode run --help 2>&1 || _t 10 opencode --help 2>&1 || echo "")
+    if printf '%s\n' "$OC_RUN_HELP" | grep -q -- '--variant' && printf '%s\n' "$OC_RUN_HELP" | grep -q -- '--format'; then
+      echo "OPENCODE_FLAGS_VERIFIED=yes"
+    else
+      echo "OPENCODE_FLAGS_VERIFIED=no"
+      echo "WARN: opencode $OC_VERSION >=1.4지만 --variant/--format 플래그를 help에서 확인하지 못했습니다. 1.16+ 업그레이드 권장." >&2
+    fi
   fi
 else
   echo "OPENCODE_INSTALLED=no"
+  echo "OPENCODE_FLAGS_VERIFIED=no"
   echo "HINT: npm install -g opencode  (또는 brew install opencode)" >&2
 fi
 

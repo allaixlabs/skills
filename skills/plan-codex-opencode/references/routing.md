@@ -35,7 +35,7 @@
 
 - **codex**: `xhigh | high | medium | low | minimal` → `-c model_reasoning_effort="<v>"` (TOML 파싱 — 쌍따옴표 필수).
 - **opencode/omo**: provider별 reasoning variant → `--variant <high|max|minimal>` (실측: `opencode run --variant` = "provider-specific reasoning effort").
-  - `omo run`에는 `--variant`가 없다 → 고추론이 필요하면 ① `opencode run` 직접 경로로 `--variant high`를 쓰거나 ② 모델 자체를 상위 변형으로 선택. omo 경로에서는 변형 지정을 생략하고 모델 기본값을 쓴다.
+  - `omo run`에는 `--variant`가 없다. **선택 기준**: 완수보장(긴 구현·다단계)이 우선이면 `omo run`에 변형 지정 없이 모델 기본값을 쓴다. 고추론(variant)이 우선이면 `opencode run` 직접 경로로 `--variant high`를 쓴다. 둘 다 필요하면 `opencode run` 직접 경로에 상위 모델 변형을 조합해 쓴다.
 
 ## 모호 호명 처리 (순서대로)
 

@@ -15,7 +15,7 @@
 2. **모드 선택** — Council(다양성) / Pipeline(검증깊이) / Council-Research(비코드 분석)를 작업 유형으로 분기.
 3. **계획(HANDOFF)** — 모든 패널이 공유하는 **단일 자기완결 스펙** 작성(Baseline·Out-of-scope·BLOCKED·Acceptance Criteria).
 4. **위임** — Council은 **git worktree 격리** 병렬, Pipeline은 구현→리뷰→수정 순차. 전부 백그라운드 + 패널별 manifest.
-5. **종합** — 패널별 diff/답변 비교 → **교차리뷰**(`codex exec review`로 다른 패밀리가 리뷰) → 합의/충돌/고유통찰 + 판정 근거를 `synthesis.md`로. 코드면 채택/합성을 `apply --3way` 후 plain `git apply` 폴백으로 메인 반영.
+5. **종합** — 패널별 diff/답변 비교 → **교차리뷰**(`codex exec review`로 다른 패밀리가 리뷰) → 합의/충돌/고유통찰 + 판정 근거를 `synthesis.md`로. 코드면 채택/합성을 `apply --3way` 단일 시도로 메인 반영하고, 실패 시 `APPLY_CONFLICT`로 표면화해 수동 머지한다(plain `git apply` 재시도 없음).
 6. **검증·리포트** — 직접 실행 증거로 검증(result 주장은 근거 아님), loop-md 연동, 패널·모드·근거 보고.
 
 ## 모드 가이드
@@ -44,7 +44,7 @@
 > **검증 환경(실측)**: codex-cli 0.139.0 · opencode 1.16.2 · omo 4.10.0 — CLI 플래그는 이 환경에서 확인했다. 아래는 동작을 기대하는 **최소 버전**이다.
 
 - **codex CLI** ≥ 0.139 (`npm install -g @openai/codex`) + `codex login` — `exec review`(교차리뷰)가 0.139 신설이라 이게 최소.
-- **opencode** ≥ 1.4 (`npm install -g opencode`) + 프로바이더 인증(`opencode providers login`)
+- **opencode** ≥ 1.4 (`npm install -g opencode`) + 프로바이더 인증(`opencode providers login`). 단 `--variant` 등 일부 플래그는 1.16+ 실측이며, 1.4~1.15는 플래그 미지원 가능.
 - **oh-my-openagent** ≥ 4.9 (omo run 경로용): `bunx oh-my-openagent install`, 별칭은 `npm i -g oh-my-openagent` (⚠️ `bunx omo`/`npx omo` 금지)
 
 > ⚠️ **비용·시간**: N개 패밀리를 고추론으로 병렬 위임하면 토큰·시간이 단일 위임의 N배 이상이다. 3-패널 xhigh는 수십 분 단위가 될 수 있고 omo run은 자체 타임아웃이 없다 → 백그라운드 + 완료 알림으로 관리하고, 단순 위임이면 plan-then-codex/opencode가 더 가볍다.
@@ -89,7 +89,7 @@ ln -s ~/project/skills/skills/plan-codex-opencode ~/.claude/skills/plan-codex-op
 | 모델 수 | 1 (codex) | 1 (omo 에이전트) | **2~3+ 패밀리 패널** |
 | 목적 | 단일 위임 | 단일 위임 | **교차검증·다양성·종합** |
 | 토폴로지 | 위임→검증 | 위임→검증 | **Council / Pipeline** |
-| 격리 | workspace-write | 풀 파일시스템 | **패널별 worktree** |
+| 격리 | workspace-write | 풀 파일시스템 | **Council-Code=패널별 worktree / Council-Research=읽기전용 사본** |
 
 단일 모델로 충분하면 위 두 선행 스킬을 쓴다. 이 스킬은 **여러 모델 패밀리를 함께 돌릴 때**의 오케스트레이션이다.
 

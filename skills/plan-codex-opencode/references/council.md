@@ -50,6 +50,7 @@ diff는 `diff -ru "$ROOT" "$WT" > "$RUN/$id/diff.patch"`로 대체.
     fi
   fi
 
+  mkdir -p "$RUN/$id"
   opencode run -m <prov/model> --variant high --format json \
     --dangerously-skip-permissions --dir "$RO" "$(cat "$RUN/handoff.md")" \
     > "$RUN/$id/round1.log" 2>&1
@@ -66,6 +67,7 @@ diff는 `diff -ru "$ROOT" "$WT" > "$RUN/$id/diff.patch"`로 대체.
 
 ```bash
 # codex 패널 (코드: workspace-write / 리서치: read-only)
+mkdir -p "$RUN/codex"
 codex exec -C "$RUN/wt/codex" -m gpt-5.5 -c model_reasoning_effort="xhigh" \
   --sandbox workspace-write -o "$RUN/codex/result.md" - < "$RUN/handoff.md" \
   > "$RUN/codex/round1.log" 2>&1
@@ -73,6 +75,7 @@ echo "round1_exit=$?" >> "$RUN/codex/manifest"
 
 # glm 패널 (omo — 구현 완수보장)
 OMO_BIN=$(command -v omo 2>/dev/null || echo "bunx oh-my-openagent")
+mkdir -p "$RUN/glm"
 $OMO_BIN run --agent Sisyphus \
   -m zai-coding-plan/glm-5.2 -d "$RUN/wt/glm" --json \
   "$(cat "$RUN/handoff.md")" \
@@ -80,6 +83,7 @@ $OMO_BIN run --agent Sisyphus \
 echo "round1_exit=$?" >> "$RUN/glm/manifest"
 
 # kimi 패널 (opencode 직접 — 가벼움)
+mkdir -p "$RUN/kimi"
 opencode run -m opencode-go/kimi-k2.7-code --variant high --format json \
   --dir "$RUN/wt/kimi" "$(cat "$RUN/handoff.md")" \
   > "$RUN/kimi/round1.log" 2>&1
@@ -98,6 +102,7 @@ echo "round1_exit=$?" >> "$RUN/kimi/manifest"
 ### Council-Code
 1. **결과 수집**: 각 패널 exit·result(DONE/BLOCKED). BLOCKED 질문 모아 차단 판단.
 2. **diff 추출** (주장이 아니라 실제 변경 — ⚠️ 신규 파일 포함 + 사용자 dirty 제외):
+   - **stash apply 실패 패널은 제외**: 각 패널 manifest에 `stash apply 실패` 마커가 있으면 그 패널은 diff 추출/교차리뷰에서 제외한다. setup이 사용자 dirty를 worktree에 적용하지 못했으므로, diffbase(stash)와 어긋나 사용자 dirty 역헝크가 섞일 수 있다(adopt 가드와 대칭).
 ```bash
 BASE=$(council_wt_diffbase "$RUN")   # 패널 worktree 출발점(stash 있으면 그 커밋, 없으면 HEAD).
 # baseline.head(HEAD)를 직접 쓰면 ① 사용자 dirty가 패널 기여분으로 오인되고 ② adopt 패치와 base가
@@ -160,7 +165,7 @@ council_wt_adopt "$ROOT" "$RUN" "<채택 id>"   # rev-parse 드리프트 체크 
 | worktree/브랜치 누수 | `$RUN/wt/<id>` 격리 + REPORT 직전 `council_wt_cleanup` + `worktree remove --force`+`prune`+manifest `council/*` 브랜치 삭제. REPORT서 `worktree list`/`branch --list 'council/*'` 확인 |
 | 브랜치명 충돌 | `council/<slug>-<id>-<ts>` 유니크 명명 |
 | 동시 파일 충돌 | 패널마다 독립 worktree(비-git은 `cp -a`) |
-| baseline 오염 / 사용자 dirty 중복충돌 | `stash create`(워킹트리 불변)→worktree apply로 동일 출발선. diff·adopt의 base는 `council_wt_diffbase`(=stash 출발점)라 **패널 순수 기여분만** 추출. 메인 적용은 `apply --3way` 후 dirty index 불일치 시 plain `git apply` 폴백 |
+| baseline 오염 / 사용자 dirty 중복충돌 | `stash create`(워킹트리 불변)→worktree apply로 동일 출발선. diff·adopt의 base는 `council_wt_diffbase`(=stash 출발점)라 **패널 순수 기여분만** 추출. 메인 적용은 `apply --3way` 단일 시도이며, 실패 시 `APPLY_CONFLICT`로 표면화(수동 머지) — plain 재시도는 충돌을 가중시키므로 하지 않는다 |
 | race(완료 전 read) | 모든 패널 완료 알림 후 read, manifest exit→codex result.md 또는 omo/opencode round1.log |
 | 부분 실패로 council 마비 | 생존 모델 패밀리 ≥2면 Council 진행. 1패밀리만 생존하면 단일위임 결과 + `Council 미성립`으로 격하. ORCHESTRATION_FAIL 라운드 미산입 |
 | 합성 모호성 | 임의 채택 금지 — diff·교차리뷰·테스트 증거로 판정, 근거 synthesis.md 명시 |
