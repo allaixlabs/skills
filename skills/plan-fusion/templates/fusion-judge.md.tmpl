@@ -30,4 +30,7 @@ Their candidate answers (or diffs) follow this instruction block, each labeled
 - 단일 채택이면 어느 후보, 합성이면 "어느 후보의 무엇 + 어느 후보의 무엇".
 - 최종 답변에서 제거해야 할 약한 주장·모순·중복.
 
+## 조건부 loop.md ③정성 루브릭
+loop.md가 입력에 포함된 경우에만, 후보를 loop.md ③평가 항목(아키텍처/가독성/예외처리/상호참조)으로도 평가하라. 각 항목은 후보별 1~5점 + 근거 + 액션 형식으로 적고, 함께 제공된 ①② 실행로그와 충돌하는 주장은 위험·미검증 주장에 올려라. loop.md가 입력에 없으면 이 섹션은 무시한다.
+
 간결하되 근거를 달아라. 이 판정은 Synthesizer CLI의 입력이 되고, Claude가 사후 검증한다.

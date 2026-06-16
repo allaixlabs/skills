@@ -38,7 +38,7 @@ Codex는 `loop.md`가 없으면 `~/.claude/skills/loop-md/scripts/detect-stack.s
 
 ## 옵트인: hard 가드 (커밋 차단)
 
-soft 가드(글로벌 지시)로 부족하면 **커밋 시점에 강제**한다. 같은 스크립트가 두 모드를 지원한다:
+soft 가드(글로벌 지시)로 부족하면 **커밋 시점에 강제**한다. 같은 스크립트가 세 가지 모드를 지원한다:
 
 **① Claude PreToolUse hook** — `~/.claude/settings.json` 의 `hooks.PreToolUse` 배열에 추가
 (`git commit --no-verify` 도 명령 문자열 검사라서 잡는다):
@@ -59,11 +59,26 @@ printf '#!/bin/sh\nexec bash ~/.claude/skills/loop-md/scripts/precommit-guard.sh
 chmod +x .git/hooks/pre-commit
 ```
 
+**③ git commit-msg hook (② 보완 — `[skip-loop]` 메시지 우회)** — ② pre-commit 은 커밋 메시지를
+읽지 못해 `[skip-loop]` 우회가 무력하다. commit-msg hook은 커밋 직전(스테이징 후)에 메시지 파일을
+읽으므로 셸 git commit 경로에서 `[skip-loop]` 가 작동한다. ②+③ 동시 설치 권장:
+```bash
+printf '#!/bin/sh\nexec bash ~/.claude/skills/loop-md/scripts/precommit-guard.sh --commit-msg "$1"\n' > .git/hooks/commit-msg
+chmod +x .git/hooks/commit-msg
+```
+
 가드가 검사하는 것: 마커 존재 → **마커 HEAD = 현재 HEAD**(브랜치 전환/rebase 후 stale 마커 차단) →
 **부분 스테이징 없음**(커밋 내용=검증 내용 보장) → 마커 이후 추적 소스 무변경(mtime, lockfile 포함).
 - Verify 통과 시 마커에 검증 시점 HEAD가 기록되어 커밋이 허용된다.
-- **우회**(자가치유·긴급): 커밋 메시지에 `[skip-loop]` 또는 `LOOP_SKIP=1` — 우회는 `.loop/bypass.log`에 best-effort로 기록된다(기록 실패 시 stderr 경고, 우회는 진행).
+- **우회**(자가치유·긴급) — 모드별 지원 범위가 다르다:
+  - `LOOP_SKIP=1` (환경변수) — **모든 모드**에서 작동.
+  - `[skip-loop]` (커밋 메시지) — **① claude-hook · ③ commit-msg 모드**에서만 작동. **② pre-commit 모드는 메시지를 못 읽어 불가** → `LOOP_SKIP=1` 을 쓰거나 ③ commit-msg hook 을 설치.
+  - 모든 우회는 `.loop/bypass.log`에 best-effort로 기록된다(기록 실패 시 stderr 경고, 우회는 진행).
 - 위협 모델: **부주의한 완료 선언 차단**이다. 리포트는 수동 규약이므로 악의적 증거 위조까지 기계적으로 막지는 않는다(자동 runner는 후속 과제).
+
+## worktree 격리 워크플로우 안에서 쓸 때
+
+**plan-fusion** 등 worktree 격리 워크플로우 안에서 작업하면, 패널 worktree에서 실행한 Verify는 그 worktree의 `.loop/last-verified`만 갱신하고 **메인 작업트리의 마커는 갱신하지 못한다**(격리된 작업트리마다 `.loop/`가 별도). adopt 등으로 결과를 메인에 반영한 뒤, **메인 작업트리에서 Verify를 다시 실행**해야 메인의 `.loop/last-verified` 마커가 현재 HEAD로 갱신되어 hard 가드가 커밋을 허용한다. worktree 내 Verify는 사전검증일 뿐 hard-guard 충족이 아니다.
 
 ## 구조
 
@@ -81,7 +96,7 @@ loop-md/
 │   └── *.stub.md           # PRD·유저플로우·UI·DB 참조 스텁
 └── scripts/
     ├── detect-stack.sh     # 스택 자동 감지 (read-only, MANIFEST_PATHS·monorepo 경고)
-    └── precommit-guard.sh  # hard 커밋 가드 (Claude PreToolUse / git pre-commit 듀얼 모드)
+    └── precommit-guard.sh  # hard 커밋 가드 (Claude PreToolUse / git pre-commit / git commit-msg 세 모드)
 ```
 
 ## 핵심 원칙

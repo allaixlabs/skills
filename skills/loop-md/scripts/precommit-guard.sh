@@ -20,9 +20,17 @@
 set -u
 
 MODE="claude-hook"
-[ "${1:-}" = "--git-hook" ] && MODE="git-hook"
+msgfile=""
+if [ "${1:-}" = "--git-hook" ]; then
+  MODE="git-hook"
+elif [ "${1:-}" = "--commit-msg" ]; then
+  MODE="commit-msg"
+  msgfile="${2:-}"
+fi
 
 if [ "$MODE" = "git-hook" ]; then
+  cmd="git commit"
+elif [ "$MODE" = "commit-msg" ]; then
   cmd="git commit"
 else
   input=$(cat 2>/dev/null || true)
@@ -193,7 +201,7 @@ PY
   fi
 }
 
-is_git_commit_command "$cmd" || exit 0
+[ "$MODE" = "commit-msg" ] || is_git_commit_command "$cmd" || exit 0
 
 # git 저장소 루트 (아니면 무관)
 root_hint=""
@@ -213,7 +221,11 @@ bypass() {
   { printf '%s bypass=%s mode=%s cmd=%s\n' "$(date '+%F %T')" "$1" "$MODE" "$cmd" >> "$root/.loop/bypass.log"; } 2>/dev/null || printf '⚠️ bypass 감사로그 기록 실패(.loop 쓰기 불가) — 우회는 진행됩니다.\n' >&2
   exit 0
 }
-printf '%s' "$cmd" | grep -q '\[skip-loop\]' && bypass "skip-loop"
+if [ "$MODE" = "commit-msg" ]; then
+  [ -n "$msgfile" ] && [ -f "$msgfile" ] && grep -q '\[skip-loop\]' "$msgfile" && bypass "skip-loop"
+else
+  printf '%s' "$cmd" | grep -q '\[skip-loop\]' && bypass "skip-loop"
+fi
 [ "${LOOP_SKIP:-}" = "1" ] && bypass "LOOP_SKIP=1"
 
 # docs/loop-md/ 디렉토리 전체 커밋(lessons.md 외 메타 문서 포함)은 게이트 면제
@@ -231,7 +243,11 @@ block() {
   printf '⛔ loop.md DoD 가드: %s\n' "$1" >&2
   printf "→ '/loop-md' Verify 로 ①Pass/Fail 게이트(실행 증거)·②정량·③정성 리포트를 통과시킨 뒤 커밋하세요.\n" >&2
   printf '   통과 시 .loop/last-verified 마커가 갱신되어 커밋이 허용됩니다.\n' >&2
-  printf '   (긴급 우회: 커밋 메시지에 [skip-loop] 또는 LOOP_SKIP=1 — .loop/bypass.log 에 기록됨)\n' >&2
+  if [ "$MODE" = "git-hook" ]; then
+   printf '   (긴급 우회: 이 hook(pre-commit)은 커밋 메시지를 읽지 못해 `[skip-loop]`가 동작하지 않습니다 → `LOOP_SKIP=1`을 쓰거나 `commit-msg` hook을 설치하세요. .loop/bypass.log 에 기록됨)\n' >&2
+  else
+   printf '   (긴급 우회: `[skip-loop]`(커밋 메시지) 또는 `LOOP_SKIP=1`로 우회 가능. .loop/bypass.log 에 기록됨)\n' >&2
+  fi
   exit 2
 }
 

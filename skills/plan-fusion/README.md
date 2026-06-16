@@ -102,7 +102,9 @@ agy로 gemini도 패널에 넣어서 fusion으로 이 버그 원인 교차검증
 
 ## loop-md 연동
 
-루트에 `loop.md`가 있으면 VERIFY에서 loop-md Verify 모드(①Pass/Fail·②정량·③정성). **③정성의 독립 검증자를 Judge·교차리뷰로 자연 충족**. 없으면 N/A.
+루트에 `loop.md`가 있으면 VERIFY의 loop-md 연동은 `council_wt_adopt` → **메인 ROOT에서** loop-md Verify 전체 ①Pass/Fail·②정량·③정성 실행 → `.loop/last-verified`가 현재 HEAD인지 확인 → 그 다음 커밋 순서로 고정한다. 패널 worktree 검증은 사전검증일 뿐 hard-guard 충족이 아니다. 루트에 `loop.md` 없으면 N/A.
+
+Judge는 후보 비교용으로 loop-md ③정성(fresh-context 채점)과 입력·목적이 다르다. `loop.md` 감지 시 Judge 입력에 loop.md ③루브릭 + ①② 실행로그를 조건부 주입해 ③을 실제 충족하고, ②정량(커버리지 등)은 메인 검증 단계에서 loop.md 명령으로 직접 실행한다.
 
 ## 구조
 
