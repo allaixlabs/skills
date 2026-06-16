@@ -1,4 +1,4 @@
-# makeskill
+# allaix skills
 
 > **Claude Code · Codex · opencode를 위한, 실측 검증된 에이전트 스킬 모음.**
 > Claude는 분석·계획·검증을 맡고 실제 실행은 외부 모델 CLI에 위임한다 — 그 **위임 · 검증 · 합성 루프**를 재사용 가능한 스킬로 패키징했다.
@@ -130,3 +130,16 @@ skills/
 ```
 
 각 스킬 폴더는 `SKILL.md`(오케스트레이션) · `README.md`(상세) · `references/`(CLI 실측 노트) · `templates/` · `scripts/`(사전점검)로 구성된다.
+
+## 만든 곳
+
+**allaix skills**는 **Allaix Labs**와 **LETSECU(주식회사 렛시큐)** 가 함께 개발·관리하는 에이전트 스킬 모음이다.
+
+| 회사 | 소개 | 링크 |
+|------|------|------|
+| **Allaix Labs** | "AI로 문제를 해결합니다" — 기획부터 개발·자동화·운영까지, 조직 문제 중심의 맞춤형 AI 시스템을 설계한다. | [allaix.kr](https://allaix.kr) · `allaixlabs@gmail.com` |
+| **LETSECU** (주식회사 렛시큐) | "Human Insight × AI Engine" — AI 기반 정보보안 솔루션·컨설팅(보안 지침 설계, 웹 취약점 진단, 보안 컨설팅)을 제공한다. | [letsecu.com](https://letsecu.com) · [blog](https://blog.letsecu.com) |
+
+문의: `allaixlabs@gmail.com`
+
+© 2026 Allaix Labs · LETSECU
