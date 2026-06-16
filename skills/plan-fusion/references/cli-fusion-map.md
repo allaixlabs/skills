@@ -39,7 +39,10 @@ echo "round1_exit=$?" >> "$RUN/gemini/manifest"
 # ⚠️ cp -a는 .git(리모트·자격증명)·out-of-tree 심링크 보존 → push·시크릿·심링크탈출 미방어. .git 제외 + 심링크 차단:
 RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"
 rsync -a --safe-links --exclude '.git' --exclude node_modules "$ROOT/" "$RO/" 2>/dev/null \
-  || { rm -rf "$RO"; cp -a "$ROOT" "$RO" && rm -rf "$RO/.git" && find "$RO" -type l -delete; }   # rm 선행: rsync 부분실패 시 cp가 $RO/<basename>/로 중첩되는 것 방지
+  || { rm_rc=0; rm -rf "$RO" || rm_rc=$?; cp_rc=0; cp -a "$ROOT" "$RO" || cp_rc=$?; cleanup_rc=0; if [ -d "$RO" ]; then find "$RO" -name .git -prune -exec rm -rf {} + 2>/dev/null || cleanup_rc=$?; find "$RO" -type l -delete 2>/dev/null || cleanup_rc=$?; fi; [ "$rm_rc" = 0 ] && [ "$cp_rc" = 0 ] && [ "$cleanup_rc" = 0 ]; } \
+  || { echo "ABORT: gemini 읽기전용 사본 격리 실패(.git/심링크 잔존 가능) — 위임 중단(무응답, quorum 처리). 비격리 사본에서 참가자를 돌리지 않는다." >&2; exit 1; }
+# ⚠️ errexit를 안 쓰므로 위 사본 그룹의 실패 반환을 **반드시 `|| { … exit 1; }`로 act**한다(fusion.md §1과 동일) —
+#    안 그러면 cleanup 실패(.git 잔존) 사본에서 아래 `agy --dangerously-skip-permissions`가 그대로 돌아 격리가 무력화된다.
 ( cd "$RO" && command agy --print-timeout 600s --dangerously-skip-permissions \
     --model "Gemini 3.1 Pro (High)" \
     --print "$(cat "$RUN/handoff.md")" ) > "$RUN/gemini/round1.log" 2>&1
