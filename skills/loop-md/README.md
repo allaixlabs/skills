@@ -32,7 +32,7 @@ ln -s ~/project/skills/skills/loop-md ~/.claude/skills/loop-md   # 심볼릭 링
 ### Codex CLI / 기타 에이전트
 Codex는 **`AGENTS.md`** 만 읽는다(스킬 자동 인식은 Claude 전용). 두 가지 방식:
 - **글로벌 (권장)**: `~/.codex/AGENTS.md` 에 `dod-guard` 블록 1회 → **모든 프로젝트의 Codex 자동 적용**. Claude 글로벌(`~/.claude/CLAUDE.md`)과 대칭. `/loop-md` Setup 6번이 양쪽을 함께 확인·설정한다.
-- **프로젝트별**: `cp templates/AGENTS.md.tmpl <프로젝트>/AGENTS.md` (Setup의 'Codex 어댑터' 선택지가 자동 수행)
+- **프로젝트별**: `cp ~/.claude/skills/loop-md/templates/AGENTS.md.tmpl <프로젝트>/AGENTS.md` (Setup의 'Codex 어댑터' 선택지가 자동 수행)
 
 Codex는 `loop.md`가 없으면 `~/.claude/skills/loop-md/scripts/detect-stack.sh`로 **직접 부트스트랩**도 가능 — Setup·Verify를 Claude 없이 단독 수행한다. (단 `loop.md`를 써야 하므로 **쓰기 가능 샌드박스 실행**이 전제다. read-only 실행에서는 감지·검증만 가능.)
 

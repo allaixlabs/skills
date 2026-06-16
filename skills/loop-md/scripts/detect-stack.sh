@@ -82,9 +82,9 @@ if [ -n "$PYDIR" ]; then
   PYTHON_TEST="${PFX}pytest"
   PYTHON_COVERAGE="${PFX}pytest --cov"
   if [ -f "$PYDIR/pyrightconfig.json" ]; then PYTHON_TYPECHECK="${PFX}pyright"
-  elif grep -qiE mypy "$PYDIR"/pyproject.toml "$PYDIR"/setup.cfg 2>/dev/null; then PYTHON_TYPECHECK="${PFX}mypy ."; fi
-  if   grep -qiE ruff  "$PYDIR"/pyproject.toml 2>/dev/null; then PYTHON_LINT="${PFX}ruff check ."
-  elif grep -qiE flake8 "$PYDIR"/pyproject.toml "$PYDIR"/setup.cfg 2>/dev/null; then PYTHON_LINT="${PFX}flake8"; fi
+  elif grep -qiE '^\[tool\.mypy\]|^[[:space:]]*mypy([[:space:]]|=|$)' "$PYDIR"/pyproject.toml "$PYDIR"/setup.cfg 2>/dev/null; then PYTHON_TYPECHECK="${PFX}mypy ."; fi
+  if   grep -qiE '^\[tool\.ruff\]|^[[:space:]]*ruff([[:space:]]|=|$)' "$PYDIR"/pyproject.toml 2>/dev/null; then PYTHON_LINT="${PFX}ruff check ."
+  elif grep -qiE '^\[flake8\]|^[[:space:]]*flake8([[:space:]]|=|$)' "$PYDIR"/pyproject.toml "$PYDIR"/setup.cfg 2>/dev/null; then PYTHON_LINT="${PFX}flake8"; fi
 fi
 
 # ---------- Go ----------
@@ -102,8 +102,6 @@ NSTACK=$(echo "$DETECTED" | wc -w | tr -d ' ')
 PRIMARY=""
 for s in ruby python go node; do case " $DETECTED " in *" $s "*) PRIMARY="$s"; break;; esac; done
 
-pick() { # pick <STACK> <FIELD> → 해당 변수 값
-  local v; eval "v=\${$(echo "$1" | tr a-z A-Z)_$2:-}"; echo "$v"; }
 ph() { [ -n "$1" ] && echo "$1" || echo "<$2>"; }
 
 if [ -n "$PRIMARY" ]; then
@@ -119,11 +117,11 @@ IS_MULTI="no"; [ "$NSTACK" -gt 1 ] && IS_MULTI="yes"
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   MANIFESTS=$(git ls-files 2>/dev/null \
-    | grep -E '(^|/)(package\.json|Gemfile|go\.mod|pyproject\.toml|setup\.cfg|Cargo\.toml)$' \
+    | grep -E '(^|/)(package\.json|Gemfile|go\.mod|pyproject\.toml|setup\.cfg)$' \
     | grep -vE '(^|/)(node_modules|vendor)/' | head -20) || true
 else
   MANIFESTS=$(find . -maxdepth 4 \( -name node_modules -o -name vendor -o -name .git \) -prune -o \
-    -type f \( -name package.json -o -name Gemfile -o -name go.mod -o -name pyproject.toml -o -name Cargo.toml \) -print 2>/dev/null \
+    -type f \( -name package.json -o -name Gemfile -o -name go.mod -o -name pyproject.toml \) -print 2>/dev/null \
     | sed 's|^\./||' | head -20) || true
 fi
 if [ -n "${MANIFESTS:-}" ]; then
