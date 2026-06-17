@@ -2,7 +2,7 @@
 # detect-stack.sh — 프로젝트 스택을 감지해 빌드/타입체크/테스트/린트 명령어 "힌트"를 추출한다.
 #
 # ⚠️ 이 스크립트는 단정기가 아니라 **힌트 제공기**다. 풀스택·다중서비스 프로젝트에서는
-#    누락이 있을 수 있으므로, SKILL.md 지침대로 **Claude의 직접 분석이 항상 우선**한다.
+#    누락이 있을 수 있으므로, SKILL.md 지침대로 **오케스트레이터(이 스킬을 호출한 에이전트)의 직접 분석이 항상 우선**한다.
 #
 # 사용법:  bash detect-stack.sh [PROJECT_DIR]   (기본값: 현재 디렉토리)
 #
@@ -150,7 +150,7 @@ printf 'COVERAGE_CMD=%s\n'     "$(ph "$COVERAGE_CMD" 커버리지 명령)"
 
 [ -n "${MANIFESTS:-}" ] && printf 'MANIFEST_PATHS=%s\n' "$(printf '%s' "$MANIFESTS" | tr '\n' ' ')"
 
-# 감지된 스택별 상세 (다중일 때 Claude가 종합용으로 사용)
+# 감지된 스택별 상세 (다중일 때 오케스트레이터가 종합용으로 사용)
 for s in $DETECTED; do
   S="$(echo "$s" | tr a-z A-Z)"
   for f in BUILD TYPECHECK TEST LINT SECURITY AUDIT COVERAGE; do

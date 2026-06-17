@@ -9,7 +9,7 @@
 
 ## 1. 주기적 감시 (Polling)
 
-Claude Code의 `Monitor` 도구로 PR 체크 상태를 폴링한다. 터미널 상태가 바뀌면 알림이 온다.
+`Monitor` 도구(Claude Code·ZCode 등 지원 에이전트)로 PR 체크 상태를 폴링한다. 터미널 상태가 바뀌면 알림이 온다. `Monitor`가 없는 환경(Codex 등)은 `/loop <간격> "<command>"` 또는 셸 `while` 루프로 대체한다.
 
 ```bash
 # PR <NUM> 의 체크가 모두 끝날 때까지 폴링, 상태 변화 시 emit (Monitor 도구 command 에 사용)

@@ -19,7 +19,7 @@
 # 우회: 커밋 메시지에 [skip-loop], 또는 LOOP_SKIP=1 — 우회는 .loop/bypass.log 에 감사 기록.
 set -u
 
-MODE="claude-hook"
+MODE="claude-hook"   # Claude Code 환경 기본. ZCode/opencode/Codex 등 Claude hook 포맷이 없는 에이전트는 --git-hook 모드(.git/hooks/pre-commit)로 호출.
 msgfile=""
 if [ "${1:-}" = "--git-hook" ]; then
   MODE="git-hook"
