@@ -4,6 +4,8 @@
 plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두 백엔드와 **CLI Fusion 프리셋**을 추가했다.
 검증 환경(실측): codex-cli 0.139.0 · opencode 1.16.2 · omo 4.10.0 · **agy 1.0.8** · **claude 2.1.x** — 각 `--help` / `models` / 스모크로 확인.
 
+> **모델/버전 문자열 SSOT**: agy 모델명(`"Gemini 3.1 Pro (High)"` 등)·CLI 버전 문자열은 **이 문서가 단일 진실원**이다. 마크다운엔 변수가 없어 `cli-fusion-map.md`·`fusion.md`·`SKILL.md`·`scripts/check-fusion.sh`·`README.md`에 동일 문자열이 하드코딩돼 있다 → **갱신 시 이 문서를 먼저 고치고** `grep -rl '<옛 문자열>' .`로 잔존을 일괄 교체한다(누락하면 백엔드별 모델명 불일치로 위임 실패).
+
 ## 대원칙
 
 | 호명 모델 | 백엔드 | 이유 |

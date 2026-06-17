@@ -231,17 +231,33 @@ fi
 
 # 참가자 백엔드 수 = 교차검증 독립성의 핵심. codex(GPT)·agy(Gemini)·opencode(GLM/Kimi 생태계)를 센다.
 # claude(Opus)는 기본 Judge 전용이라 참가자 백엔드 카운트에서 제외(동족 주의) — 단 가용은 표기.
+# ⚠️ opencode가 '교차검증 독립 패밀리'로 자격이 있는가 = openai(=GPT, codex와 중복) 외 provider 인증 여부.
+#    기본 패널 GLM(zai)·Kimi(opencode-go) 등 비-GPT 프로바이더가 있어야 독립 패밀리다. openai만 인증된
+#    opencode는 codex와 같은 GPT 패밀리라 교차검증 독립성에 기여하지 않으므로 families 카운트에서 뺀다
+#    (opencode_ok=1이지만 openai-only면 EFFECTIVE_BACKENDS가 과대평가돼 게이트가 비독립 세트를 통과시키던 결함).
+#    ${PROV:-}/${AUTH_KEYS:-}로 set -u 가드(opencode 미설치 시 AUTH_KEYS unset).
+opencode_indep=0
+if [ "$opencode_ok" = 1 ]; then
+  if printf '%s\n' "${PROV:-}" | grep -qiE '●.*(Z\.?AI|OpenCode Go|dgrid|anthropic)' \
+     || printf '%s' "${AUTH_KEYS:-}" | grep -qiE 'zai|opencode-go|dgrid|anthropic'; then
+    opencode_indep=1
+  fi
+fi
+echo "OPENCODE_INDEP_FAMILY=$([ "$opencode_indep" = 1 ] && echo yes || echo 'no(openai-only이면 GPT 중복 — 독립 패밀리 아님)')"
 families=0
 [ "$codex_ok" = 1 ]    && families=$((families+1))
 [ "$agy_ok" = 1 ]      && families=$((families+1))
-[ "$opencode_ok" = 1 ] && families=$((families+1))
-echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready 백엔드 수 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; 모델 다양성 ≠ 백엔드 다양성; claude는 기본 Judge 전용이라 제외)"
+[ "$opencode_indep" = 1 ] && families=$((families+1))
+echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready 백엔드 수 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; openai-only opencode는 GPT 중복이라 제외(OPENCODE_INDEP_FAMILY 참조); 모델 다양성 ≠ 백엔드 다양성; claude는 기본 Judge 전용이라 제외)"
 # claude(Opus)는 기본 Judge 전용이라 families에서 제외하지만, highEnd/codeSecurity 등 Opus가 '참가자'인
 # 프리셋에선 독립 백엔드(GPT vs Opus는 서로 다른 패밀리)로 쓸 수 있다. 차단 판정엔 이를 포함한 값을 쓴다.
 # (claude를 참가자로 쓰면 Judge는 비-claude로 — JUDGE_DEFAULT 폴백 참조.)
 effective=$families
 [ "$claude_ok" = 1 ] && effective=$((effective+1))
 echo "EFFECTIVE_BACKENDS=$effective (participant families + claude-as-participant 후보)"
+# ④ assumed-ok 정합: claude가 effective에 가산됐으나 assumed-ok(미확정)면, 그 1개에 의존하는 effective는 잠정이다.
+#    차단 게이트는 낙관적으로 effective 기준이되, case A '전부 가용' 판정은 INDEPENDENT_FAMILIES_CONFIRMED(claude 제외) 기준임을 명시한다.
+[ "$claude_ok" = 1 ] && echo "EFFECTIVE_INCLUDES_ASSUMED=yes (claude=assumed-ok 미확정 — 첫 --print 실패 시 effective 1 감소 → degraded 가능; case A 판정은 INDEPENDENT_FAMILIES_CONFIRMED 사용)"
 
 # === 패널 확정 게이트(SKILL.md 0-2.5)용 machine-readable 신호 ===
 # 호명 파싱은 오케스트레이터 몫(REQUEST_*/GATE_CASE/EXTRA_AVAILABLE/ESTIMATED_CALLS는 거기서 채운다).

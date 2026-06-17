@@ -63,10 +63,12 @@ council_wt_setup() {
       fail=$((fail+1))
     fi
   done
-  # 결과 집계: 호출측이 setup 성공/부분/전체실패를 신뢰성 있게 판정(이전엔 항상 0 반환).
+  # 결과 집계: 반환값으로 성공/부분/전체실패를 신호한다(호출측이 $?로 판정 — stdout 파싱 의존 제거).
+  #   0=전부 성공, 1=전부 실패, 3=부분 성공(일부 worktree 실패). 이전엔 partial이 echo만 하고 $?=0이라
+  #   호출측이 stdout(WT_SETUP_RESULT=partial)을 안 보면 부분실패를 성공으로 오판했다.
   if [ "$ok" -eq 0 ]; then echo "WT_SETUP_RESULT=fail (0/$((ok+fail)))" >&2; return 1
-  elif [ "$fail" -gt 0 ]; then echo "WT_SETUP_RESULT=partial ($ok/$((ok+fail)))"
-  else echo "WT_SETUP_RESULT=ok ($ok/$((ok+fail)))"; fi
+  elif [ "$fail" -gt 0 ]; then echo "WT_SETUP_RESULT=partial ($ok/$((ok+fail)))"; return 3
+  else echo "WT_SETUP_RESULT=ok ($ok/$((ok+fail)))"; return 0; fi
 }
 
 # council_wt_diffbase <RUN> — 패널 "순수 기여분" diff의 base 커밋을 stdout으로.
@@ -112,6 +114,7 @@ council_wt_cleanup() {
   done
   if [ "$cleanup_failed" -gt 0 ]; then
     echo "CLEANUP_FAILED=$cleanup_failed$cleanup_failed_items" >&2
+    return 1   # 누수(worktree/branch 잔존)를 $?로 신호 — 이전엔 무조건 return 0이라 호출측이 누수를 못 잡았다
   fi
   return 0
 }
