@@ -28,15 +28,17 @@ echo "$RUN"
 ```
 
 - `CODEX_INSTALLED=no` → stderr의 설치 HINT 안내 후 중단. `CODEX_AUTH=missing` → `! codex login` 요청 후 중단.
-- `CONFIG_MODEL`/`CONFIG_EFFORT`는 top-level config 해석(추정값) — 실효값은 3단계 실행 배너로 확정.
+- `CONFIG_MODEL_ESTIMATE`/`CONFIG_EFFORT_ESTIMATE`는 top-level config 해석일 뿐이다. 실험값은 실행 배너로 확정한다.
 
 **요청 파싱** — 사용자 언급을 플래그로 변환. 언급 없으면 플래그 생략(config 기본값).
 
 | 사용자 표현 | 플래그 |
 |---|---|
-| "gpt5.5", "gpt-5.5" | `-m gpt-5.5` |
-| "spark" (빠른 작업) | `-m gpt-5.3-codex-spark` |
+| "gpt5.5", "gpt-5.5" | `-m gpt-5.5` — 사용자의 Codex 환경에서 지원/alias 확인 시 |
+| "spark" (빠른 작업) | `-m gpt-5.3-codex-spark` — 지원/alias 확인 시 |
 | "xhigh" / "high" / "medium" / "low" / "minimal" | `-c model_reasoning_effort="<값>"` |
+
+모델명이 unsupported로 실패하면 구현 라운드가 아니라 `ORCHESTRATION_FAIL`로 분류하고, 사용자 config alias 또는 사용 가능한 모델명을 확인한 뒤 재시도한다.
 
 ## 1. ANALYZE — Claude가 직접
 
@@ -50,39 +52,61 @@ echo "$RUN"
 
 ```bash
 git -C "<프로젝트 루트>" rev-parse --is-inside-work-tree >/dev/null || { echo "프로젝트 루트가 git 저장소가 아닙니다"; exit 1; }
-git -C "<프로젝트 루트>" status --short > "$RUN/baseline.status"   # 위임 전 dirty 상태 고정
+git -C "<프로젝트 루트>" rev-parse HEAD > "$RUN/baseline.head"
+git -C "<프로젝트 루트>" status --porcelain=v1 -z > "$RUN/baseline.status.z"
+git -C "<프로젝트 루트>" status --short > "$RUN/baseline.status"
+git -C "<프로젝트 루트>" diff --binary > "$RUN/baseline.unstaged.patch"
+git -C "<프로젝트 루트>" diff --cached --binary > "$RUN/baseline.staged.patch"
+git -C "<프로젝트 루트>" ls-files -o --exclude-standard -z > "$RUN/baseline.untracked.z"
 ```
 
 자기완결성 체크:
 
 - [ ] 파일 경로 정확, 변경 지시는 구체 수치/토큰/코드 수준 — "전문가 느낌" 같은 추상어 금지
 - [ ] Baseline 섹션: 위임 전 dirty 파일 목록 + **기존 변경 revert/포함 금지** 명시
+- [ ] 위임 전 dirty 파일이 변경 지시 파일과 겹치면 사용자에게 "기존 변경 위에 추가 수정" 승인 확인. 승인 없으면 BLOCKED.
 - [ ] Out of scope + 모호성 처리(BLOCKED 프로토콜, 템플릿 기본 포함) 유지
 - [ ] Acceptance Criteria마다 확인 명령 포함, 완료 보고 형식 지정
 
-계획 요약(변경 파일·핵심 지시·검증 기준)을 사용자에게 보여주고 바로 3단계 진행.
+계획 요약(변경 파일·핵심 지시·검증 기준·모델/effort·네트워크 필요 여부)을 사용자에게 보여준다.
+다음 중 하나라도 해당하면 진행 전 명시 확인을 받는다: 네트워크 허용, 의존성 설치, 스키마/보안/시크릿/결제/배포/PRD범위/아키텍처 영향, xhigh 장시간 실행, baseline dirty 파일과 변경 대상 겹침.
+그 외 저위험 단순 위임은 사용자 요청이 이미 명시적이면 3단계로 진행한다.
 
 ## 3. DELEGATE — codex exec (항상 백그라운드)
 
 ```bash
+NETWORK_FLAGS=()
+# 기본: 네트워크 차단. 패키지 설치/API 호출/localhost 접근이 꼭 필요할 때만 사용자 승인 후 NETWORK_FLAGS를 채운다.
+# 승인된 경우에만:
+# NETWORK_FLAGS=(-c sandbox_workspace_write.network_access=true)
+
+# Bash 도구는 이 전체 블록을 run_in_background: true로 실행한다.
+ROUND=1
+printf 'project_root=%s\nround%s_started_at=%s\nround%s_result=%s\nround%s_log=%s\n' \
+  "<프로젝트 루트>" "$ROUND" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  "$ROUND" "$RUN/result-r1.md" "$ROUND" "$RUN/round1.log" >> "$RUN/manifest"
+
 codex exec -C "<프로젝트 루트>" \
-  --sandbox workspace-write -c sandbox_workspace_write.network_access=true \
+  --sandbox workspace-write "${NETWORK_FLAGS[@]}" \
   [-m gpt-5.5] [-c model_reasoning_effort="xhigh"] [-i "$RUN/before-1.png"] \
   -o "$RUN/result-r1.md" - < "$RUN/handoff.md" > "$RUN/round1.log" 2>&1
-echo "round1_exit=$?" >> "$RUN/manifest"
-```
+round1_rc=$?
 
-- **반드시 Bash `run_in_background: true`로 실행** — xhigh 구현은 수 분~수십 분.
-- 완료 후 manifest를 채운다(이후 라운드와 REPORT의 생명줄):
-
-```bash
-{ echo "project_root=<프로젝트 루트>"
-  grep -m1 'session id:' "$RUN/round1.log" | awk '{print "session_id="$NF}'
+session_id=$(grep -m1 'session id:' "$RUN/round1.log" | awk '{print $NF}')
+{
+  printf 'round1_exit=%s\n' "$round1_rc"
+  printf 'round1_finished_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  [ -n "$session_id" ] && printf 'session_id=%s\nround1_session_id=%s\n' "$session_id" "$session_id"
   grep -m1 '^model:' "$RUN/round1.log"
   grep -m1 '^reasoning effort:' "$RUN/round1.log"
 } >> "$RUN/manifest"
+
+exit "$round1_rc"
 ```
 
+- **반드시 Bash `run_in_background: true`로 실행** — xhigh 구현은 수 분~수십 분.
+- 완료 알림을 받기 전에는 `$RUN/result-rN.md`, `$RUN/roundN.log`, `$RUN/manifest`를 읽지 않는다.
+- `session_id`가 비어 있으면 구현 실패가 아니라 `ORCHESTRATION_FAIL`로 분류하고 fresh 재위임한다.
 - 플래그 상세·트러블슈팅: [references/codex-cli.md](references/codex-cli.md)
 
 ## 4. VERIFY — Claude가 직접
@@ -97,10 +121,28 @@ echo "round1_exit=$?" >> "$RUN/manifest"
 
    ```bash
    cd "<프로젝트 루트>"   # manifest의 project_root와 `pwd -P` 일치 확인 후
-   codex exec resume "<session_id>" -o "$RUN/result-r2.md" \
-     "VERIFY 미달 항목만 수정하라: <기준별 실패 증거와 교정 지시>" > "$RUN/round2.log" 2>&1
+
+   # Claude가 $RUN/round2-prompt.md를 파일로 작성한다.
+   # 실패 로그/따옴표/backtick/$(...)를 셸 명령 문자열에 직접 붙이지 않는다.
+   ROUND=2
+   SESSION_ID="<session_id>"
+   ROUND_PROMPT_FILE="$RUN/round2-prompt.md"
+   [ -s "$ROUND_PROMPT_FILE" ] || { echo "round2 prompt missing"; exit 2; }
+
+   printf 'round%s_started_at=%s\nround%s_prompt=%s\nround%s_result=%s\nround%s_log=%s\n' \
+     "$ROUND" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+     "$ROUND" "$ROUND_PROMPT_FILE" "$ROUND" "$RUN/result-r2.md" "$ROUND" "$RUN/round2.log" >> "$RUN/manifest"
+
+   ROUND_PROMPT=$(cat "$ROUND_PROMPT_FILE")
+   codex exec resume "$SESSION_ID" -o "$RUN/result-r2.md" \
+     "$ROUND_PROMPT" > "$RUN/round2.log" 2>&1
+   round2_rc=$?
+   printf 'round2_exit=%s\nround2_finished_at=%s\n' \
+     "$round2_rc" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$RUN/manifest"
+   exit "$round2_rc"
    ```
 
+   - 동적 실패 증거는 반드시 `$RUN/roundN-prompt.md`에 먼저 저장한다. 셸 명령의 quoted argument 안에 로그 원문을 직접 보간하지 않는다.
    - resume은 `-C`/`--sandbox`/`--add-dir` **미지원**(0.139.0 실측). sandbox는 원 세션에서 상속된다.
      cwd/sandbox/쓰기 범위를 바꿔야 하면 resume 불가 → 새 HANDOFF로 fresh 재위임.
    - **라운드 산입 규칙**: Codex가 정상 실행된 구현 시도만 센다(최대 3라운드).
@@ -109,6 +151,19 @@ echo "round1_exit=$?" >> "$RUN/manifest"
 
 ## 5. REPORT
 
+REPORT 전 BLOCKED 검증:
+
+- `result-rN.md`가 `BLOCKED`를 보고하면 즉시 현재 상태를 저장한다.
+  `git -C "<프로젝트 루트>" status --short > "$RUN/blocked.status"`
+- `diff -u "$RUN/baseline.status" "$RUN/blocked.status"`가 0이 아니면 `BLOCKED_WITH_DIFF_FAIL`로 분류한다.
+- BLOCKED 상태에서 변경이 섞였으면 Codex의 BLOCKED 보고를 신뢰하지 말고, 변경 파일 목록과 함께 사용자에게 중단 보고한다.
+
+`$RUN` 보존 정책:
+
+- `DONE` + 검증 통과: 최종 보고에 핵심 증거를 요약한 뒤 기본 삭제(`rm -rf -- "$RUN"`). 사용자가 디버깅/감사를 위해 보존 요청하면 경로를 보고하고 보존.
+- `FAIL` / `BLOCKED` / `ORCHESTRATION_FAIL`: 삭제하지 않고 `$RUN` 경로를 보고.
+- `$RUN`은 `umask 077`로 생성된 민감 로그 영역이므로, 경로를 공유할 때 외부 업로드 금지.
+
 최종 메시지에 포함: 변경 파일 목록, 기준별 충족/미충족(증거 요약), **BLOCKED 여부·적용된 기본
-결정·남은 질문**, 사용 모델·effort(배너 실효값 기준), 라운드 수(+`ORCHESTRATION_FAIL` 횟수),
-`$RUN` 경로(handoff/manifest/result/log/스크린샷). UI 작업이면 before/after 스크린샷 경로.
+결정·남은 질문**, 사용 모델·effort(배너 실효값 기준), 라운드 수(+`ORCHESTRATION_FAIL` 횟수).
+UI 작업이면 before/after 스크린샷 경로. `$RUN` 경로는 보존 정책상 보고 대상일 때만 포함한다.

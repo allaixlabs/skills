@@ -48,9 +48,11 @@ Secondary event shape:
 ```
 
 Codex 0.139 can record the same image in both `_end` and `_call`, with the
-`_call` line carrying `call_id: null`. The final extractor merges these by
-`saved_path` or `result` hash so one generated image becomes one output. A
-null-call-id line that has no matching `_end` line is still extractable.
+`_call` line carrying `call_id: null`. The final extractor builds all available
+identity keys for each event: `saved_path`, `result` hash, and `call_id`. If any
+key overlaps an earlier event, the events merge so one generated image becomes
+one output. A null-call-id line that has no matching `_end` line is still
+extractable.
 
 ## Non-Sources
 
@@ -61,6 +63,7 @@ and the run-specific correlation token.
 
 ## Output Metadata
 
-Every image receives `<out>.json`, such as `apple.png.json`, with the raw prompt,
-`revised_prompt`, model, refs, run id, `call_id`, rollout path, source path,
-source kind, byte size, and PNG dimensions when available.
+By default, every image receives `<out>.json`, such as `apple.png.json`, with
+the raw prompt, `revised_prompt`, model, refs, run id, `call_id`, rollout path,
+source path, source kind, byte size, and PNG dimensions when available. The
+`--no-sidecar` flag skips this metadata file.

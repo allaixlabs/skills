@@ -144,14 +144,17 @@ def events_from(docs: list[Doc]) -> list[Event]:
     return events
 
 
-def identity(event: Event) -> str:
+def identities(event: Event) -> list[str]:
+    keys: list[str] = []
     if event.saved_path:
         saved = pathlib.Path(event.saved_path).expanduser().resolve(strict=False)
-        return "saved:" + strip_private(str(saved))
+        keys.append("saved:" + strip_private(str(saved)))
     if event.result_b64:
         digest = hashlib.sha256(event.result_b64.encode("ascii", errors="ignore")).hexdigest()
-        return f"result:{len(event.result_b64)}:{digest}"
-    return f"call:{event.call_id}" if event.call_id else f"event:{event.session}:{event.order}"
+        keys.append(f"result:{len(event.result_b64)}:{digest}")
+    if event.call_id:
+        keys.append(f"call:{event.call_id}")
+    return keys or [f"event:{event.session}:{event.order}"]
 
 
 def merge(left: Event, right: Event) -> Event:
@@ -168,15 +171,27 @@ def merge(left: Event, right: Event) -> Event:
 
 def dedupe(events: list[Event]) -> list[Event]:
     keyed: dict[str, Event] = {}
-    keys: list[str] = []
+    order: list[str] = []
     for event in events:
-        key = identity(event)
-        if key in keyed:
-            keyed[key] = merge(keyed[key], event)
-        else:
-            keyed[key] = event
-            keys.append(key)
-    return [keyed[key] for key in keys]
+        event_keys = identities(event)
+        existing = next((keyed[key] for key in event_keys if key in keyed), None)
+        merged = merge(existing, event) if existing is not None else event
+        if existing is None:
+            order.append(event_keys[0])
+        for key in event_keys:
+            keyed[key] = merged
+        for key, value in list(keyed.items()):
+            if value is existing:
+                keyed[key] = merged
+    seen: set[int] = set()
+    unique: list[Event] = []
+    for key in order:
+        event = keyed[key]
+        marker = id(event)
+        if marker not in seen:
+            seen.add(marker)
+            unique.append(event)
+    return unique
 
 
 def safe_saved(raw: str | None) -> pathlib.Path | None:
@@ -264,8 +279,11 @@ def extract(args: argparse.Namespace) -> int:
         tmp = out.with_name(out.name + ".tmp")
         tmp.write_bytes(data)
         shutil.move(str(tmp), str(out))
-        write_meta(out, event, data, source_path, source, args)
+        if not args.no_sidecar:
+            write_meta(out, event, data, source_path, source, args)
         written.append(out)
+    if actual_count < args.count:
+        print(f"warning: requested {args.count} image(s), extracted {actual_count}", file=sys.stderr)
     print("\n".join(str(path) for path in written))
     return 0
 
@@ -277,6 +295,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--prompt", default=""); parser.add_argument("--model", default="codex default")
     parser.add_argument("--ref", dest="refs", action="append", default=[])
     parser.add_argument("--count", type=int, default=1)
+    parser.add_argument("--no-sidecar", action="store_true")
     parser.add_argument("--validate-ref", action="append", default=[])
     return parser.parse_args(argv)
 
