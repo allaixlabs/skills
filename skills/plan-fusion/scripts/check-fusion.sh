@@ -238,8 +238,10 @@ fi
 #    ${PROV:-}/${AUTH_KEYS:-}로 set -u 가드(opencode 미설치 시 AUTH_KEYS unset).
 opencode_indep=0
 if [ "$opencode_ok" = 1 ]; then
-  if printf '%s\n' "${PROV:-}" | grep -qiE '●.*(Z\.?AI|OpenCode Go|dgrid|anthropic)' \
-     || printf '%s' "${AUTH_KEYS:-}" | grep -qiE 'zai|opencode-go|dgrid|anthropic'; then
+  # ⚠️ anthropic 제외(재검토 #2 회귀 수정): claude가 아래에서 effective에 별도 가산되므로, opencode-anthropic을
+  #    독립 패밀리로 세면 같은 Anthropic 패밀리가 이중집계돼 effective 과대평가된다. zai/opencode-go/dgrid만 독립.
+  if printf '%s\n' "${PROV:-}" | grep -qiE '●.*(Z\.?AI|OpenCode Go|dgrid)' \
+     || printf '%s' "${AUTH_KEYS:-}" | grep -qiE 'zai|opencode-go|dgrid'; then
     opencode_indep=1
   fi
 fi

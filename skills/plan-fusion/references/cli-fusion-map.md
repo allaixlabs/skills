@@ -36,10 +36,10 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$PA
 echo "round1_exit=$?" >> "$RUN/gemini/manifest"
 
 # 참가자 — 리서치(읽기): 읽기전용 사본 + skip-permissions (아래 ⚠️ 교착주의 참조)
-# ⚠️ cp -a는 .git(리모트·자격증명)·out-of-tree 심링크 보존 → push·시크릿·심링크탈출 미방어. .git 제외 + 심링크 차단:
+# ⚠️ cp -a는 .git(리모트·자격증명)·.env*(시크릿)·out-of-tree 심링크 보존 → push·시크릿·심링크탈출 미방어. .git·.env* 제외 + 심링크 차단:
 RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"
-rsync -a --safe-links --exclude '.git' --exclude node_modules "$ROOT/" "$RO/" 2>/dev/null \
-  || { rm_rc=0; rm -rf "$RO" || rm_rc=$?; cp_rc=0; cp -a "$ROOT" "$RO" || cp_rc=$?; cleanup_rc=0; if [ -d "$RO" ]; then find "$RO" -name .git -prune -exec rm -rf {} + 2>/dev/null || cleanup_rc=$?; find "$RO" -type l -delete 2>/dev/null || cleanup_rc=$?; fi; [ "$rm_rc" = 0 ] && [ "$cp_rc" = 0 ] && [ "$cleanup_rc" = 0 ]; } \
+rsync -a --safe-links --exclude '.git' --exclude node_modules --exclude '.env' --exclude '.env.*' "$ROOT/" "$RO/" 2>/dev/null \
+  || { rm_rc=0; rm -rf "$RO" || rm_rc=$?; cp_rc=0; cp -a "$ROOT" "$RO" || cp_rc=$?; cleanup_rc=0; if [ -d "$RO" ]; then find "$RO" -name .git -prune -exec rm -rf {} + 2>/dev/null || cleanup_rc=$?; find "$RO" -type l -delete 2>/dev/null || cleanup_rc=$?; find "$RO" \( -name '.env' -o -name '.env.*' \) -delete 2>/dev/null || cleanup_rc=$?; fi; [ "$rm_rc" = 0 ] && [ "$cp_rc" = 0 ] && [ "$cleanup_rc" = 0 ]; } \
   || { echo "ABORT: gemini 읽기전용 사본 격리 실패(.git/심링크 잔존 가능) — 위임 중단(무응답, quorum 처리). 비격리 사본에서 참가자를 돌리지 않는다." >&2; exit 1; }
 # ⚠️ errexit를 안 쓰므로 위 사본 그룹의 실패 반환을 **반드시 `|| { … exit 1; }`로 act**한다(fusion.md §1과 동일) —
 #    안 그러면 cleanup 실패(.git 잔존) 사본에서 아래 `agy --dangerously-skip-permissions`가 그대로 돌아 격리가 무력화된다.
@@ -94,6 +94,7 @@ echo "judge_exit=$?" >> "$RUN/manifest"
     --dangerously-skip-permissions \
     "$(cat "$RUN/handoff.md")" ) > "$RUN/opus/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/opus/manifest"
+echo "family=claude"  >> "$RUN/opus/manifest"   # ⚠️ quorum 집계 필수 — 누락 시 Opus 참가 프리셋에서 후보는 judge-input에 들어가나 family 카운트에서 빠져 'Fusion 미성립'으로 거짓 격하(fusion.md §3-1 quorum 전제)
 ```
 
 ### 주요 플래그 (실측 `claude --help`)
