@@ -21,6 +21,8 @@ GLM·Kimi는 같은 opencode 백엔드(런타임·인증 공유)라 **모델 다
 - `PANEL` = 참가자 목록(각 원소 `id|backend|model`, id는 `[a-z0-9-]` 슬러그). `JUDGE`·`SYNTH` = 각 1개 백엔드.
 - 레퍼런스: 라우팅 `references/routing-fusion.md` · 5-CLI경로 `references/cli-fusion-map.md` · codex `references/codex-cli.md` · opencode/omo `references/opencode-cli.md` · 격리·Judge·Synth `references/fusion.md`.
 
+> **진입 규칙(bail-out 금지)**: `/plan-fusion`으로 **명시 호출**되면 task 내용이 무엇이든 — "이 스킬을 검토/개선해" 같은 **메타 요청 포함** — 반드시 **§0부터 실행**한다. §0의 **2.5 패널 확정 게이트(모델 세트 선택/확인)는 §1 ANALYZE보다 먼저** 사용자에게 노출되어야 한다. task가 메타로 보인다는 이유로 워크플로우를 건너뛰고 곧장 단독 분석/리뷰로 진입하는 것은 **금지된 silent bail-out**이다(2.5의 silent-fallback 금지를 task-해석 단계로 확장). 스킬 자체 리뷰도 Fusion-Research의 정당한 task다 — 여러 패밀리가 독립 리뷰 → Judge·Synth 종합이 이 작업의 핵심 가치다.
+
 ---
 
 ## 0. 사전점검 + 요청 파싱 + 모드/패널 결정
