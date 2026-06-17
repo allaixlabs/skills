@@ -80,7 +80,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | `ORCHESTRATOR_FAMILY` | default 변형(참가자) | Judge | Synth | 비고 |
 |---|---|---|---|---|
 | `claude` | codex·agy·opencode-glm·opencode-kimi | 차순위(claude 제거 → codex/agy/opencode 중 가용) | codex(GPT) | 오케스트레이터가 claude라 Judge=claude는 동족 → check-fusion.sh가 codex 등 차순위로 산출 |
-| `glm` | codex·agy | claude(Opus) | codex(GPT) | opencode(GLM/Kimi) 제거 — 백엔드 2 |
+| `glm` | codex·agy | claude(Opus) → 폴백 체인: codex→agy→opencode-deepseek(동종할인)→self | codex(GPT) | opencode(GLM/Kimi)는 *참가자* 집계에서 제거 — 백엔드 2. 단 Judge 폴백 체인엔 DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)가 살아남는다(JUDGE_FALLBACK_CHAIN — claude가 런타임에 죽어도 self 직행 않고 동종할인 경고로 DeepSeek Judge 허용). |
 | `gpt` | agy·opencode-glm·opencode-kimi | claude(Opus) | 차순위(codex 제거 → claude/agy/opencode 중 가용) | codex 제거. Synth가 claude/agy/opencode로 가면 GPT-동족 아님 |
 | `gemini` | codex·opencode-glm·opencode-kimi | claude(Opus) | codex(GPT) | agy 제거 — 백엔드 2(+claude) |
 | `unknown` | codex·agy·opencode-glm·opencode-kimi | claude(Opus) | codex(GPT) | 동족 룰 비활성 — 기본 그대로 |
@@ -120,7 +120,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 - **오케스트레이터=`claude`(Opus)**: claude를 참가자로도 쓰면 동족. 기본은 claude=Judge 전용(default 프리셋). highEnd/codeSecurity처럼 claude가 참가자인 프리셋에선 Judge를 다른 패밀리(Gemini/codex)로 바꾸거나 synthesis에 "Judge 비독립" 명시.
 - **오케스트레이터=`gpt`(codex)**: codex를 참가자나 Synth에 쓰면 동족. default의 Synth=codex(GPT)는 Synth 동족 → 차순위(claude/agy/opencode 중 비-동족 가용)로 바꾸거나 약한 비독립 표기.
 - **오케스트레이터=`gemini`(agy)**: agy를 참가자로 쓰면 동족. default에서 agy 제거 → 백엔드 2(codex·opencode)+claude Judge.
-- **오케스트레이터=`glm`(ZCode/opencode)**: opencode(GLM/Kimi)를 참가자로 쓰면 동족. default에서 opencode 제거 → 백엔드 2(codex·agy)+claude Judge.
+- **오케스트레이터=`glm`(ZCode/opencode)**: opencode(GLM/Kimi)를 참가자로 쓰면 동족. default에서 opencode 제거 → 백엔드 2(codex·agy)+claude Judge. **단 Judge 폴백은 예외** — DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)는 `JUDGE_FALLBACK_CHAIN`에 살아남아, claude가 런타임에 죽어도 동종할인 경고(`judge_conflict=partial`)와 함께 Judge로 허용된다(참가자 집계는 그대로 1패밀리).
 - **오케스트레이터=`unknown`**: 동족 룰 비활성 — 모든 패밀리 가용 후보(기본 프리셋 그대로). 단 검증자가 같은 패밀리라는 보장이 없으므로, 추정 가능하면 env로 명시 권장.
 
 **Synth 동족 주의(약)**: 참가자에 오케스트레이터 패밀리가 있고 Synth도 같은 패밀리면 → Synth가 자기(동족) 후보를 과대대표할 여지(Judge 자기심사와 동형, 단 약함). Synth 템플릿이 "Judge 판정·근거 강도로만 선별"하도록 제약해 실효 위험은 제한적이지만, 동족이면 `synthesis.md`에 약하게 표기하거나 Synth를 비-동족 패밀리로 두는 편이 깔끔하다.

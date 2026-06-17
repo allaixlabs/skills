@@ -57,14 +57,14 @@ bash scripts/check-fusion.sh glm
 
 패밀리 매핑: `glm`→opencode(GLM/Kimi) · `gpt`→codex · `gemini`→agy · `claude`→claude(Opus).
 
-감지되면 그 패밀리는 동족(확증편향) 회피를 위해 **참가자·Judge·Synth에서 자동 제외**된다(`EXCLUDED_FAMILIES`로 사유 표시). `JUDGE_DEFAULT`/`SYNTH_DEFAULT`도 오케스트레이터 패밀리를 회피한 차순위로 산출된다.
+감지되면 그 패밀리는 동족(확증편향) 회피를 위해 **참가자·Judge·Synth에서 자동 제외**된다(`EXCLUDED_FAMILIES`로 사유 표시). `JUDGE_DEFAULT`/`SYNTH_DEFAULT`도 오케스트레이터 패밀리를 회피한 차순위로 산출된다. **Judge 런타임 폴백**: claude(기본 Judge)가 런타임에 죽어도 즉시 self로 직행하지 않는다 — `JUDGE_FALLBACK_CHAIN`(claude→codex→agy→opencode-deepseek→self)이 차순위로 자동 전환한다. `ORCH_FAMILY=glm`이면 opencode는 *참가자*에서 제외되되 DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)만 Judge 폴백에 살아남는다(동종할인 `judge_conflict=partial` 경고 — synthesis에 명시).
 
 ### 오케스트레이터별 default 패널 변형
 
 | `ORCHESTRATOR_FAMILY` | default 참가자 | Judge | Synth |
 |---|---|---|---|
 | `claude` | codex·agy·opencode-glm·opencode-kimi | 차순위(codex/agy/opencode 중 가용) | codex(GPT) |
-| `glm` | codex·agy | claude(Opus) | codex(GPT) |
+| `glm` | codex·agy | claude(Opus) → 폴백: codex→agy→**opencode-deepseek**(동종할인)→self | codex(GPT) |
 | `gpt` | agy·opencode-glm·opencode-kimi | claude(Opus) | 차순위(claude/agy/opencode) |
 | `gemini` | codex·opencode-glm·opencode-kimi | claude(Opus) | codex(GPT) |
 | `unknown` | codex·agy·opencode-glm·opencode-kimi | claude(Opus) | codex(GPT) |
@@ -99,7 +99,8 @@ bash scripts/check-fusion.sh glm
 ```bash
 # 오케스트레이터 명시 권장(env). 미지정 시 unknown(동족 룰 비활성)
 PLAN_FUSION_ORCHESTRATOR=glm bash scripts/check-fusion.sh
-# ORCHESTRATOR_FAMILY · EXCLUDED_FAMILIES · PARTICIPANT_FAMILIES · JUDGE_DEFAULT/SYNTH_DEFAULT(+CONFLICT_RISK) · FUSION_CAPABILITY 출력
+# ORCHESTRATOR_FAMILY · EXCLUDED_FAMILIES · PARTICIPANT_FAMILIES · JUDGE_DEFAULT/SYNTH_DEFAULT(+CONFLICT_RISK)
+# · JUDGE_FALLBACK_CHAIN(런타임 Judge 폴백 — claude死 시 차순위 자동 전환) · MODEL_READY_DEEPSEEK · FUSION_CAPABILITY 출력
 ```
 유효 백엔드(`EFFECTIVE_BACKENDS` = 비-오케스트레이터 참가자 패밀리 + 비-오케스트레이터 claude-as-participant 후보) 2개 이상이어야 Fusion 성립. ⚠️ 단 이 경우 **비-오케스트레이터 패밀리를 '참가자'로 써야** 교차검증 2패밀리가 된다 — Judge-only default로만 쓰면 실제 참가자는 1패밀리뿐이라 런타임 quorum이 'Fusion 미성립'으로 격하한다(그래서 `FUSION_CAPABILITY=conditional`로 표기). 1개뿐이면 교차검증 독립성이 없으니 plan-then-*로.
 

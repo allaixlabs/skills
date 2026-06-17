@@ -267,20 +267,78 @@ case "$quorum" in
   FAIL*) echo "SKIP: quorum 미달 → Judge/Synth 생략, 단일 위임 결과로 격하('Fusion 미성립' 표기)." >&2; exit 0 ;;
   *) echo "ABORT: quorum sentinel 없음(§3-1 family 카운트 미실행) — Judge 전에 quorum 확인이 선행돼야 한다." >&2; exit 2 ;;
 esac
-# 템플릿 + 후보를 파일로 합쳐 stdin 전달(argv 금지 → E2BIG 회피). claude는 --print에서 stdin을 받는다(실측).
+# 템플릿 + 후보를 파일로 합쳐 stdin 전달(argv 금지 → E2BIG 회피). 모든 Judge 후보가 stdin을 받는다.
 { cat "$SKILL_DIR/templates/fusion-judge.md.tmpl"; echo; cat "$RUN/judge-input.md"; } > "$RUN/judge-prompt.md"
-# 중립 디렉토리($RUN, 비-git)에서 실행 → 프로젝트 CLAUDE.md/hooks/MCP 간섭 최소화(F9).
-( cd "$RUN" && claude --print --model opus < "$RUN/judge-prompt.md" ) > "$RUN/judge.md" 2>"$RUN/judge.err"
-echo "judge_exit=$?" >> "$RUN/manifest"
-# Judge 산출 가드: 빈/공백 judge.md(실패·인증·E2BIG)면 Synth 입력으로 흘리지 말고 §3-4 폴백으로.
-# ⚠️ 차단은 §3-3 Synth 상단이 judge.md를 '직접' 재확인해서 한다(아래 WARN은 알림용). manifest sentinel을 쓰지 않는 이유:
-#    manifest는 append-only라 Judge 재시도가 성공해도 과거 'judge=EMPTY'가 남아 정상 Synth를 오차단한다(quorum의 tail -1 교훈).
-#    judge.md 자체를 보면 재시도로 채워진 최신 상태를 정확히 반영한다.
+# ⚠️ Judge 런타임 폴백 체인(핵심 — claude가 런타임에 죽어도 self로 직행 금지):
+#    check-fusion.sh가 산출한 JUDGE_FALLBACK_CHAIN(§0.1)을 manifest에서 읽어 순회한다.
+#    체인 형식: "backend:model:conflict -> backend:model:conflict -> ... -> orchestrator-self:glm:yes"
+#    conflict=no(비독립) / partial(동종할인 — synthesis 표기) / yes(완전동족=self).
+#    각 후보를 중립 디렉토리($RUN, 비-git — 프로젝트 CLAUDE.md/hooks/MCP 간섭 최소화, F9)에서 실행.
+#    judge.md가 비어있지 않으면 즉시 채택 → 루프 종료. 전 후보 실패 시 §3-4 self 폴백.
+CHAIN=$(sed -n 's/^judge_fallback_chain=//p' "$RUN/manifest" 2>/dev/null | head -1)
+if [ -z "$CHAIN" ] || printf '%s' "$CHAIN" | grep -q '<.*>'; then
+  echo "ABORT: manifest judge_fallback_chain 미치환/빈값('$CHAIN') — §0.4에서 check-fusion.sh의 JUDGE_FALLBACK_CHAIN을 치환했는지 확인." >&2; exit 1
+fi
+_judge_backend_used=""; _judge_conflict=no
+# ' -> ' 단위로 분리(구분자에 공백 포함 → IFS 대신 루프 변수 직접 순회).
+_rest="$CHAIN"
+while [ -n "$_rest" ]; do
+  case "$_rest" in
+    *" -> "*) _c="${_rest%% -> *}"; _rest="${_rest#* -> }" ;;
+    *)        _c="$_rest"; _rest="" ;;
+  esac
+  _backend="${_c%%:*}"                    # claude | codex | agy | opencode | orchestrator-self
+  _tail="${_c#*:}"                        # "model:conflict"
+  _model="${_tail%:*}"                    # opus / gpt-5.5 / opencode-go/deepseek-v4-pro / glm ...
+  _conflict="${_tail##*:}"                # no / partial / yes
+  case "$_backend" in
+    orchestrator-self)
+      # 체인 끝의 self = 폴백 종착지(아래 for 루프가 전부 실패해야 도달). 여기서는 스킵하고 루프 밖에서 처리.
+      continue ;;
+    claude)   _cmd="( cd \"$RUN\" && claude --print --model opus < \"$RUN/judge-prompt.md\" )" ;;
+    codex)    _cmd="( cd \"$RUN\" && codex exec --skip-git-repo-check -s read-only - < \"$RUN/judge-prompt.md\" )" ;;
+    agy)      _cmd="( cd \"$RUN\" && command agy --dangerously-skip-permissions --print < \"$RUN/judge-prompt.md\" )" ;;
+    opencode)
+      # opencode 후보는 model 튜플이 라우트(opencode-go/deepseek-v4-pro | glm/kimi) — 인자로 변환.
+      case "$_model" in
+        opencode-go/deepseek-v4-pro) _cmd="( cd \"$RUN\" && opencode run -m opencode-go/deepseek-v4-pro --variant high --format json < \"$RUN/judge-prompt.md\" )" ;;
+        glm/kimi|glm|kimi)           _cmd="( cd \"$RUN\" && opencode run -m zai-coding-plan/glm-5.2 --variant high --format json < \"$RUN/judge-prompt.md\" )" ;;
+        *)                           _cmd="( cd \"$RUN\" && opencode run -m \"$_model\" --variant high --format json < \"$RUN/judge-prompt.md\" )" ;;
+      esac ;;
+    *) echo "WARN: Judge 체인의 알 수 없는 backend='$_backend' — 스킵." >&2; continue ;;
+  esac
+  echo "INFO: Judge 시도 — backend=$_backend model=$_model conflict=$_conflict" >&2
+  # stderr·judge.err 분리(후보별 진단 보존). judge.md는 매 후보마다 덮어쓰기 — 최신 성공만 남는다.
+  eval "$_cmd" > "$RUN/judge.md" 2>"$RUN/judge.err"
+  _rc=$?
+  echo "judge_exit=$_rc backend=$_backend" >> "$RUN/manifest"
+  # 산출 가드: 비어있지 않고 공백 아닌 문자가 있으면 채택. 빈/공백이면 차순위로.
+  if [ -s "$RUN/judge.md" ] && grep -q '[^[:space:]]' "$RUN/judge.md"; then
+    _judge_backend_used="$_backend"; _judge_conflict="$_conflict"
+    break
+  fi
+  echo "WARN: Judge 후보 $_backend 실패(exit=$_rc, 산출 공백) → 체인 차순위로." >&2
+  : > "$RUN/judge.md"   # 다음 후보를 위해 초기화(실패 잔재 방지)
+done
+# 전 후보 실패 → self 폴백(오케스트레이터 직접 판정).
+if [ -z "$_judge_backend_used" ]; then
+  echo "WARN: Judge 체인 전 후보 실패 → §3-4 self 폴백(오케스트레이터 직접 판정 + synthesis.md에 'Judge=self(폴백)' 표기). Synth로 빈 평가 전달 금지(§3-3이 judge.md 직접 확인으로 차단)." >&2
+  echo "judge_fallback=self" >> "$RUN/manifest"
+else
+  echo "judge_used=$_judge_backend_used" >> "$RUN/manifest"
+  # partial(동종할인)이면 synthesis.md 표기를 위해 manifest에 기록 — §3-4·REPORT가 읽는다.
+  [ "$_judge_conflict" != no ] && echo "judge_conflict=$_judge_conflict" >> "$RUN/manifest"
+fi
+# ⚠️ 차단은 §3-3 Synth 상단이 judge.md를 '직접' 재확인해서 한다(위 루프는 채택/폴백만 결정).
+#    manifest sentinel을 쓰지 않는 이유: append-only라 재시도가 성공해도 과거 실패가 남아 정상 Synth를 오차단한다.
+#    judge.md 자체를 보면 최신 상태(성공 채택본 또는 빈=self 폴백)를 정확히 반영한다.
 if [ ! -s "$RUN/judge.md" ] || ! grep -q '[^[:space:]]' "$RUN/judge.md"; then
   echo "WARN: Judge 산출 공백/실패 → §3-4 폴백(오케스트레이터 직접 판정 + synthesis.md에 'Judge=self(폴백)' 표기). Synth로 빈 평가 전달 금지(§3-3이 judge.md 직접 확인으로 차단)." >&2
 fi
 ```
-> **argv 대신 stdin**: Judge 입력은 대형 diff로 쉽게 수십~수백 KB가 되어 positional argv면 `E2BIG`로 즉사한다. claude·codex 모두 stdin(`< FILE` / `- < FILE`)을 지원하므로 항상 stdin으로 넘긴다. Judge가 claude가 아니어도(codex 폴백) 동일.
+> **argv 대신 stdin**: Judge 입력은 대형 diff로 쉽게 수십~수백 KB가 되어 positional argv면 `E2BIG`로 즉사한다. claude·codex·agy·opencode 모두 stdin(`< FILE`)을 받는다. Judge가 claude가 아니어도(체인의 차순위 후보) 동일.
+>
+> **런타임 폴백 체인(F3)**: claude(기본 Judge)가 런타임에 죽어도(주간 한도·인증 만료·E2BIG 등) 즉시 `self`로 직행하지 않는다. check-fusion.sh가 `JUDGE_FALLBACK_CHAIN`(claude→codex→agy→opencode-deepseek→self)을 산출하고, 위 루프가 차순위 후보로 자동 전환한다. **DeepSeek 예외**: `ORCH_FAMILY=glm`이면 opencode 전체가 *참가자* 집계에서 제외되지만, DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)는 Judge 후보로 살아남는다(동종할인 경고 `judge_conflict=partial` — synthesis.md에 명시). 이것이 "claude가 죽어 Judge를 잃는다"를 막는 핵심 경로다.
 
 Judge 산출: 최강 후보 / 합의점 / 충돌점 / 위험·미검증 주장 / 최종 답변 포함사항.
 
@@ -324,9 +382,12 @@ esac
 > Fusion-Code면 Synth는 `-s read-only`로 **합성 HANDOFF**(`$RUN/handoff.synth.md`) 또는 채택 지정을 산출하고, 실제 구현은 §5의 백엔드 위임으로 넘긴다(역할경계: Synth가 직접 메인 코드 작성 안 함).
 
 ### 3-4. 폴백 (Judge/Synth에서 절대 막히지 않음)
-- **Judge CLI 실패/공백** → 오케스트레이터가 직접 판정(부모 council 종합 로직) + `synthesis.md`에 "Judge=self(폴백)" 표기.
+- **Judge CLI 실패/공백** → §3-2의 런타임 폴백 체인이 이미 차순위 후보로 순회(claude→codex→agy→opencode-deepseek). 체인 전 후보가 실패한 최종 단계에서만 오케스트레이터가 직접 판정(부모 council 종합 로직) + `synthesis.md`에 "Judge=self(폴백)" 표기.
 - **Synth CLI 실패** → 차순위 참가자 CLI로 재시도, 그래도 실패면 오케스트레이터가 합성 + 표기.
-- **동족 경고(일반화)**: Judge 백엔드가 오케스트레이터 패밀리와 같으면(`JUDGE_CONFLICT_RISK=yes`) `synthesis.md`에 "Judge 비독립(동족) — 판정 할인" 명시.
+- **동족 경고(일반화)**: Judge 백엔드가 오케스트레이터 패밀리와 같으면(`JUDGE_CONFLICT_RISK=yes` 또는 `judge_conflict=partial`/`yes`) `synthesis.md`에 명시:
+  - `yes` = Judge=오케스트레이터-self(완전 비독립) → "Judge 비독립(self) — 판정 할인"
+  - `partial` = Judge가 오케스트레이터와 백엔드 공유(opencode-deepseek, GLM 오케스트레이터) → "Judge 부분 비독립(동종할인 — opencode 백엔드 공유)"
+  - `no` = 비독립(할인 불필요)
 
 ---
 
