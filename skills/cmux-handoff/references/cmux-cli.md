@@ -55,11 +55,12 @@ cmux list-panels --workspace workspace:2
 cmux capture-pane [--workspace <id|ref|index>] [--surface <id|ref|index>] [--window <id|ref|index>] [--scrollback] [--lines <n>]
 ```
 
-Use `read-screen` as the regular top-level command for visible pane text; `capture-pane` is the tmux-compatible alias with equivalent target/scrollback flags. `--surface`
+In this skill, prefer `cmux capture-pane` consistently because all examples and checklists use it.
+`read-screen` is the regular top-level equivalent, but do not mix the two in one handoff unless `capture-pane` is unavailable. `--surface`
 defaults to `CMUX_SURFACE_ID`; pass it explicitly when reading another panel.
 
-The default `--lines` value is a sample, not the full history. Gauge the real size with
-`cmux pipe-pane --surface <ref> --command 'wc -l'` and report the captured range —
+The default `--lines` value is a sample, not the full history. Gauge the available pane text line count with
+`cmux pipe-pane --surface <ref> --command 'wc -l'` and report the captured range as available scrollback —
 scrollback may be truncated, so never present a partial capture as the complete history.
 
 Examples:
@@ -147,6 +148,11 @@ Hard limits (do not blur them):
 - The result is an **opaque restart hint**, not evidence of recovered task state.
 - Never auto-run the returned command.
 - Review the command for approval-bypass or permission-relaxing flags before showing it.
+- Treat these as high-risk examples, non-exhaustive:
+  `--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`,
+  `--approval-mode`, `--sandbox danger-full-access`, `--full-auto`,
+  `--force`, `--yes`, `--no-confirm`.
+  If present, show the risk plainly and require the user to re-confirm before execution.
 - Confirm `cwd`, `kind`, `source`, and the surface match the expected target.
 - Execute only after the user's explicit approval.
 

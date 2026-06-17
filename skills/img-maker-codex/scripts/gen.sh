@@ -15,17 +15,16 @@ QUALITY=""
 FORMAT_SPEC=""
 TRANSPARENT=0
 REF_IMAGES=()
-CONFIGS=()
+NO_SIDECAR=0
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/gen.sh --prompt TEXT --out PATH [options]
+Usage: bash ~/.claude/skills/img-maker-codex/scripts/gen.sh --prompt TEXT --out PATH [options]
 
 Options:
   --ref PATH              Reference image, repeatable.
   -n, --count N           Extract up to N distinct generated images. Default: 1.
   -m, --model MODEL       Pass a Codex model override.
-  -c, --config KEY=VALUE  Pass Codex config override, repeatable.
   --aspect-ratio RATIO    Best-effort prompt hint.
   --size SIZE             Best-effort prompt hint.
   --quality LEVEL         Best-effort prompt hint.
@@ -33,6 +32,7 @@ Options:
   --transparent           Request transparent background, best effort.
   --enhance               Let the image model refine the prompt.
   --display               Open output images after success when possible.
+  --no-sidecar            Do not write <out>.json metadata sidecar files.
   --timeout-sec N         Use timeout(1) or gtimeout. Default: 300.
   -h, --help              Show this help.
 
@@ -57,7 +57,6 @@ while [[ $# -gt 0 ]]; do
     --ref) need_value "$1" "$#"; REF_IMAGES+=("$2"); shift 2 ;;
     -n|--count) need_value "$1" "$#"; COUNT="$2"; shift 2 ;;
     -m|--model) need_value "$1" "$#"; MODEL="$2"; shift 2 ;;
-    -c|--config) need_value "$1" "$#"; CONFIGS+=("$2"); shift 2 ;;
     --aspect-ratio) need_value "$1" "$#"; ASPECT_RATIO="$2"; shift 2 ;;
     --size) need_value "$1" "$#"; SIZE_SPEC="$2"; shift 2 ;;
     --quality) need_value "$1" "$#"; QUALITY="$2"; shift 2 ;;
@@ -66,6 +65,7 @@ while [[ $# -gt 0 ]]; do
     --transparent) TRANSPARENT=1; shift ;;
     --enhance) ENHANCE=1; shift ;;
     --display) DISPLAY_OUTPUT=1; shift ;;
+    --no-sidecar) NO_SIDECAR=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) bad_args "unknown option: $1" ;;
   esac
@@ -77,10 +77,40 @@ done
 [[ "$COUNT" -le 16 ]] || bad_args "--count must be 16 or lower"
 [[ "$TIMEOUT_SEC" =~ ^[1-9][0-9]*$ ]] || bad_args "--timeout-sec must be a positive integer"
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "missing-cli: python3 not found" >&2
-  exit 3
-fi
+preflight() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "missing-cli: python3 not found" >&2
+    exit 3
+  fi
+  if ! command -v codex >/dev/null 2>&1; then
+    echo "missing-cli: codex not found; install Codex CLI, then run codex login" >&2
+    exit 3
+  fi
+
+  local codex_version
+  if ! codex_version="$(codex --version 2>/dev/null)"; then
+    echo "missing-cli: codex --version failed; reinstall or repair Codex CLI" >&2
+    exit 3
+  fi
+  if [[ ! "$codex_version" =~ 0\.139 ]]; then
+    echo "warning: Codex CLI 0.139 is recommended; found: $codex_version" >&2
+  fi
+
+  local login_log
+  login_log="$(mktemp)"
+  if ! codex login status >"$login_log" 2>&1; then
+    echo "missing-cli: codex login status failed; run codex login and ensure image generation is available" >&2
+    rm -f "$login_log"
+    exit 3
+  fi
+  rm -f "$login_log"
+
+  if ! command -v timeout >/dev/null 2>&1 && ! command -v gtimeout >/dev/null 2>&1; then
+    echo "warning: timeout/gtimeout not found; --timeout-sec cannot be enforced" >&2
+  fi
+}
+
+preflight
 
 python3 "$SCRIPT_DIR/extract_image.py" --validate-out "$OUT" --count "$COUNT" || exit 2
 
@@ -88,11 +118,6 @@ for img in ${REF_IMAGES[@]+"${REF_IMAGES[@]}"}; do
   [[ -f "$img" ]] || { echo "ref-not-found: $img" >&2; exit 4; }
   python3 "$SCRIPT_DIR/extract_image.py" --validate-ref "$img" || exit 4
 done
-
-if ! command -v codex >/dev/null 2>&1; then
-  echo "missing-cli: codex not found; run codex login after installing Codex CLI" >&2
-  exit 3
-fi
 
 make_run_id() {
   if command -v uuidgen >/dev/null 2>&1; then
@@ -138,7 +163,7 @@ build_instruction() {
 }
 
 classify_refusal() {
-  if grep -Eiq 'quota|entitlement|not entitled|usage limit|rate limit|plan|upgrade|forbidden|unauthorized|image_generation.*(disabled|unavailable|not available)|image generation.*(disabled|unavailable|not available)' "$stderr_log"; then
+  if grep -Eiq 'quota|entitlement|not entitled|usage limit|rate limit|plan|upgrade|forbidden|unauthorized|image_generation.*(disabled|unavailable|not available)|image generation.*(disabled|unavailable|not available)' "$stderr_log" "$stdout_log"; then
     echo "quota-or-entitlement-refused?: Codex appears to have declined image generation; check codex login and plan access" >&2
     exit 8
   fi
@@ -147,7 +172,6 @@ classify_refusal() {
 snapshot_sessions > "$before"
 codex_args=(exec --skip-git-repo-check --color never --enable image_generation --sandbox read-only)
 [[ -z "$MODEL" ]] || codex_args+=(-m "$MODEL")
-for cfg in ${CONFIGS[@]+"${CONFIGS[@]}"}; do codex_args+=(-c "$cfg"); done
 for img in ${REF_IMAGES[@]+"${REF_IMAGES[@]}"}; do codex_args+=(-i "$img"); done
 
 instruction="$(build_instruction)"
@@ -176,6 +200,7 @@ if [[ ! -s "$new_sessions_file" ]]; then
 fi
 
 extract_args=(--out "$OUT" --sessions-list "$new_sessions_file" --prompt "$PROMPT" --run-id "$RUN_ID" --model "${MODEL:-codex default}" --count "$COUNT")
+[[ "$NO_SIDECAR" -eq 0 ]] || extract_args+=(--no-sidecar)
 for img in ${REF_IMAGES[@]+"${REF_IMAGES[@]}"}; do extract_args+=(--ref "$img"); done
 
 set +e

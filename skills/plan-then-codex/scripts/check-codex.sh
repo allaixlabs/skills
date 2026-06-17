@@ -4,6 +4,26 @@
 set -u
 
 fail=0
+MIN_CODEX_VERSION="0.139.0"
+
+if command -v timeout >/dev/null 2>&1; then
+  _t() { timeout "$@"; }
+elif command -v gtimeout >/dev/null 2>&1; then
+  _t() { gtimeout "$@"; }
+else
+  _t() { shift; "$@"; }
+fi
+
+version_ge() {
+  IFS=. read -r a b c <<EOF
+${1:-0.0.0}
+EOF
+  IFS=. read -r x y z <<EOF
+${2:-0.0.0}
+EOF
+  a=${a:-0}; b=${b:-0}; c=${c:-0}; x=${x:-0}; y=${y:-0}; z=${z:-0}
+  [ "$a" -gt "$x" ] || { [ "$a" -eq "$x" ] && { [ "$b" -gt "$y" ] || { [ "$b" -eq "$y" ] && [ "$c" -ge "$z" ]; }; }; }
+}
 
 # 1) Codex CLI 설치 여부
 if ! command -v codex >/dev/null 2>&1; then
@@ -12,14 +32,34 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 1
 fi
 echo "CODEX_INSTALLED=yes"
-echo "CODEX_VERSION=$(codex --version 2>/dev/null | awk '{print $NF}')"
+CODEX_VERSION=$(_t 10 codex --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+){1,2}' | head -1 || true)
+echo "CODEX_VERSION=${CODEX_VERSION:-<unknown>}"
+
+if [ -z "$CODEX_VERSION" ] || ! version_ge "$CODEX_VERSION" "$MIN_CODEX_VERSION"; then
+  echo "CODEX_VERSION_OK=no"
+  echo "HINT: codex >= $MIN_CODEX_VERSION 필요. 현재 ${CODEX_VERSION:-unknown}." >&2
+  fail=1
+else
+  echo "CODEX_VERSION_OK=yes"
+fi
+
+EXEC_HELP=$(_t 10 codex exec --help 2>&1 || true)
+RESUME_HELP=$(_t 10 codex exec resume --help 2>&1 || true)
+printf '%s\n' "$EXEC_HELP" | grep -q -- '-o' && echo "CODEX_EXEC_OUTPUT_FLAG=yes" || { echo "CODEX_EXEC_OUTPUT_FLAG=no"; fail=1; }
+printf '%s\n' "$RESUME_HELP" | grep -q 'resume' && echo "CODEX_RESUME_HELP=yes" || { echo "CODEX_RESUME_HELP=no"; fail=1; }
 
 # 2) 인증 상태
-if codex login status >/dev/null 2>&1; then
+if _t 15 codex login status >/dev/null 2>&1; then
   echo "CODEX_AUTH=ok"
 else
-  echo "CODEX_AUTH=missing"
-  echo "HINT: 사용자에게 '! codex login' 실행을 요청할 것" >&2
+  LOGIN_HELP=$(_t 10 codex login --help 2>&1 || true)
+  if printf '%s\n' "$LOGIN_HELP" | grep -q 'status'; then
+    echo "CODEX_AUTH=missing"
+    echo "HINT: 사용자에게 '! codex login' 실행을 요청할 것" >&2
+  else
+    echo "CODEX_AUTH=unknown(login-status-unsupported)"
+    echo "HINT: codex login status 지원 여부를 확인해야 함" >&2
+  fi
   fail=1
 fi
 
@@ -29,11 +69,13 @@ CFG="${CODEX_HOME:-$HOME/.codex}/config.toml"
 if [ -f "$CFG" ]; then
   model=$(awk -F'= *' '/^model[[:space:]]*=/{gsub(/["[:space:]]/,"",$2); print $2; exit}' "$CFG")
   effort=$(awk -F'= *' '/^model_reasoning_effort[[:space:]]*=/{gsub(/["[:space:]]/,"",$2); print $2; exit}' "$CFG")
-  echo "CONFIG_MODEL=${model:-<unset>}"
-  echo "CONFIG_EFFORT=${effort:-<unset>}"
+  echo "CONFIG_MODEL_ESTIMATE=${model:-<unset>}"
+  echo "CONFIG_EFFORT_ESTIMATE=${effort:-<unset>}"
+  echo "CONFIG_SCOPE=top-level-only"
 else
-  echo "CONFIG_MODEL=<no-config>"
-  echo "CONFIG_EFFORT=<no-config>"
+  echo "CONFIG_MODEL_ESTIMATE=<no-config>"
+  echo "CONFIG_EFFORT_ESTIMATE=<no-config>"
+  echo "CONFIG_SCOPE=top-level-only"
 fi
 
 exit "$fail"

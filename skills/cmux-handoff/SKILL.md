@@ -35,6 +35,7 @@ runtime checks, never from Feed state alone.
 ## Workflow
 
 1. Confirm the current cmux CLI surface.
+   - Run `cmux ping` first when cmux availability or socket state is uncertain; continue only if it responds.
    - Run `cmux --help` if the available command set is uncertain.
    - Run `cmux list-panels` to identify candidate surfaces in the current workspace.
    - If the user gave a workspace, window, or surface ref, pass it explicitly with `--workspace`, `--window`, or `--surface`.
@@ -46,18 +47,25 @@ runtime checks, never from Feed state alone.
 
 3. Capture the source pane.
    - Start with `cmux capture-pane --surface <surface> --scrollback --lines 120` — 120 lines is a starting sample, not the full history.
-   - Gauge the real size with `cmux pipe-pane --surface <surface> --command 'wc -l'` and increase `--lines` when the task state is not visible.
-   - Report the captured range and note possible scrollback truncation; never present a partial capture as the complete task history.
+   - Gauge the available pane text line count with `cmux pipe-pane --surface <surface> --command 'wc -l'` and increase `--lines` when the task state is not visible.
+   - Report the captured range as available scrollback and note possible truncation; never present a partial capture as the complete task history.
    - Summarize visible context as: current goal, files/routes/commands mentioned, last successful action, last failure/blocker, and likely next step.
 
 4. Decide the handoff mode.
    - Continue locally when the user wants the current agent (this session) to take over the task.
    - Send a follow-up prompt when the user wants the original pane's agent (Claude, Codex, opencode, or a plain shell) to continue.
    - Pipe pane output when downstream processing is useful, for example extracting TODOs, errors, file paths, or a compact handoff note.
-   - If the target pane has already exited, read `cmux surface resume get --surface <surface>` for its restart command instead of trying to capture a dead pane.
-     The result is an **opaque restart hint, not recovered task state**: never auto-run the
-     returned command; review it for approval-bypass or permission-relaxing flags, confirm
-     `cwd`/`kind` match the expected target, and execute only with the user's explicit approval.
+   - If the target pane has already exited, read `cmux surface resume get --json --surface <surface>` for its restart command instead of trying to capture a dead pane.
+      The result is an **opaque restart hint, not recovered task state**: never auto-run the
+      returned command; review it for approval-bypass or permission-relaxing flags, confirm
+      structured `cwd`/`kind`/`source`/`argv` match the expected target, and execute only with the user's explicit approval.
+
+### Context-Limit / Failed-Compact Panes
+
+If visible scrollback mentions context limit, auto-compact failure, `/compact`, token limit, or an agent saying it cannot continue:
+- Do not send a generic "continue" prompt back to that same pane.
+- Capture the maximum available visible scrollback, report the exact available range, and mark hidden context/tool state as unrecoverable.
+- Offer only two safe paths: continue locally from visible evidence, or start a fresh pane with a self-contained handoff prompt after explicit user approval.
 
 5. Send only deliberate input — pre-send checklist:
    - Confirm the target with `cmux list-panels` (use `--workspace` when needed) plus `cmux capture-pane --surface <surface> --scrollback --lines N`; ref, workspace/title/focused marker, and visible task must all match. Do **not** rely on the undocumented `--dry-run`.
@@ -65,6 +73,17 @@ runtime checks, never from Feed state alone.
    - Capture twice 1–2 seconds apart; if output is still advancing, the pane is busy — do not send.
    - Report what you are about to send and to which surface, then send only the approved scope.
    - Use `cmux send --surface <surface> -- "text\n"` for prompts or commands. The `--` guards text that might start with `-`.
+   - Never inline untrusted user text or captured pane text inside a shell-quoted `cmux send` command.
+     Use a single-quoted heredoc payload, verify the delimiter is absent from the payload, and append submit newline deliberately:
+     ```bash
+     surface="surface:17"
+     payload=$(cat <<'CMUX_PAYLOAD'
+     ...exact prompt text here...
+     CMUX_PAYLOAD
+     )
+     cmux send --surface "$surface" -- "${payload}"$'\n'
+     ```
+   - For `pipe-pane --command`, never interpolate user-supplied patterns directly into the shell command; use fixed commands or manually reviewed literals only.
    - Include `\n` only when you intend to press Enter (for an agent pane, `\n` is what submits the prompt).
    - Use `cmux send-key --surface <surface> ctrl+c` (or `escape`) only when the user explicitly asks to interrupt or reset the target pane. Key names are lowercase (`enter`, `escape`, `ctrl+c`).
    - Never send destructive commands, secrets, credentials, or irreversible deployment actions unless the user explicitly asked for that exact action.
@@ -74,6 +93,13 @@ runtime checks, never from Feed state alone.
    - State what was inferred.
    - State what was sent, if anything.
    - Do not claim access to hidden model memory, hidden prompts, tool state, or unrendered context.
+
+## Required Boundary Report
+
+- Visible evidence read: surface ref, command used, captured line count/range, notable quoted facts.
+- Inference: conclusions derived from visible evidence, explicitly marked as inference.
+- Sent input: exact text sent and target surface, or "none".
+- Unknown/unrecoverable: hidden model memory, tool state, unrendered context, and any scrollback outside the captured range.
 
 See [references/cmux-cli.md](references/cmux-cli.md) for command syntax and examples derived from `cmux --help`.
 
@@ -86,7 +112,7 @@ cmux capture-pane --surface surface:17 --scrollback --lines 120
 cmux send --surface surface:17 -- "Continue from the visible state and report blockers.\n"
 cmux send-key --surface surface:17 ctrl+c          # interrupt the pane (only if asked)
 cmux pipe-pane --surface surface:17 --command 'sed -n "1,120p"'
-cmux surface resume get --surface surface:17        # restart command for an exited pane
+cmux surface resume get --json --surface surface:17 # restart command for an exited pane
 ```
 
 ## Handoff Prompt Template

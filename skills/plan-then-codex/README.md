@@ -7,7 +7,7 @@
 
 ## 무엇을 하나
 
-1. **사전 점검 + 파싱** — `scripts/check-codex.sh`(read-only)로 설치/인증/config 확인, "gpt5.5"·"xhigh" 언급을 플래그로 변환, `mktemp -d`로 격리 작업 폴더(`$RUN`) 생성
+1. **사전 점검 + 파싱** — `scripts/check-codex.sh`는 Codex 설치/버전/인증/config 추정값만 read-only로 점검한다. 요청 파싱과 `$RUN` 생성은 `SKILL.md` 0단계에서 Claude가 수행한다.
 2. **ANALYZE** — Claude가 코드·실행 중인 페이지를 직접 분석 (UI면 스크린샷 캡처 → 텍스트 스펙 변환)
 3. **PLAN** — 자기완결 HANDOFF 작성: 파일별 구체 지시 · Baseline(위임 전 dirty 파일 보존 규칙) · Out of scope · **BLOCKED 프로토콜**(차단 모호성 = 변경 0 + 질문만 / 비차단 = 기본 결정으로 진행 후 보고) · 실행 가능한 Acceptance Criteria
 4. **DELEGATE** — `codex exec`를 백그라운드 실행, 라운드 산출물을 **manifest 세트**(log·exit code·session id·result)로 기록
@@ -17,15 +17,23 @@
 
 ## 전제조건
 
-- **Codex CLI** ≥ 0.138 — `npm install -g @openai/codex`
+- **Codex CLI** ≥ 0.139 — `npm install -g @openai/codex`
+  - 이 스킬은 codex-cli 0.139.0에서 `exec resume` 제약, sandbox 상속, 세션 ID 캡처를 실측했다.
 - **인증** — `codex login` 1회
 - (권장) `~/.codex/config.toml`에 `model` / `model_reasoning_effort` 기본값 설정
+- UI 작업 검증: Claude 쪽에서 `playwright-cli` 또는 동등한 브라우저/스크린샷 검증 수단 필요
+  - Codex의 localhost 확인은 보조 신호이며, 최종 시각 검증은 Claude가 수행한다.
 
 사전 점검은 동봉 스크립트로(읽기 전용):
 
 ```bash
+# 스킬 소스 루트에서 실행할 때
 bash scripts/check-codex.sh
-# CODEX_INSTALLED / CODEX_VERSION / CODEX_AUTH / CONFIG_MODEL / CONFIG_EFFORT 출력
+
+# 설치된 Claude Code 스킬에서 직접 점검할 때
+bash ~/.claude/skills/plan-then-codex/scripts/check-codex.sh
+
+# CODEX_INSTALLED / CODEX_VERSION / CODEX_AUTH / CONFIG_MODEL_ESTIMATE / CONFIG_EFFORT_ESTIMATE 출력
 ```
 
 ## 설치
