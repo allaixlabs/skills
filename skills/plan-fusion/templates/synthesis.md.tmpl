@@ -1,14 +1,15 @@
 # Fusion 종합 — {{제목}}
 
-> Judge CLI와 Synthesizer CLI가 합성하고, **Claude가 검증·사실확인한 기록**.
+> Judge CLI와 Synthesizer CLI가 합성하고, **오케스트레이터가 검증·사실확인한 기록**.
 > 근거 없는 채택 금지 — 모든 판정에 증거(diff·교차리뷰·테스트·grep)를 단다.
 
 ## 개요
 
 - **모드**: {{Fusion-Code / Fusion-Research}}
-<!-- 참가자/비교표는 실제 panel대로 가감(아래는 default 4개 예시 — Opus 참가/budget/deepseek/qwen 프리셋이면 행 교체). manifest의 panel= 기준. -->
+- **오케스트레이터 패밀리**: {{glm|gpt|gemini|claude|unknown — check-fusion.sh ORCHESTRATOR_FAMILY}}
+<!-- 참가자/비교표는 실제 panel대로 가감(아래는 default 4개 예시 — Opus 참가/budget/deepseek/qwen 프리셋, 또는 오케스트레이터 패밀리 제거 변형이면 행 교체). manifest의 panel=·orchestrator_family= 기준. -->
 - **참가자**: {{codex(gpt-5.5) · gemini(agy "Gemini 3.1 Pro (High)") · glm(zai-coding-plan/glm-5.2) · kimi(opencode-go/kimi-k2.7-code) — 실제 panel대로}}
-- **Judge**: {{claude(Opus) — 비독립 여부 표기}} · **Synthesizer**: {{codex(GPT)}}
+- **Judge**: {{Judge 백엔드 — 오케스트레이터 패밀리와 동족 여부 표기(check-fusion.sh JUDGE_CONFLICT_RISK)}} · **Synthesizer**: {{Synth 백엔드 — 동족 여부 표기(SYNTH_CONFLICT_RISK)}}
 - **각 참가자 상태**: {{codex=DONE · gemini=DONE · glm=DONE · kimi=BLOCKED(질문有) · …}}
 - **ORCHESTRATION_FAIL**: {{있으면 어느 참가자·원인}}
 - `$RUN`: {{경로}}
@@ -18,8 +19,8 @@
 - **최강 후보**: {{id 또는 "합성"}}
 - **합의점**: {{Judge가 본 다수 일치 항목}}
 - **충돌점**: {{쟁점 + 각 후보 입장}}
-- **위험·미검증 주장**: {{Judge가 표시 → §3에서 Claude가 사실확인}}
-- {{⚠️ Judge 동족 비독립이면: "Judge=Opus이고 Opus가 참가자 → 판정 신뢰도 할인" 명시}}
+- **위험·미검증 주장**: {{Judge가 표시 → §3에서 오케스트레이터가 사실확인}}
+- {{⚠️ Judge 백엔드가 오케스트레이터 패밀리와 동족이면: "Judge=<백엔드>가 오케스트레이터(<패밀리>)와 동족 → 판정 신뢰도 할인" 명시}}
 
 ## 2. Synthesizer 최종 (`$RUN/final.md` / `handoff.synth.md`)
 
@@ -27,12 +28,12 @@
 - **구성**: {{"codex 알고리즘 + glm 테스트 + kimi 에러처리" 등 — 출처 추적}}
 - {{Fusion-Research면 최종 답변 요지 / Fusion-Code면 합성 HANDOFF 위임 백엔드}}
 
-## 3. Claude 검증 (불가양도 — 여기가 핵심)
+## 3. 오케스트레이터 검증 (불가양도 — 여기가 핵심)
 
 <!-- Fusion-Research -->
-- **위험 주장 사실확인**: {{Judge가 표시한 주장 → Claude가 grep/코드 직접 확인 → 실재/불일치 판정}}
+- **위험 주장 사실확인**: {{Judge가 표시한 주장 → 오케스트레이터가 grep/코드 직접 확인 → 실재/불일치 판정}}
   - {{주장 X → `path:line` 확인 결과}}
-- **Judge 밖 독립 spot-check**(Judge→Synth 직렬 맹점 보강): {{Judge가 '합의점·높은 신뢰'로 분류해 표시하지 '않은' 핵심 주장 1~2개를 Claude가 독립 검증한 결과 — Judge 커버리지에 종속되지 않기 위함(SKILL §5·fusion.md §4 정책)}}
+- **Judge 밖 독립 spot-check**(Judge→Synth 직렬 맹점 보강): {{Judge가 '합의점·높은 신뢰'로 분류해 표시하지 '않은' 핵심 주장 1~2개를 오케스트레이터가 독립 검증한 결과 — Judge 커버리지에 종속되지 않기 위함(SKILL §5·fusion.md §4 정책)}}
   - {{독립 검증한 주장 → `path:line` 결과}}
 - **충돌점 결론**: {{다수결 아님 — 코드 근거로 어느 쪽이 맞는지}}
 

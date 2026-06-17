@@ -25,6 +25,28 @@ if command -v timeout  >/dev/null 2>&1; then _t() { timeout  "$@"; }
 elif command -v gtimeout >/dev/null 2>&1; then _t() { gtimeout "$@"; }
 else _t() { shift; "$@"; }; fi
 
+# === 오케스트레이터 감지 (env 우선, argv 폴백, unknown 허용) ===
+# 이 스크립트를 부른 오케스트레이터(분석·검증 주체)의 모델 패밀리를 식별한다.
+# 같은 패밀리를 참가자·Judge·Synth에 쓰면 교차검증 독립성이 무너지므로(동족),
+# ORCH_FAMILY에 따라 아래 집계에서 그 패밀리를 제외한다.
+# env: PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude (헤드리스/cron 안전)
+# argv: 첫 인자를 폴백으로 받는다(env 미설정 시). 둘 다 없으면 unknown.
+ORCH_RAW="${PLAN_FUSION_ORCHESTRATOR:-${1:-}}"
+ORCH_FAMILY=unknown; ORCH_BACKEND=unknown
+case "$ORCH_RAW" in
+  glm|glm-5*|glm4*|zai*)          ORCH_FAMILY=glm;    ORCH_BACKEND=opencode ;;
+  gpt|gpt-5*|gpt5*|codex)         ORCH_FAMILY=gpt;    ORCH_BACKEND=codex ;;
+  gemini|gemini-*|agy|antigravity) ORCH_FAMILY=gemini; ORCH_BACKEND=agy ;;
+  claude|opus|anthropic)          ORCH_FAMILY=claude; ORCH_BACKEND=claude ;;
+  ''|unknown|NONE|none)           ORCH_FAMILY=unknown; ORCH_BACKEND=unknown ;;
+  *)                              ORCH_FAMILY=unknown; ORCH_BACKEND=unknown
+    echo "WARN: PLAN_FUSION_ORCHESTRATOR='$ORCH_RAW' 인식불가 — unknown 취급(동족 제거 룰 비활성, 모든 패밀리 가용 후보)." >&2 ;;
+esac
+echo "# ── 오케스트레이터 감지 ──────────────────────────────────"
+echo "ORCHESTRATOR_INPUT=${ORCH_RAW:-<unset>}"
+echo "ORCHESTRATOR_FAMILY=$ORCH_FAMILY"
+echo "ORCHESTRATOR_BACKEND=$ORCH_BACKEND"
+
 codex_ok=0
 opencode_ok=0
 agy_ok=0
@@ -80,9 +102,10 @@ else
   echo "HINT: Antigravity CLI 미설치. agy 패널은 건너뛴다(Gemini 패밀리 제외)." >&2
 fi
 
-echo "# ── claude 백엔드 (Anthropic / Opus) — 기본 Judge ─────────"
-# ⚠️ 동족 주의: 오케스트레이터가 Opus다. Opus를 참가자로도 쓰면 Judge=참가자=오케스트레이터가
-#    같은 패밀리 → 교차검증 독립성↓·확증편향. 기본은 Judge 전용 권장(라우팅 문서 참조).
+echo "# ── claude 백엔드 (Anthropic / Opus) — 오케스트레이터가 claude 패밀리가 아닐 때 기본 Judge ─"
+# ⚠️ 동족 주의: 오케스트레이터가 claude(Opus) 패밀리면 참가자·Judge·오케스트레이터가 같은 패밀리 →
+#    교차검증 독립성↓·확증편향. ORCH_FAMILY=claude일 때는 families·JUDGE_DEFAULT에서 claude를 제외하고
+#    다른 패밀리(codex/agy/opencode)를 Judge/참가자로 쓴다(아래 집계 로직에서 적용).
 if command -v claude >/dev/null 2>&1; then
   echo "CLAUDE_INSTALLED=yes"
   echo "CLAUDE_VERSION=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
@@ -90,7 +113,7 @@ if command -v claude >/dev/null 2>&1; then
   claude_ok=1
 else
   echo "CLAUDE_INSTALLED=no"
-  echo "HINT: 'claude' CLI 미발견 — Judge는 다른 패밀리로 폴백하거나 Claude 오케스트레이터가 직접 판정." >&2
+  echo "HINT: 'claude' CLI 미발견 — Judge는 다른 패밀리로 폴백하거나 오케스트레이터가 직접 판정." >&2
 fi
 
 echo "# ── opencode 백엔드 (GLM / Kimi / DeepSeek / …) ──────────"
@@ -246,26 +269,61 @@ if [ "$opencode_ok" = 1 ]; then
   fi
 fi
 echo "OPENCODE_INDEP_FAMILY=$([ "$opencode_indep" = 1 ] && echo yes || echo 'no(openai-only이면 GPT 중복 — 독립 패밀리 아님)')"
+
+# === 동족 제거: 오케스트레이터와 같은 패밀리는 참가자 카운트에서 제외 ===
+# 교차검증 독립성의 핵심 — 오케스트레이터가 이미 그 패밀리를 쓰고 있으므로, 같은 패밀리를 참가자·Judge·Synth에
+# 또 넣으면 동족(확증편향). 각 패밀리별로: ready 여부 + 오케스트레이터 패밀리 충돌 여부를 종합해 카운트한다.
+EXCLUDED=""   # 휴먼 리딩용 제외 사유 누적
+excluded_codex=0
+if [ "$codex_ok" = 1 ]; then
+  if [ "$ORCH_FAMILY" = gpt ]; then
+    excluded_codex=1; EXCLUDED="${EXCLUDED}codex(orch=gpt) "
+  fi
+fi
+excluded_agy=0
+if [ "$agy_ok" = 1 ]; then
+  if [ "$ORCH_FAMILY" = gemini ]; then
+    excluded_agy=1; EXCLUDED="${EXCLUDED}agy(orch=gemini) "
+  fi
+fi
+excluded_opencode=0
+if [ "$opencode_indep" = 1 ]; then
+  if [ "$ORCH_FAMILY" = glm ]; then
+    excluded_opencode=1; EXCLUDED="${EXCLUDED}opencode(orch=glm) "
+  fi
+fi
+excluded_claude=0
+if [ "$claude_ok" = 1 ]; then
+  if [ "$ORCH_FAMILY" = claude ]; then
+    excluded_claude=1; EXCLUDED="${EXCLUDED}claude(orch=claude) "
+  fi
+fi
+echo "EXCLUDED_FAMILIES=${EXCLUDED:-<none>}"
+echo "ORCH_FAMILY_EXCLUDED=$([ -n "$EXCLUDED" ] && echo yes || echo no)"
+
 families=0
-[ "$codex_ok" = 1 ]    && families=$((families+1))
-[ "$agy_ok" = 1 ]      && families=$((families+1))
-[ "$opencode_indep" = 1 ] && families=$((families+1))
-echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready 백엔드 수 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; openai-only opencode는 GPT 중복이라 제외(OPENCODE_INDEP_FAMILY 참조); 모델 다양성 ≠ 백엔드 다양성; claude는 기본 Judge 전용이라 제외)"
-# claude(Opus)는 기본 Judge 전용이라 families에서 제외하지만, highEnd/codeSecurity 등 Opus가 '참가자'인
-# 프리셋에선 독립 백엔드(GPT vs Opus는 서로 다른 패밀리)로 쓸 수 있다. 차단 판정엔 이를 포함한 값을 쓴다.
-# (claude를 참가자로 쓰면 Judge는 비-claude로 — JUDGE_DEFAULT 폴백 참조.)
+[ "$codex_ok" = 1 ] && [ "$excluded_codex" = 0 ]    && families=$((families+1))
+[ "$agy_ok" = 1 ]   && [ "$excluded_agy" = 0 ]      && families=$((families+1))
+[ "$opencode_indep" = 1 ] && [ "$excluded_opencode" = 0 ] && families=$((families+1))
+echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready & 비-오케스트레이터-패밀리 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; openai-only opencode는 GPT 중복이라 제외; 모델 다양성 ≠ 백엔드 다양성; ORCH_FAMILY와 충돌하는 패밀리는 동족이라 제외(EXCLUDED_FAMILIES 참조))"
+
+# claude(Opus)는 오케스트레이터가 claude 패밀리가 아닐 때 한해 '참가자 후보 백엔드'로 쓸 수 있다.
+# (오케스트레이터=claude면 claude를 참가자로 쓰면 동족이므로 제외 — effective 가산도 안 함.)
+# 차단 판정엔 이를 포함한 값을 쓴다.
 effective=$families
-[ "$claude_ok" = 1 ] && effective=$((effective+1))
-echo "EFFECTIVE_BACKENDS=$effective (participant families + claude-as-participant 후보)"
+if [ "$claude_ok" = 1 ] && [ "$excluded_claude" = 0 ]; then effective=$((effective+1)); fi
+echo "EFFECTIVE_BACKENDS=$effective (participant families + claude-as-participant 후보 — 단 ORCH_FAMILY=claude면 claude 가산 제외)"
 # ④ assumed-ok 정합: claude가 effective에 가산됐으나 assumed-ok(미확정)면, 그 1개에 의존하는 effective는 잠정이다.
 #    차단 게이트는 낙관적으로 effective 기준이되, case A '전부 가용' 판정은 INDEPENDENT_FAMILIES_CONFIRMED(claude 제외) 기준임을 명시한다.
-[ "$claude_ok" = 1 ] && echo "EFFECTIVE_INCLUDES_ASSUMED=yes (claude=assumed-ok 미확정 — 첫 --print 실패 시 effective 1 감소 → degraded 가능; case A 판정은 INDEPENDENT_FAMILIES_CONFIRMED 사용)"
+if [ "$claude_ok" = 1 ] && [ "$excluded_claude" = 0 ]; then
+  echo "EFFECTIVE_INCLUDES_ASSUMED=yes (claude=assumed-ok 미확정 — 첫 --print 실패 시 effective 1 감소 → degraded 가능; case A 판정은 INDEPENDENT_FAMILIES_CONFIRMED 사용)"
+fi
 
 # === 패널 확정 게이트(SKILL.md 0-2.5)용 machine-readable 신호 ===
 # 호명 파싱은 오케스트레이터 몫(REQUEST_*/GATE_CASE/EXTRA_AVAILABLE/ESTIMATED_CALLS는 거기서 채운다).
 # 스크립트는 '가용성'만 내보내되, assumed-ok(claude)를 case A '전부 가용'에서 제외하도록 구분한다.
-echo "INDEPENDENT_FAMILIES_CONFIRMED=$families (assumed-ok claude 제외 실가용 참가자 패밀리 — 게이트 case A '전부 가용' 판정 기준)"
-if [ "$claude_ok" = 1 ]; then
+echo "INDEPENDENT_FAMILIES_CONFIRMED=$families (assumed-ok claude 제외 · 오케스트레이터 패밀리 제외 — 실가용 비-동족 참가자 패밀리 수; 게이트 case A '전부 가용' 판정 기준)"
+if [ "$claude_ok" = 1 ] && [ "$excluded_claude" = 0 ]; then
   echo "CLAUDE_BACKEND_CONFIRMED=no (설치만 확인된 assumed-ok — 실인증은 첫 --print에서 확정; case A에서 실가용으로 세지 말고 '⚠️미확정'으로 라벨)"
 fi
 # opencode 내 GLM(zai)·Kimi(opencode-go)는 별도 인증 단위라 한쪽만 죽을 수 있다(case F·B 판정용).
@@ -278,9 +336,43 @@ else
   echo "MODEL_READY_KIMI=no(opencode 미가용)"
 fi
 
-# Judge/Synth 후보 신호
-echo "JUDGE_DEFAULT=$([ "$claude_ok" = 1 ] && echo 'claude(Opus)' || { [ "$codex_ok" = 1 ] && echo 'codex(GPT) fallback' || echo 'Claude-orchestrator self'; })"
-echo "SYNTH_DEFAULT=$([ "$codex_ok" = 1 ] && echo 'codex(GPT)' || { [ "$claude_ok" = 1 ] && echo 'claude(Opus) fallback' || echo 'best-participant'; })"
+# Judge/Synth 후보 신호 — 오케스트레이터 패밀리와 충돌하면 차순위로, 모두 충돌하면 self 폴백.
+# 동족(오케스트레이터 패밀리 == Judge/Synth 패밀리)이면 CONFLICT_RISK=yes로 표시해 synthesis.md에 할인 명시.
+# Judge 우선순위: claude(비-동족) > codex(비-동족) > 오케스트레이터-self(비독립).
+JUDGE_DEFAULT=""
+JUDGE_CONFLICT_RISK=no
+if [ "$claude_ok" = 1 ] && [ "$ORCH_FAMILY" != claude ]; then
+  JUDGE_DEFAULT='claude(Opus)'
+elif [ "$codex_ok" = 1 ] && [ "$ORCH_FAMILY" != gpt ]; then
+  JUDGE_DEFAULT='codex(GPT) fallback'
+elif [ "$agy_ok" = 1 ] && [ "$ORCH_FAMILY" != gemini ]; then
+  JUDGE_DEFAULT='agy(Gemini) fallback'
+elif [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
+  JUDGE_DEFAULT='opencode(GLM/Kimi) fallback'
+else
+  JUDGE_DEFAULT='orchestrator-self(비독립 — 가용 비-동족 백엔드 없음)'
+  JUDGE_CONFLICT_RISK=yes
+fi
+echo "JUDGE_DEFAULT=$JUDGE_DEFAULT"
+echo "JUDGE_CONFLICT_RISK=$JUDGE_CONFLICT_RISK (yes면 Judge가 오케스트레이터-self라 동족 — synthesis.md에 '비독립 할인' 명시 필수)"
+
+# Synth 우선순위: codex(비-동족) > claude(비-동족) > 가용 참가자 > self.
+SYNTH_DEFAULT=""
+SYNTH_CONFLICT_RISK=no
+if [ "$codex_ok" = 1 ] && [ "$ORCH_FAMILY" != gpt ]; then
+  SYNTH_DEFAULT='codex(GPT)'
+elif [ "$claude_ok" = 1 ] && [ "$ORCH_FAMILY" != claude ]; then
+  SYNTH_DEFAULT='claude(Opus) fallback'
+elif [ "$agy_ok" = 1 ] && [ "$ORCH_FAMILY" != gemini ]; then
+  SYNTH_DEFAULT='agy(Gemini) fallback'
+elif [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
+  SYNTH_DEFAULT='opencode(GLM/Kimi) fallback'
+else
+  SYNTH_DEFAULT='orchestrator-self(비독립 — 가용 비-동족 백엔드 없음)'
+  SYNTH_CONFLICT_RISK=yes
+fi
+echo "SYNTH_DEFAULT=$SYNTH_DEFAULT"
+echo "SYNTH_CONFLICT_RISK=$SYNTH_CONFLICT_RISK (yes면 Synth가 오케스트레이터-self라 동족)"
 
 # 차단 판정은 EFFECTIVE_BACKENDS 기준(codex+claude처럼 families=1이라도 독립 2백엔드면 Fusion '가능'으로 통과).
 if [ "$effective" -ge 2 ]; then
@@ -290,14 +382,14 @@ if [ "$effective" -ge 2 ]; then
   if [ "$families" -ge 2 ]; then
     echo "FUSION_CAPABILITY=full(participant=$families, effective=$effective)"
   else
-    echo "FUSION_CAPABILITY=conditional(participant=$families<2, effective=$effective — claude를 '참가자'로 써야 교차검증 2패밀리 성립; 기본 Judge-only면 런타임 quorum이 'Fusion 미성립'으로 격하한다)"
+    echo "FUSION_CAPABILITY=conditional(participant=$families<2, effective=$effective — 비-오케스트레이터 패밀리를 '참가자'로 써야 교차검증 2패밀리 성립; Judge-only default면 런타임 quorum이 'Fusion 미성립'으로 격하한다)"
   fi
   if [ "$effective" -eq 2 ]; then
     echo "NOTE: 백엔드 2개 — 참가자 2 패밀리와 '독립' Judge를 동시에 둘 수 없다(한 백엔드가 참가자+Judge 겸직)."
-    echo "      Judge=self(오케스트레이터 Claude) 폴백을 권장하거나, 겸직하면 synthesis.md에 '비독립 할인'을 명시하라." >&2
+    echo "      Judge=self(오케스트레이터) 폴백을 권장하거나, 겸직하면 synthesis.md에 '비독립 할인'을 명시하라." >&2
     if [ "$families" -lt 2 ]; then
-      echo "      ⚠️ 참가자 패밀리=$families(<2): effective=2는 claude를 '참가자'로 쓸 때만(예: codex+claude-participant) 교차검증 2패밀리가 된다." >&2
-      echo "         claude가 '기본 Judge'로만 쓰이면 실제 참가자는 1패밀리뿐 → 진짜 교차검증 아님(단일 위임 격하 고려). 또 claude_ok는 설치만 확인한 assumed-ok다." >&2
+      echo "      ⚠️ 참가자 패밀리=$families(<2): effective=2는 비-오케스트레이터 패밀리 1개 + 다른 백엔드(예: codex+claude-participant)로만 교차검증 2패밀리가 된다." >&2
+      echo "        Judge-only로만 쓰이면 실제 참가자는 1패밀리뿐 → 진짜 교차검증 아님(단일 위임 격하 고려). 또 claude_ok는 설치만 확인한 assumed-ok다." >&2
     fi
   fi
   exit 0
