@@ -243,6 +243,23 @@ effective=$families
 [ "$claude_ok" = 1 ] && effective=$((effective+1))
 echo "EFFECTIVE_BACKENDS=$effective (participant families + claude-as-participant 후보)"
 
+# === 패널 확정 게이트(SKILL.md 0-2.5)용 machine-readable 신호 ===
+# 호명 파싱은 오케스트레이터 몫(REQUEST_*/GATE_CASE/EXTRA_AVAILABLE/ESTIMATED_CALLS는 거기서 채운다).
+# 스크립트는 '가용성'만 내보내되, assumed-ok(claude)를 case A '전부 가용'에서 제외하도록 구분한다.
+echo "INDEPENDENT_FAMILIES_CONFIRMED=$families (assumed-ok claude 제외 실가용 참가자 패밀리 — 게이트 case A '전부 가용' 판정 기준)"
+if [ "$claude_ok" = 1 ]; then
+  echo "CLAUDE_BACKEND_CONFIRMED=no (설치만 확인된 assumed-ok — 실인증은 첫 --print에서 확정; case A에서 실가용으로 세지 말고 '⚠️미확정'으로 라벨)"
+fi
+# opencode 내 GLM(zai)·Kimi(opencode-go)는 별도 인증 단위라 한쪽만 죽을 수 있다(case F·B 판정용).
+# provider-list 마커(●)로만 확인 → auth-file 경로 등 미확인 시 보수적으로 no.
+if [ "$opencode_ok" = 1 ]; then
+  printf '%s\n' "${PROV:-}" | grep -qiE '●.*(Z\.?AI)' && echo "MODEL_READY_GLM=yes" || echo "MODEL_READY_GLM=no(zai 미인증/미확인)"
+  printf '%s\n' "${PROV:-}" | grep -qiE '●.*(OpenCode Go)' && echo "MODEL_READY_KIMI=yes" || echo "MODEL_READY_KIMI=no(opencode-go 미인증/미확인)"
+else
+  echo "MODEL_READY_GLM=no(opencode 미가용)"
+  echo "MODEL_READY_KIMI=no(opencode 미가용)"
+fi
+
 # Judge/Synth 후보 신호
 echo "JUDGE_DEFAULT=$([ "$claude_ok" = 1 ] && echo 'claude(Opus)' || { [ "$codex_ok" = 1 ] && echo 'codex(GPT) fallback' || echo 'Claude-orchestrator self'; })"
 echo "SYNTH_DEFAULT=$([ "$codex_ok" = 1 ] && echo 'codex(GPT)' || { [ "$claude_ok" = 1 ] && echo 'claude(Opus) fallback' || echo 'best-participant'; })"

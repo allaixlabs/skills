@@ -222,6 +222,13 @@ if [ "${fam_n:-0}" -lt 2 ]; then
   echo "WARN: 생존 백엔드 패밀리 ${fam_n}종(<2) — Fusion 미성립. Judge/Synth를 건너뛰고(§3-2 quorum 가드가 차단) 단일 위임 결과 + 'Fusion 미성립' 표기로 격하하라(§2 quorum)." >&2
 else
   echo "quorum=OK(${fam_n}fam)" >> "$RUN/manifest"
+  # 선택 세트 축소 알림(SKILL.md 0-2.5 Q2): 사용자가 게이트에서 확정한 독립패밀리 수(selected_family_count)보다
+  # 생존이 적으면 = 위임 중 일부 무응답으로 '사용자가 고른 세트'가 줄어든 것. silent-drop 금지(case B와 동형) —
+  # quorum은 통과시키되(이미 비용 발생) 1회 알린다. headless면 REPORT에 '선택 N→생존 M 축소' 필수 표기.
+  sel=$(sed -n 's/^selected_family_count=//p' "$RUN/manifest" | tail -1)
+  if [ -n "$sel" ] && [ "${fam_n:-0}" -lt "$sel" ]; then
+    echo "NOTIFY: 선택 ${sel}패밀리 → 생존 ${fam_n}패밀리로 축소(위임 중 일부 무응답). 기본은 계속 진행, 사용자에 1회 알림 + REPORT 표기." >&2
+  fi
 fi
 ```
 > **Fusion-Code면 답변 대신 diff를 후보로** 넣는다 — 위 `extract_answer` 대신 §5의 `diff.patch`를 후보 본문으로 사용한다. (§5에서 각 worktree diff를 먼저 만들고, 같은 동적 루프로 `cat "$RUN/$id/diff.patch"`를 펜스에 감싸 묶는다.)

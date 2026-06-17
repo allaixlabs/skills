@@ -29,6 +29,23 @@ GLM·Kimi는 같은 opencode 백엔드(런타임·인증 공유)라 **모델 다
 2. **호명 파싱**(`references/routing-fusion.md`): 부른 모델("gpt5.5, gemini, glm5.2, kimi")을 각각 `(backend, model, effort/variant, dir/session 플래그)`로 정규화. **호명 없으면 기본 패널 추천**(default: GPT·Gemini·GLM·Kimi **4개 모델**(백엔드는 codex·agy·opencode **3개**), Judge=Opus, Synth=GPT) + **1줄 이유**. 프리셋(highEnd/codeSecurity/fullPower/budget)은 라우팅 문서 표 참조.
    - **disabledModels**: `fable-5`·`mythos-5`는 참가자·Judge·Synth 어디에도 쓰지 않는다(사용자 정책).
    - **동족 경고**: 오케스트레이터가 Opus다. Opus가 참가자이면서 Judge면 자기심사 확증편향 → 기본은 Opus=Judge 전용, 참가 프리셋이면 Judge를 Gemini로 바꾸거나 synthesis에 "Judge 비독립" 명시.
+2.5. **패널 확정 게이트**(결정론 — 호명 파싱 결과 `intent` × 가용 매트릭스 `matrix` → `GATE_CASE`. **자동 silent-fallback 금지**): 부재 백엔드를 조용히 빼지 않는다 — 의도와 가용이 어긋나면(B/C/E) 알리고, 의도가 없으면(D) 선택받는다. "호명 파싱 이후 결정론"이라 호명 정규화(2번)까지 끝난 뒤 적용한다.
+   - **가용 표시 규칙**: ① `CLAUDE_AUTH=assumed-ok`는 **설치만 확인(미확정)** — case A "전부 가용" 판정에서 실가용으로 세지 않고 `⚠️미확정(첫 --print서 확정)`으로 라벨(`check-fusion.sh`가 `CLAUDE_BACKEND_CONFIRMED=no`로 구분). ② 세트 제시는 **숫자(2/3/4/5) 세트 신설 금지** — 기존 named 프리셋(default/highEnd/codeSecurity/fullPower/budget)을 가용분으로 필터해 `프리셋명 · 모델슬롯수 · 독립패밀리수 · 호출수(N+2) · 역할독립성`으로 표시(`references/routing-fusion.md` 표). ③ **동족 노출**: Opus 참가자+Judge=Opus(**Judge 동족**) **또는** 참가자에 GPT 있고 Synth=GPT(**Synth 동족**)면 세트 확정 시 노출 + synthesis 비독립 표기 예고.
+   - **GATE_CASE 디스패치**:
+
+   | case | 조건 | 동작 |
+   |---|---|---|
+   | hard-block | `EFFECTIVE_BACKENDS<2` | `check-fusion.sh` exit 1 — Fusion 불성립(0-1) |
+   | policy-reject | disabledModels(`fable-5`/`mythos-5`) 호명 | 거부 + 대체 안내 |
+   | **A** | 명시 호명 전부 **실가용**(assumed-ok 제외) · 독립패밀리≥2 · 역할 가용 | **묻지 않고** 요약 후 진행. 호명 외 추가 가용 **자동 추가 금지** |
+   | **B** | 명시/부분 호명 중 일부 부재, **잔여 독립패밀리≥2** | 부재분(이유) 표시 → "①잔여로 진행 / ②설정 후 재시도". **silent-drop 금지**(②는 로그인 안내만·자동 로그인 금지 → BLOCKED) |
+   | **C** | 부재 후 잔여 독립패밀리<2 또는 전원 부재 | **자동 대체 금지** → 대체 프리셋 선택 또는 BLOCKED |
+   | **D** | 호명 없음/완전 모호 | 가용 매트릭스 + named 프리셋(라벨) 제시 → 선택 |
+   | **E** | Judge/Synth 역할 백엔드 부재 | 명시 역할 부재=확인 게이트 / 기본 역할 부재=결정론 폴백(`JUDGE_DEFAULT`/`SYNTH_DEFAULT` 체인) + REPORT 표기 |
+   | **F** | 동일 백엔드 다중 모델(GLM+Kimi 등) | 모델수·패밀리수 **분리 표시**, 독립성 카운트엔 **1패밀리** |
+   | **I** | `participant<2 & effective≥2`(`FUSION_CAPABILITY=conditional`) | claude를 **참가자**로 써야 성립함을 명시 — Judge-only default로 **조용히 진행 금지** |
+
+   - **headless 폴백**(AskUserQuestion 불가 = cron·자동화 파이프라인): 명시 패널/프리셋이 있으면 그대로 시도하되 **미가용 자동대체 금지**(B/C는 BLOCKED). case D는 자동 진행하되 **min2(최소 2 독립패밀리) + env cap** — 확대는 env로만: `PLAN_FUSION_HEADLESS_PRESET` · `PLAN_FUSION_MAX_PARTICIPANTS` · `PLAN_FUSION_MAX_CALLS` · `PLAN_FUSION_ALLOW_DEGRADED`. REPORT에 "대화형 선택 생략, headless 기본 세트 적용" 표기.
 3. **모드 선택**:
    - 파일 변경 없는 분석/리서치/설계 질문, "여러 모델로 풀어 정리" → **Fusion-Research**(read-only).
    - 코드 구현 + 신뢰도↑ → **Fusion-Code**(worktree 격리 병렬 → Judge → Synth → 적용 → 검증).
@@ -43,9 +60,10 @@ GLM·Kimi는 같은 opencode 백엔드(런타임·인증 공유)라 **모델 다
    rand=$(od -An -N6 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')
    fence="CANDIDATE_DATA_${rand:-$(date +%s 2>/dev/null)$$$RANDOM}"
    # mode 값은 §4(fusion.md §3-3)에서 MODE로 읽혀 Synth 분기를 가른다 → 반드시 리터럴 'Fusion-Code' 또는 'Fusion-Research'.
-   printf 'mode=%s\npanel=%s\njudge=%s\nsynth=%s\nfence=%s\n' "<Fusion-Code|Fusion-Research>" "<참가자 id들>" "<judge>" "<synth>" "$fence" >> "$RUN/manifest"
+   # selected_family_count = 2.5 게이트가 확정한 '독립 패밀리 수'(INDEPENDENT_FAMILIES_CONFIRMED 기준). §4 quorum이 축소 알림(선택 N→생존 M)에 쓴다.
+   printf 'mode=%s\npanel=%s\njudge=%s\nsynth=%s\nfence=%s\nselected_family_count=%s\n' "<Fusion-Code|Fusion-Research>" "<참가자 id들>" "<judge>" "<synth>" "$fence" "<2.5 확정 독립패밀리 수>" >> "$RUN/manifest"
    ```
-5. **패널·모드·Judge·Synth·각 백엔드 플래그 + 예상 비용/시간을 1회 요약**하고 진행 — N참가자 + Judge 1 + Synth 1은 단일 위임의 N+2배 이상 호출이다(agy `--print-timeout`은 일반 장기실행은 차단하나 **권한프롬프트 교착은 못 끊는다**(→ `--dangerously-skip-permissions` 병행, references 참조), omo는 자체 타임아웃 없음 → 백그라운드+완료알림). 인간 승인 영역(스키마/보안/키·시크릿/결제/배포/PRD범위/아키텍처)이면 여기서 BLOCKED.
+5. **패널·모드·Judge·Synth·각 백엔드 플래그 + 예상 비용/시간을 1회 요약** → **2.5 `GATE_CASE`별 확인/선택 후 진행**(**자동 진행은 case A·headless 명시 정책만**; 그 외 silent-fallback 금지) — N참가자 + Judge 1 + Synth 1은 단일 위임의 N+2배 이상 호출이다(agy `--print-timeout`은 일반 장기실행은 차단하나 **권한프롬프트 교착은 못 끊는다**(→ `--dangerously-skip-permissions` 병행, references 참조), omo는 자체 타임아웃 없음 → 백그라운드+완료알림). 인간 승인 영역(스키마/보안/키·시크릿/결제/배포/PRD범위/아키텍처)이면 여기서 BLOCKED.
 
 ## 1. ANALYZE
 

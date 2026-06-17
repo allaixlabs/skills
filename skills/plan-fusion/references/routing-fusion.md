@@ -67,6 +67,20 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | **fullPower** | codeSecurity + agy `"Gemini 3.5 Flash (High)"` | Opus ⚠️비독립 | GPT | 최종보고서·중대판단(느림) |
 | **budget** | agy `"Gemini 3.5 Flash (Low)"` · glm-5.2 · kimi-k2.7-code | Opus | Opus ⚠️(동족 — 비용절감 예외, synthesis.md에 비독립 표기) | 비용절감 |
 
+**게이트 표시 라벨**(SKILL.md 0-2.5 case D — 가용분으로 필터해 이 형식으로 제시. **숫자(2/3/4/5) 세트 신설 금지** — named 프리셋 재사용):
+`프리셋 · 모델슬롯 N · 독립패밀리 M · 호출 N+2 · 역할독립성`
+
+| 프리셋 | 모델슬롯 | 독립패밀리 | 호출(N+2) | 역할 독립성 |
+|---|---|---|---|---|
+| default | 4 | 3 (codex·agy·opencode) | 6 | Judge 독립 · **Synth 동족(GPT 참가+GPT Synth)** |
+| highEnd | 4 | 4 (+claude) | 6 | **Judge 비독립(Opus 참가)** · Synth 동족(GPT) |
+| codeSecurity | 5 | 4 | 7 | **Judge 비독립** · Synth 동족 |
+| fullPower | 6 | 4 (agy ×2=1패밀리) | 8 | **Judge 비독립** · Synth 동족 |
+| budget | 3 | 2 (agy·opencode) | 5 | **Judge=Synth 동족(Opus)** |
+
+- **모델 다양성 ≠ 백엔드 다양성**: GLM+Kimi는 같은 opencode라 모델슬롯만 +1, 독립패밀리는 그대로(`check-fusion.sh`의 `MODEL_READY_GLM/KIMI`로 모델 단위, `INDEPENDENT_FAMILIES_CONFIRMED`로 패밀리 단위 구분 — 게이트 case F). default가 4모델이어도 백엔드 독립성은 3인 이유다.
+- **Synth 동족 주의**: default·highEnd·codeSecurity·fullPower는 Synth=GPT인데 참가자에도 GPT가 있다 → Synth가 자기 후보를 과대대표할 여지(예: 한 후보의 미검증 주장을 합성이 되살림). 게이트는 이를 세트 확정 시 노출하고, 회피하려면 Synth를 비참가 패밀리로 두거나 `fusion-synth.md.tmpl`의 "Judge가 제거 판정한 주장 재도입 금지" 제약에 의존한다.
+- **headless**(비대화형 = cron·자동화): case D 자동 진행은 **min2(최소 2 독립패밀리)** + env cap(`PLAN_FUSION_HEADLESS_PRESET`·`PLAN_FUSION_MAX_PARTICIPANTS`·`PLAN_FUSION_MAX_CALLS`·`PLAN_FUSION_ALLOW_DEGRADED`). 명시 프리셋 미가용 시 **자동 축소·대체 금지**(BLOCKED). 상세는 SKILL.md 0-2.5.
 - `⚠️비독립` 표기는 아래 동족 편향 경고의 명시 예외다. highEnd/codeSecurity/**fullPower**는 Opus 참가자와 Judge가 같은 계열이므로 Judge 독립성이 할인된다(synthesis.md에 명시).
 - budget은 비용 절감을 위해 Judge=Synth=Opus를 허용한다. 이 경우 `synthesis.md`에 "비독립 할인" 명시 필수.
 - 추천 시 한 줄 이유 제시: 예) "GPT·Gemini·GLM·Kimi 4개 모델(백엔드 3)로 교차검증 독립성을 확보하고, Opus가 판정·GPT가 합성합니다."
