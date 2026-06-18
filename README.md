@@ -5,10 +5,11 @@
 
 대화할 때마다 즉흥으로 구성하면 품질이 흔들리는 워크플로우(완료 기준 강제, 멀티모델 교차검증, 패널 핸드오프)를 **고정된 스킬**로 만든다. 모든 CLI 사용법은 추정이 아니라 **실측 버전**(codex 0.139 · opencode 1.16 · omo 4.10 · agy 1.0.8 · claude 2.1.x)으로 검증했다.
 
-스킬은 두 갈래다:
+스킬은 세 갈래다:
 
 - **거버넌스** — [`loop-md`](skills/loop-md/README.md)(완료 기준 강제) · [`cmux-handoff`](skills/cmux-handoff/README.md)(멈춘 패널 이어받기): 작업의 **품질·연속성**을 지킨다.
 - **멀티모델 위임** — [`plan-then-codex`](skills/plan-then-codex/README.md) · [`plan-then-opencode`](skills/plan-then-opencode/README.md) · [`plan-codex-opencode`](skills/plan-codex-opencode/README.md) · [`plan-fusion`](skills/plan-fusion/README.md): **"Claude=두뇌, 외부 CLI=손"** split-brain으로 한 모델 또는 여러 모델 패밀리에 구현을 맡기고 교차검증·종합한다.
+- **유틸리티** — [`img-maker-codex`](skills/img-maker-codex/README.md): 로컬 Codex CLI의 `image_generation` 도구를 구동해 ChatGPT Plus/Pro 구독 한도 내에서 이미지를 생성·편집한다. 별도 API 키·과금 없이 단일 작업을 수행한다.
 
 ## 스킬 한눈에
 
@@ -20,6 +21,7 @@
 | **plan-then-opencode** | Claude 계획 → **omo 에이전트** 구현 위임 | "구현은 omo sisyphus로 위임해" | opencode + omo |
 | **plan-codex-opencode** | 여러 모델 패밀리 **Council/Pipeline** 교차검증 | "codex·glm·kimi로 교차검증해 정리" | codex + opencode + omo |
 | **plan-fusion** | 멀티 CLI 독립 실행 → **Judge→Synth** 합성 | "GPT·Gemini·GLM·Kimi로 풀고 Opus 판정·GPT 종합" | codex + agy + opencode + omo + claude |
+| **img-maker-codex** | 로컬 Codex `image_generation` 도구로 이미지 생성·편집 | "ChatGPT 구독으로 이미지 생성해", "imagegen으로 편집" | codex (+ python3) |
 
 ## 위임 스킬, 어느 것을 쓰나
 
@@ -66,6 +68,9 @@ cmux의 Unix 소켓 CLI로 다른 터미널 패널(Claude/Codex/opencode/셸)의
 ### 🔀 plan-fusion — CLI Fusion (Judge → Synthesizer)
 종합 자체를 모델에 위임한다: **참가자 CLI 독립 실행 → Judge CLI 후보 평가 → Synthesizer CLI 최종 합성 → Claude 검증**. `plan-codex-opencode`에 **agy(Gemini)·claude(Opus)** 를 더해 **백엔드 패밀리 4 / 대표 모델 5종**(기본 패널 GPT·Gemini·GLM·Kimi, Judge=Opus, Synth=GPT). Claude의 단일 관점 편향을 줄이고 검증·사실확인에 집중. → [상세](skills/plan-fusion/README.md)
 
+### 🎨 img-maker-codex — Codex 기반 이미지 생성
+별도 OpenAI API 키·과금 없이, 사용자의 **ChatGPT Plus/Pro 구독 한도** 내에서 로컬 `codex` CLI의 `image_generation` 도구로 이미지를 생성·편집한다. text-to-image, image-to-image(스타일 전이), 다중 참조 합성, 한 번에 여러 결과(`--count`)를 지원. Codex 0.139 실측 기반 rollout 파싱(saved_path 우선, base64 폴백, 다중 신원 병합)으로 세션을 격리하고, 시스템 디렉토리 거부·magic 헤더 검사로 안전하게 동작한다. 기존 `gpt-image-2` 스킬의 개선 후속작. → [상세](skills/img-maker-codex/README.md)
+
 ## 공통 설계 원칙
 
 - **Split-brain handoff** — 위임 대상 CLI는 대화 컨텍스트를 모른다. 유일한 진실은 **자기완결 HANDOFF 문서**이며, 스킬이 그 작성·전달·검증 루프를 강제한다.
@@ -80,11 +85,12 @@ cmux의 Unix 소켓 CLI로 다른 터미널 패널(Claude/Codex/opencode/셸)의
 
 | CLI | 용도 | 설치 / 확인 | 쓰는 스킬 |
 |-----|------|-------------|-----------|
-| **codex** ≥ 0.139 | GPT 실행 · `exec review` 교차리뷰 | `npm i -g @openai/codex` + `codex login` | plan-then-codex, plan-codex-opencode, plan-fusion |
+| **codex** ≥ 0.139 | GPT 실행 · `exec review` 교차리뷰 · `image_generation` | `npm i -g @openai/codex` + `codex login` | plan-then-codex, plan-codex-opencode, plan-fusion, **img-maker-codex** |
 | **opencode** ≥ 1.4 + **oh-my-openagent** ≥ 4.9 | GLM·Kimi·DeepSeek 등 | `npm i -g opencode oh-my-openagent` + provider 인증 (`bunx oh-my-openagent doctor`) | plan-then-opencode, plan-codex-opencode, plan-fusion |
 | **agy** (Antigravity) | Gemini 참가자 | `agy models` 로 인증·모델 확인 | plan-fusion |
 | **claude** | 기본 Judge(Opus) | Claude Code CLI | plan-fusion |
 | **cmux** | 패널 핸드오프 | `cmux ping` → `PONG` | cmux-handoff |
+| **python3** (stdlib만) | img-maker-codex rollout 파싱 | macOS·Linux 기본 포함, 없으면 `python3` 설치 | img-maker-codex |
 | — (없음) | bash·git만 사용 | — | loop-md |
 
 > 각 스킬은 동봉된 read-only 사전점검 스크립트(`scripts/check-*.sh`)로 가용성·인증을 먼저 확인한 뒤 동작한다.
@@ -100,6 +106,7 @@ npx skills add allaixlabs/skills --skill plan-then-codex --agent claude-code
 npx skills add allaixlabs/skills --skill plan-then-opencode --agent claude-code
 npx skills add allaixlabs/skills --skill plan-codex-opencode --agent claude-code
 npx skills add allaixlabs/skills --skill plan-fusion --agent claude-code
+npx skills add allaixlabs/skills --skill img-maker-codex --agent claude-code
 npx skills add allaixlabs/skills --skill '*' --agent claude-code   # 전부 설치
 ```
 
@@ -128,7 +135,8 @@ skills/
 ├── plan-then-codex/     # Claude 계획 → codex exec 단일 구현 위임
 ├── plan-then-opencode/  # Claude 계획 → omo run 위임 — Prometheus/Sisyphus/Hephaestus 선택
 ├── plan-codex-opencode/ # 멀티모델 패널 Council/Pipeline 교차검증 — worktree 격리·종합
-└── plan-fusion/         # 멀티 CLI 독립 실행 → Judge→Synth 합성 — agy(Gemini)·claude(Opus) 포함
+├── plan-fusion/         # 멀티 CLI 독립 실행 → Judge→Synth 합성 — agy(Gemini)·claude(Opus) 포함
+└── img-maker-codex/     # 로컬 Codex image_generation 도구 구동 — ChatGPT 구독 한도 내 이미지 생성·편집
 ```
 
 각 스킬 폴더는 `SKILL.md`(오케스트레이션) · `README.md`(상세) · `references/`(CLI 실측 노트) · `templates/` · `scripts/`(사전점검)로 구성된다.
