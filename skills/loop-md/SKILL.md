@@ -96,6 +96,10 @@ loop-md가 만드는 루트 `loop.md`는 **완료 검증 기준문(DoD)**이다.
    - **마커 컨벤션(표준)**: 주입은 항상 `<!-- loop-md:dod-guard -->` … `<!-- /loop-md:dod-guard -->` 블록으로 감싼다(zcode/opencode 별도 파일도 마커로 감싼다 — 향후 claude/codex와 통합 병합 시 식별 가능).
    - 조건부라 `loop.md` 없는 프로젝트엔 무해 → **1회 설정으로 감지된 전 에이전트의 전 프로젝트가 커버**된다.
    - hard 강제를 원하면 **옵트인** 세 가지를 안내: ① 에이전트 PreToolUse hook(Claude `~/.claude/settings.json`; ZCode/opencode는 hook 메커니즘이 다를 수 있어 해당 에이전트 문서 확인) — `git commit`시 `--no-verify`도 잡고 `[skip-loop]`·`LOOP_SKIP=1` 모두 지원. ② **에이전트 불문 강제**: `.git/hooks/pre-commit`에서 `precommit-guard.sh --git-hook` 호출 — Codex/ZCode/Claude/사람 누구든 셸 `git commit` 시 발동·차단. 커밋 메시지를 못 읽어 `[skip-loop]`는 불가하므로 `LOOP_SKIP=1`을 쓴다. ③ 셸 `git commit`에서도 `[skip-loop]`를 쓰려면 `.git/hooks/commit-msg`에서 `precommit-guard.sh --commit-msg "$1"` 호출. 단 `--no-verify`는 git hook을 건너뛰므로 ①과 병행 권장. (Stop hook은 매 턴 발동해 노이즈가 크므로 비권장.)
+   - ⚠️ **옵트인 명시성(결함 방지)**: 위 세 가지 hard 가드는 **"안내"로 끝내고, 사용자가 명시적으로 "설치하라"고 승인하기 전에는 절대 설치하지 않는다.** Setup 흐름에서 가드를 조용히 설치하면(=안내만 하고 설치까지) 이후 매 커밋이 차단→`LOOP_SKIP=1` 우회 사이클에 빠진다(실제 makeskill에서 발생 — bypass.log 29회). 특히 **자기참조 모순** 주의: Setup이 `loop.md`+가드를 설치한 직후 셋업 산출물(loop.md/AGENTS.md/scripts)을 커밋하려면 마커가 필요한데, 마커는 Verify 통과 후에만 생기므로 셋업 커밋이 무조건 차단된다. 따라서:
+     - Setup §6은 가드 **후보만 식별**(위 grep)하고 설치는 **사용자 승인 후 별도 단계**로. `AskUserQuestion`으로 "hard 가드(①/②/③) 설치할까?" 명시 확인 없이는 `.git/hooks/`·`settings.json` 수정 금지.
+     - **셋업 산출물 커밋 면제**: 셋업 직후 첫 커밋(loop.md·AGENTS.md·scripts/·docs/loop-md/)은 가드가 면제한다 — `precommit-guard.sh`가 스테이징된 파일이 전부 `loop.md`·`AGENTS.md`·`skills/loop-md/`·`docs/loop-md/` 범위면(=순수 셋업 산출) 마커 없어도 통과. (상세: `scripts/precommit-guard.sh` line 271+ 면제 분기.)
+   - 비대화형(headless) 환경에서는 사용자 승인을 받을 수 없으므로 **가드 설치를 건너뛰고** REPORT에 "hard 가드 미설치(비대화형 — 수동 설치 안내)"로 표기한다. 자동 설치 금지.
 
 7. 생성 결과 요약(생성 파일, 미감지 플레이스홀더, 다음 액션)을 보고한다.
 
