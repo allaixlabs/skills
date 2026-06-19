@@ -107,7 +107,7 @@ GLM·Kimi는 같은 opencode 백엔드(런타임·인증 공유)라 **모델 다
 
 ## 3. DELEGATE — 참가자 병렬 (전부 백그라운드 + 참가자별 manifest)
 
-> 각 참가자는 **별도 Bash `run_in_background: true`**(한 셸 `&` 금지). 산출물 `$RUN/<id>/`. **모든 참가자 완료 알림 후에만** read(race 방지). 셸 상세·5-CLI경로 호출은 `references/fusion.md` §2 · `references/cli-fusion-map.md`.
+> 각 참가자는 **별도 Bash `run_in_background: true`**(한 셸 `&` 금지). 산출물 `$RUN/<id>/`. **모든 참가자 완료 알림 후에만** read(race 방지). **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** 결과 read → §4 FUSE로 넘어간다 — "기다리겠다"며 멈추거나 안내문만 출력하지 않는다("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다). 셸 상세·5-CLI경로 호출은 `references/fusion.md` §2 · `references/cli-fusion-map.md`.
 
 ### Fusion-Code — 격리 worktree 병렬
 ```bash

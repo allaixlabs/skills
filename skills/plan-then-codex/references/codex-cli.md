@@ -72,7 +72,7 @@ grep -m1 'session id:' "$RUN/round1.log" | awk '{print $NF}'
 xhigh 구현은 수 분~수십 분. 포그라운드로 돌리면 타임아웃(기본 2분)에 걸린다.
 
 1. Bash 도구로 `run_in_background: true` + `> "$RUN/roundN.log" 2>&1` 실행.
-2. **완료 알림이 온 뒤에만** 결과를 읽는다(완료 전 `-o` 파일 읽기는 race — 비어 있거나 직전 라운드 것).
+2. **완료 알림이 온 뒤에만** 결과를 읽는다(완료 전 `-o` 파일 읽기는 race — 비어 있거나 직전 라운드 것). **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** read → 다음 절차(검증)로 넘어간다 — "기다리겠다"며 멈추거나 안내문만 출력하지 않는다("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다).
 3. 읽는 순서: manifest의 exit code → `result-rN.md` → 이상하면 `roundN.log`의 에러.
 
 ## 세션 이어가기 (VERIFY 라운드) — 0.139.0 실측 기준
