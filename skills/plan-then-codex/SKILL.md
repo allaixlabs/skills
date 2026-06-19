@@ -123,7 +123,7 @@ exit "$round1_rc"
    — 빌드/테스트 실행, UI면 재스크린샷(`$RUN/after-*.png`) 후 before와 비교.
    Codex의 localhost 확인은 "시도"일 뿐, 최종 진실은 Claude의 브라우저 검증이다.
    **UI 노출 판정=yes**이면 디자인 스펙(타이포/컬러/간격/레이아웃) 반영 여부도 대조한다 — 스펙을 안 따르면 FAIL → Codex resume으로 수정 지시.
-3. 프로젝트 루트에 `loop.md`가 있으면 loop-md 스킬 Verify 모드를 수행한다.
+3. **loop-md Verify는 이 단계(§4)에서 실행하지 않는다** — 완료 보고를 지연시키는 연동 결함 방지. loop.md 연동은 아래 §4.5에서 REPORT **전**에 별도 실행한다(다른 동기 스킬처럼 "완료 결과 먼저 사용자에게, 무거운 DoD 검증은 그 후").
 4. 미달 시 재작업 — **manifest의 session id로 resume** (`--last` 금지: 동시 세션 오선택 위험):
 
    ```bash
@@ -155,6 +155,14 @@ exit "$round1_rc"
    - **라운드 산입 규칙**: Codex가 정상 실행된 구현 시도만 센다(최대 3라운드).
      CLI 플래그·설정·환경 실패는 `ORCHESTRATION_FAIL` — 라운드 미산입, Claude가 고치고 재시도.
    - 3라운드 후에도 미달이면 중단하고 남은 항목을 사용자에게 보고.
+
+## 4.5 loop-md 연동 (완료 보고 후 별도 실행 — 지연 방지)
+
+프로젝트 루트에 `loop.md`가 있으면, **§4 VERIFY 통과 직후·사용자에게 완료 결과를 보고한 뒤** loop-md 스킬 Verify 모드(①Pass/Fail 게이트·②정량·③정성)를 실행한다. 순서가 중요:
+1. **먼저** 백엔드 결과(`result-rN.md` 요약·변경 파일·AC 충족)를 사용자에게 보고 — 다른 동기 스킬처럼 "완료 즉시 알림".
+2. **그 다음** loop-md Verify(긴 절차: 게이트 실행·stash 체크포인트·필요 시 롤백)를 실행 — 이게 끼어들어 1의 완료 보고를 지연시키지 않게.
+3. loop-md Verify 통과 시 `.loop/last-verified` 마커를 현재 HEAD로 갱신한 뒤 커밋(가드 통과 조건).
+루트 `loop.md` 없으면 이 절차 N/A.
 
 ## 5. REPORT
 
