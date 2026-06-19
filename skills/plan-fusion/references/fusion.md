@@ -86,7 +86,7 @@ codex exec --skip-git-repo-check -C "$ROOT" -s read-only -o "$RUN/$id/result.md"
 echo "round1_exit=$?" >> "$RUN/$id/manifest"; echo "family=codex" >> "$RUN/$id/manifest"
 
 # agy / opencode / omo / claude: 사본 안에서 실행 (+skip-permissions로 헤드리스 권한 교착 회피)
-# ⚠️ agy 1.0.9: --model은 -p 앞에 (-p 뒤에 --model/위치인자면 프롬프트 무시 — routing-fusion.md 특이사항 참조)
+# ⚠️ agy 1.0.10: 파일 검색 스코프 결함 — `--add-dir "$RO"`로 스코프 제한 + 프롬프트 파일 참조는 절대경로 (routing-fusion.md 특이사항 참조)
 ( cd "$RO" && command agy --print-timeout 600s --dangerously-skip-permissions \
     --model "Gemini 3.1 Pro (High)" -p "$(cat "$RUN/handoff.md")" ) > "$RUN/$id/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/$id/manifest"; echo "family=agy" >> "$RUN/$id/manifest"
@@ -113,7 +113,7 @@ echo "round1_exit=$?" >> "$RUN/codex/manifest"
 echo "family=codex"   >> "$RUN/codex/manifest"   # quorum(생존 패밀리 ≥2) 기계 확인용 — §3-1에서 distinct family 카운트
 
 # agy (Gemini) — cd + skip-permissions(쓰기), stdout이 곧 result
-# ⚠️ agy 1.0.9: --model은 -p 앞에 (순서 어기면 프롬프트 무시 — routing-fusion.md 특이사항)
+# ⚠️ agy 1.0.10: 파일 검색 스코프 결함 — `--add-dir "$RUN/wt/gemini"` 스코프 제한 + 프롬프트 파일 참조 절대경로 (routing-fusion.md 특이사항)
 ( cd "$RUN/wt/gemini" && command agy --print-timeout 900s --dangerously-skip-permissions \
   --model "Gemini 3.1 Pro (High)" -p "$(cat "$RUN/handoff.md")" ) \
   > "$RUN/gemini/round1.log" 2>&1

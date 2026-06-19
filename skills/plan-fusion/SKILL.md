@@ -117,7 +117,7 @@ rc=$?; case "$rc" in
   1) echo "BLOCKED: worktree setup 전부 실패 — Fusion 불성립, 중단." >&2 ;;
 esac
 ```
-정리는 REPORT 직접 `council_wt_cleanup "<root>" "$RUN"`로 명시 호출(setup·위임·정리를 한 Bash에 안 묶으면 `trap EXIT` 금지). 각 참가자를 자기 worktree에서 — codex `-C`, **agy `( cd && command agy ... -p "..." )`**(`--model`은 `-p` 앞 — 1.0.9 플래그 순서 결함, routing-fusion.md 참조), omo `-d`, opencode `--dir`, **claude `( cd && claude --dangerously-skip-permissions )`**.
+정리는 REPORT 직접 `council_wt_cleanup "<root>" "$RUN"`로 명시 호출(setup·위임·정리를 한 Bash에 안 묶으면 `trap EXIT` 금지). 각 참가자를 자기 worktree에서 — codex `-C`, **agy `( cd && command agy ... -p "..." )`**(agy 1.0.10 파일 검색 스코프 결함 → **`--add-dir "<작업dir 절대경로>"` + 프롬프트 파일 참조는 절대경로만**, routing-fusion.md 특이사항 참조), omo `-d`, opencode `--dir`, **claude `( cd && claude --dangerously-skip-permissions )`**.
 
 ### Fusion-Research — read-only 병렬
 codex `-s read-only`(강제, live 루트 안전). **codex 외 전 백엔드(agy·opencode·omo·claude)는 강제 샌드박스가 없으므로 읽기전용 사본(`.git` 제외·심링크 차단)에서 `--dangerously-skip-permissions`로 실행**한다 — 로컬 원본 쓰기는 무해(예방), 사후 `git status`는 보조 탐지. ⚠️ `cp -a` 단독은 로컬 in-tree 쓰기만 막고 **네트워크 egress·git push·시크릿·심링크 탈출은 못 막으니** 사본 생성 시 `.git` 제거·`--safe-links`로 좁힌다(`references/fusion.md` §1). 백엔드별 들쭉날쭉을 없앤 통일 규칙. 과거 "권한 프롬프트가 차단(skip 미사용)" 가정은 헤드리스 미검증이라 폐기.

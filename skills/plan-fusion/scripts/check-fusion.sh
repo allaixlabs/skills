@@ -3,7 +3,7 @@
 #
 # CLI Fusion: 서로 다른 모델 패밀리를 각자 CLI로 독립 실행한다.
 #   GPT    → codex exec
-#   Gemini → agy -p                     (agy 1.0.9: --model은 -p 앞에 — routing-fusion.md 특이사항)
+#   Gemini → agy -p                     (agy 1.0.10: --add-dir 스코프 제한 + 프롬프트 파일 참조 절대경로 — routing-fusion.md 특이사항)
 #   GLM/Kimi/DeepSeek/… → opencode run / omo run
 #   Opus   → claude --print         (Judge·선택적 참가자)
 # 각 백엔드 가용성 + 프로바이더 인증 매트릭스 + Judge/Synth 후보를 한 번에 점검한다.

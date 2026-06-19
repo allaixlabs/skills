@@ -11,7 +11,7 @@
 | | 패밀리 | 헤드리스 호출 | 작업디렉토리 | 모델 지정 | effort | 출력 캡처 | resume | 강제 read-only |
 |-|-|-|-|-|-|-|-|-|
 | **codex** | GPT | `codex exec - < FILE` | `-C <dir>` | `-m gpt-5.5` | `-c model_reasoning_effort="xhigh"` | `-o FILE` | `exec resume <id>` | `-s read-only` ✅ |
-| **agy** | Gemini | `agy -p "<msg>"` | **`cd <dir>`** | `--model "Gemini 3.1 Pro (High)"` (agy 1.0.9: **`-p` 앞에**) | 모델 문자열 내장 | **stdout 리다이렉트** | `--conversation <id>` | ❌(아래) |
+| **agy** | Gemini | `agy -p "<msg>"` | **`cd <dir>`** + **`--add-dir <dir>`** | `--model "Gemini 3.1 Pro (High)"` (1.0.10: 순서 자유) | 모델 문자열 내장 | **stdout 리다이렉트** | `--conversation <id>` | ❌(아래) |
 | **claude** | Opus | `claude --print "<msg>"` | **`cd <dir>`** (+`--add-dir`) | `--model opus` | (alias) | **stdout**/`--output-format` | `--continue`(최근)/`--resume <id>`(`-r`) | ⚠️(아래) |
 | **omo** | GLM/Kimi/… | `omo run "<msg>"` | `-d <dir>` | `-m zai-coding-plan/glm-5.2` | (없음) | stdout | `--session-id <id>` | ❌(지시+검증) |
 | **opencode** | GLM/Kimi/… | `opencode run "<msg>"` | `--dir <dir>` | `-m opencode-go/kimi-k2.7-code` | `--variant high` | stdout | `-s <id>` | ❌(지시+검증) |
@@ -50,7 +50,7 @@ rsync -a --safe-links --exclude '.git' --exclude node_modules --exclude '.env' -
   || { echo "ABORT: gemini 읽기전용 사본 격리 실패(.git/심링크 잔존 가능) — 위임 중단(무응답, quorum 처리). 비격리 사본에서 참가자를 돌리지 않는다." >&2; exit 1; }
 # ⚠️ errexit를 안 쓰므로 위 사본 그룹의 실패 반환을 **반드시 `|| { … exit 1; }`로 act**한다(fusion.md §1과 동일) —
 #    안 그러면 cleanup 실패(.git 잔존) 사본에서 아래 `agy --dangerously-skip-permissions`가 그대로 돌아 격리가 무력화된다.
-# ⚠️ agy 1.0.9: --model은 -p 앞에 (-p 뒤에 --model/위치인자면 프롬프트 무시 — routing-fusion.md 특이사항)
+# ⚠️ agy 1.0.10: 파일 검색 스코프 결함 — `--add-dir "$RO"`로 스코프 제한 + 프롬프트 파일 참조는 절대경로. (1.0.9 플래그 순서 결함은 1.0.10에서 해결 — routing-fusion.md 특이사항)
 ( cd "$RO" && command agy --print-timeout 600s --dangerously-skip-permissions \
     --model "Gemini 3.1 Pro (High)" \
     -p "$(cat "$RUN/handoff.md")" ) > "$RUN/gemini/round1.log" 2>&1
