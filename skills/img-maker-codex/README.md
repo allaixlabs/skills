@@ -4,12 +4,22 @@
 이미지를 생성·편집하는 Claude Code 스킬. 별도 OpenAI API 키나 API 사용량 과금 없이, 사용자의 ChatGPT 구독 한도 내에서 동작한다.
 기존 `gpt-image-2` 스킬의 개선 후속작 (Codex 0.139 실측 기반).
 
-## 설치 (다른 makeskill 스킬과 동일: 심링크)
+## 설치
 
+### npx skills (권장)
 ```bash
-ln -s /Users/macpro/project/makeskill/skills/img-maker-codex \
-      ~/.claude/skills/img-maker-codex
+npx skills add allaixlabs/skills --skill img-maker-codex --agent claude-code   # --agent 생략 시 감지된 모든 에이전트에 설치됨
 ```
+
+### 수동 설치 (Claude Code)
+```bash
+git clone https://github.com/allaixlabs/skills.git ~/project/skills   # 이미 있으면 생략
+ln -s ~/project/skills/skills/img-maker-codex ~/.claude/skills/img-maker-codex   # 심볼릭 링크 권장 (원본만 관리)
+```
+
+`~/project/skills`는 예시 경로 — 실제 클론 위치에 맞춰 두 명령의 경로를 함께 수정한다.
+
+새 Claude Code 세션부터 자동 인식된다.
 
 ## 사용
 
@@ -51,3 +61,15 @@ Codex가 생성 이미지를 `~/.codex/generated_images/<session-id>/<call_id>.p
 - size/aspect/quality/format/transparent 플래그는 **프롬프트 힌트(best-effort)** — 모델 준수를 보장하지 않으며 transcoding 안 함.
 - 출력 경로는 이미지 확장자만 허용, 시스템 디렉토리 거부. 기존 세션 파일은 읽기만(수정 안 함), 네트워크/시크릿 추가 없음.
 - Codex 원본은 `~/.codex/generated_images/`에 남는다. 민감 이미지라면 사용 후 별도 정리하고, prompt/path 메타데이터 저장을 피하려면 `--no-sidecar`를 사용한다.
+
+## 구조
+
+```
+img-maker-codex/
+├── SKILL.md                       # 오케스트레이션 — 트리거·컨트롤·exit 코드·보안·동작 원리
+├── README.md                      # 이 문서
+├── references/rollout_schema.md   # Codex 0.139 세션 rollout JSONL 스키마 실측 노트
+└── scripts/
+    ├── gen.sh                     # 진입점 — 사전점검·세션 스냅샷-diff·codex exec 호출·이미지 복사
+    └── extract_image.py           # rollout 파서 — 구조적 이미지 이벤트 추출·중복 병합·saved_path/base64 폴백
+```

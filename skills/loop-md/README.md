@@ -3,17 +3,34 @@
 작업을 "완료"로 선언하기 전, **3단계 완료 기준(Definition of Done)** 을 강제하는 에이전트 프레임워크.
 AI가 눈앞의 Task에만 매몰되어 전체 맥락·완료 기준을 잃는 것을 막는 **감독관(`loop.md`)** 패턴을 패키징했다.
 
-> **듀얼 포맷** — Claude Code(스킬)와 Codex/기타 에이전트(`AGENTS.md`)에서 **같은 `loop.md`** 로 동작한다.
+> **멀티 에이전트 포맷** — Claude Code(스킬) · ZCode/opencode · Codex CLI 등 `AGENTS.md` 자동 로드 에이전트에서 **같은 `loop.md`** 로 동작한다.
 
 ## 무엇을 하나
 
-- **Setup 모드**: 프로젝트 스택을 자동 감지(Ruby·Node/TS·Python·Go)해 빌드/타입/테스트/린트 명령이 채워진 `loop.md`를 생성. 참조 문서 스텁·감시 루프 가이드·Codex 어댑터는 선택.
+- **Setup 모드**: 프로젝트 스택을 자동 감지(Ruby·Node/TS·Python·Go)해 빌드/타입/테스트/린트 명령이 채워진 `loop.md`를 생성. 참조 문서 스텁·감시 루프 가이드·다중 에이전트 어댑터는 선택.
 - **Verify 모드**: "완료" 선언 직전 3단계 검증을 강제.
   - **① Pass/Fail 게이트** — 실제 실행 + **exit code·로그·시각 증거 필수**(증거 없는 ✅ = FAIL)
   - **② 정량 측정** — 커버리지·번들 크기·에러율
   - **③ 정성 평가** — 1~5점. **독립 서브에이전트 채점 권장**(자기 출력 자기비판 취약성 회피 — `loop.md`+diff+로그만 제공), 불가 시 자기평가 + 감점 **근거+액션 필수**
 - **연속 학습 루프**: FAIL마다 검증된 원인을 `docs/loop-md/lessons.md`에 규칙으로 증류(distill — git 추적이라 **워크트리 간 공유**·히스토리 보존), 다음 검증이 먼저 읽음(consult). 증류는 `chore(loop): lesson` **전용 커밋으로 즉시 분리**(작업 커밋에 안 섞임 — 가드가 docs/loop-md/ 전용 커밋은 면제). 동일 게이트 **연속 3회 실패 시 루프 중단**·사용자 보고.
 - **R&R 가드레일**: AI 자동 처리 vs 인간 승인 경계. 자가치유 푸시는 코드로 집행(브랜치 화이트리스트 + 민감경로 diff 검사).
+
+## 지원 에이전트 · 자산 경로
+
+스킬 자산(scripts/templates/reference)은 **실제 설치된 위치**를 사용한다 — `~/.claude/skills/loop-md/` 하드코딩 금지. Setup 0에서 아래 순서로 탐침해 `$SKILL_DIR`을 정한다(첫 존재 경로):
+
+```
+~/.claude/skills/loop-md → ~/.zcode/skills/loop-md → ~/.agents/skills/loop-md → ~/.config/opencode/skills/loop-md
+```
+
+| 에이전트 | 감지 신호 | 글로벌 지침 파일 | `/loop` 내장 스케줄러 |
+|---|---|---|---|
+| **Claude Code** | `~/.claude/` 존재 | `~/.claude/CLAUDE.md` | 있음(충돌 주의 — SKILL.md §"`/loop`") |
+| **Codex CLI** | `~/.codex/` 존재 | `~/.codex/AGENTS.md` | 없음 |
+| **ZCode**(opencode 포크) | `~/.zcode/` 또는 `~/.config/opencode/opencode.json` | `~/.config/opencode/loop-md-guard.md` + `opencode.json` `instructions` 배열 | 미확증(보수적으로 금지 권장) |
+| **opencode**(비-ZCode) | `~/.config/opencode/opencode.json` (ZCode 부재) | 〃 (ZCode와 동일) | 미확증 |
+
+> ZCode는 opencode 포크라 `~/.config/opencode/opencode.json`의 `instructions` 배열이 글로벌 지침 로드 메커니즘(실측: ZCode `config.json`이 `opencode.ai/config.json` 스키마 사용). 가드는 별도 파일(`loop-md-guard.md`)로 만들고 그 경로를 배열에 추가한다.
 
 ## 설치
 
@@ -29,21 +46,29 @@ ln -s ~/project/skills/skills/loop-md ~/.claude/skills/loop-md   # 심볼릭 링
 ```
 새 세션에서 `/loop-md` 호출. (description 트리거로 "DoD 루프 세팅", "완료 전 검증" 등으로도 작동.)
 
-### Codex CLI / 기타 에이전트
-Codex는 **`AGENTS.md`** 만 읽는다(스킬 자동 인식은 Claude 전용). 두 가지 방식:
-- **글로벌 (권장)**: `~/.codex/AGENTS.md` 에 `dod-guard` 블록 1회 → **모든 프로젝트의 Codex 자동 적용**. Claude 글로벌(`~/.claude/CLAUDE.md`)과 대칭. `/loop-md` Setup 6번이 양쪽을 함께 확인·설정한다.
-- **프로젝트별**: `cp ~/.claude/skills/loop-md/templates/AGENTS.md.tmpl <프로젝트>/AGENTS.md` (Setup의 'Codex 어댑터' 선택지가 자동 수행)
+### ZCode / opencode
+ZCode는 opencode 포크라 **스킬 자동 인식 + 글로벌 지침 로드** 메커니즘이 Claude Code와 다르다:
+1. **스킬 설치**: `ln -s ~/project/skills/skills/loop-md ~/.zcode/skills/loop-md` (또는 `~/.config/opencode/skills/loop-md`). ZCode 세션에서 `/loop-md` 인식.
+2. **글로벌 가드(권장, 1회)**: `~/.config/opencode/loop-md-guard.md` 파일 생성 + `~/.config/opencode/opencode.json`의 `instructions` 배열에 `"loop-md-guard.md"` 추가. `/loop-md` Setup 6이 이를 자동 확인·제안한다(실제 주입은 사용자 승인 후 — 글로벌 설정은 인간 승인 영역).
+3. **프로젝트별**: `cp <SKILL_DIR>/templates/AGENTS.md.tmpl <프로젝트>/AGENTS.md` (Setup의 '다중 에이전트 어댑터' 선택지가 자동 수행).
 
-Codex는 `loop.md`가 없으면 `~/.claude/skills/loop-md/scripts/detect-stack.sh`로 **직접 부트스트랩**도 가능 — Setup·Verify를 Claude 없이 단독 수행한다. (단 `loop.md`를 써야 하므로 **쓰기 가능 샌드박스 실행**이 전제다. read-only 실행에서는 감지·검증만 가능.)
+ZCode는 `loop.md`가 없으면 `<SKILL_DIR>/scripts/detect-stack.sh`로 **직접 부트스트랩** 가능 — Setup·Verify를 Claude 없이 단독 수행한다. (단 `loop.md`를 써야 하므로 **쓰기 가능 샌드박스 실행**이 전제. read-only 실행에서는 감지·검증만 가능.)
+
+### Codex CLI / 기타 에이전트
+Codex는 **`AGENTS.md`** 만 읽는다(스킬 자동 인식은 Claude/ZCode 전용). 두 가지 방식:
+- **글로벌 (권장)**: `~/.codex/AGENTS.md` 에 `dod-guard` 블록 1회 → **모든 프로젝트의 Codex 자동 적용**. `/loop-md` Setup 6이 Claude·Codex·ZCode 세 축을 함께 확인·설정한다.
+- **프로젝트별**: `cp <SKILL_DIR>/templates/AGENTS.md.tmpl <프로젝트>/AGENTS.md` (Setup의 '다중 에이전트 어댑터' 선택지가 자동 수행)
+
+Codex는 `loop.md`가 없으면 `<SKILL_DIR>/scripts/detect-stack.sh`로 **직접 부트스트랩**도 가능.
 
 ## 옵트인: hard 가드 (커밋 차단)
 
 soft 가드(글로벌 지시)로 부족하면 **커밋 시점에 강제**한다. 같은 스크립트가 세 가지 모드를 지원한다:
 
 **① Claude PreToolUse hook** — `~/.claude/settings.json` 의 `hooks.PreToolUse` 배열에 추가
-(`git commit --no-verify` 도 명령 문자열 검사라서 잡는다):
+(`git commit --no-verify` 도 명령 문자열 검사라서 잡는다). **ZCode/opencode는 hook 메커니즘이 다를 수 있어** ② git pre-commit 모드를 우선 쓴다:
 
-JSON은 셸 변수를 확장하지 않으므로 절대 경로가 필요합니다. 먼저 경로를 확인한 뒤 복사하세요:
+JSON은 셸 변수를 확장하지 않으므로 절대 경로가 필요합니다. 먼저 경로를 확인한 뒤 복사하세요(Claude 환경):
 ```bash
 echo "$HOME/.claude/skills/loop-md/scripts/precommit-guard.sh"
 ```
@@ -52,10 +77,10 @@ echo "$HOME/.claude/skills/loop-md/scripts/precommit-guard.sh"
   { "type": "command", "command": "bash \"<위 명령 출력값>\"", "timeout": 5 } ] }
 ```
 
-**② git pre-commit hook (에이전트 불문)** — Codex·Claude·사람 누구든 셸 `git commit` 시 발동
-(Codex exec에서도 발동·차단됨을 실측 확인. 단 `--no-verify`는 git hook을 건너뛰므로 ①과 병행 권장):
+**② git pre-commit hook (에이전트 불문)** — Codex·ZCode·Claude·사람 누구든 셸 `git commit` 시 발동. **ZCode/opencode 환경의 기본 hard 가드**다:
 ```bash
-printf '#!/bin/sh\nexec bash ~/.claude/skills/loop-md/scripts/precommit-guard.sh --git-hook\n' > .git/hooks/pre-commit
+SKILL_DIR=$(ls -d ~/.zcode/skills/loop-md ~/.agents/skills/loop-md ~/.config/opencode/skills/loop-md ~/.claude/skills/loop-md 2>/dev/null | head -1)
+printf '#!/bin/sh\nexec bash "%s/scripts/precommit-guard.sh" --git-hook\n' "$SKILL_DIR" > .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
 
@@ -63,7 +88,7 @@ chmod +x .git/hooks/pre-commit
 읽지 못해 `[skip-loop]` 우회가 무력하다. commit-msg hook은 커밋 직전(스테이징 후)에 메시지 파일을
 읽으므로 셸 git commit 경로에서 `[skip-loop]` 가 작동한다. ②+③ 동시 설치 권장:
 ```bash
-printf '#!/bin/sh\nexec bash ~/.claude/skills/loop-md/scripts/precommit-guard.sh --commit-msg "$1"\n' > .git/hooks/commit-msg
+printf '#!/bin/sh\nexec bash "%s/scripts/precommit-guard.sh" --commit-msg "$1"\n' "$SKILL_DIR" > .git/hooks/commit-msg
 chmod +x .git/hooks/commit-msg
 ```
 
@@ -84,7 +109,7 @@ chmod +x .git/hooks/commit-msg
 
 ```
 loop-md/
-├── SKILL.md                # Claude Code 오케스트레이션 (Setup/Verify 분기)
+├── SKILL.md                # 오케스트레이션 (§0 감지 → Setup/Verify 분기)
 ├── reference/
 │   ├── DOD.md              # 3단계 검증 상세 + 리포트 예시
 │   ├── RNR.md              # AI 자동 vs 인간 승인 경계표 + 가드레일
@@ -92,11 +117,11 @@ loop-md/
 ├── templates/
 │   ├── loop.md.tmpl        # 감독관 DoD 문서 (체크포인트/롤백 포함)
 │   ├── report.md.tmpl      # 실행 증거 강제 리포트 포맷
-│   ├── AGENTS.md.tmpl      # Codex/에이전트 공통 지침 어댑터
+│   ├── AGENTS.md.tmpl      # 다중 에이전트(Codex/ZCode/opencode) 공통 지침 어댑터
 │   └── *.stub.md           # PRD·유저플로우·UI·DB 참조 스텁
 └── scripts/
     ├── detect-stack.sh     # 스택 자동 감지 (read-only, MANIFEST_PATHS·monorepo 경고)
-    └── precommit-guard.sh  # hard 커밋 가드 (Claude PreToolUse / git pre-commit / git commit-msg 세 모드)
+    └── precommit-guard.sh  # hard 커밋 가드 (claude-hook / git pre-commit / git commit-msg 세 모드 — 에이전트 불문)
 ```
 
 ## 핵심 원칙
