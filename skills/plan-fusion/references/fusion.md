@@ -86,8 +86,9 @@ codex exec --skip-git-repo-check -C "$ROOT" -s read-only -o "$RUN/$id/result.md"
 echo "round1_exit=$?" >> "$RUN/$id/manifest"; echo "family=codex" >> "$RUN/$id/manifest"
 
 # agy / opencode / omo / claude: 사본 안에서 실행 (+skip-permissions로 헤드리스 권한 교착 회피)
+# ⚠️ agy 1.0.9: --model은 -p 앞에 (-p 뒤에 --model/위치인자면 프롬프트 무시 — routing-fusion.md 특이사항 참조)
 ( cd "$RO" && command agy --print-timeout 600s --dangerously-skip-permissions \
-    --model "Gemini 3.1 Pro (High)" --print "$(cat "$RUN/handoff.md")" ) > "$RUN/$id/round1.log" 2>&1
+    --model "Gemini 3.1 Pro (High)" -p "$(cat "$RUN/handoff.md")" ) > "$RUN/$id/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/$id/manifest"; echo "family=agy" >> "$RUN/$id/manifest"
 opencode run -m <prov/model> --variant high --dangerously-skip-permissions --dir "$RO" "$(cat "$RUN/handoff.md")" > "$RUN/$id/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/$id/manifest"; echo "family=opencode" >> "$RUN/$id/manifest"
@@ -112,8 +113,9 @@ echo "round1_exit=$?" >> "$RUN/codex/manifest"
 echo "family=codex"   >> "$RUN/codex/manifest"   # quorum(생존 패밀리 ≥2) 기계 확인용 — §3-1에서 distinct family 카운트
 
 # agy (Gemini) — cd + skip-permissions(쓰기), stdout이 곧 result
+# ⚠️ agy 1.0.9: --model은 -p 앞에 (순서 어기면 프롬프트 무시 — routing-fusion.md 특이사항)
 ( cd "$RUN/wt/gemini" && command agy --print-timeout 900s --dangerously-skip-permissions \
-  --model "Gemini 3.1 Pro (High)" --print "$(cat "$RUN/handoff.md")" ) \
+  --model "Gemini 3.1 Pro (High)" -p "$(cat "$RUN/handoff.md")" ) \
   > "$RUN/gemini/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/gemini/manifest"
 echo "family=agy"     >> "$RUN/gemini/manifest"
@@ -297,7 +299,7 @@ while [ -n "$_rest" ]; do
       continue ;;
     claude)   _cmd="( cd \"$RUN\" && claude --print --model opus < \"$RUN/judge-prompt.md\" )" ;;
     codex)    _cmd="( cd \"$RUN\" && codex exec --skip-git-repo-check -s read-only - < \"$RUN/judge-prompt.md\" )" ;;
-    agy)      _cmd="( cd \"$RUN\" && command agy --dangerously-skip-permissions --print < \"$RUN/judge-prompt.md\" )" ;;
+    agy)      _cmd="( cd \"$RUN\" && command agy --dangerously-skip-permissions -p < \"$RUN/judge-prompt.md\" )" ;;
     opencode)
       # opencode 후보는 model 튜플이 라우트(opencode-go/deepseek-v4-pro | glm/kimi) — 인자로 변환.
       case "$_model" in
@@ -443,7 +445,7 @@ if [ -s "$RUN/codex/diff.patch" ]; then
   if rsync -a --safe-links --exclude '.git' --exclude node_modules --exclude '.env' --exclude '.env.*' "$ROOT/" "$RO_REV/" 2>/dev/null \
        || { rm_rc=0; rm -rf "$RO_REV" || rm_rc=$?; cp_rc=0; cp -a "$ROOT" "$RO_REV" || cp_rc=$?; cleanup_rc=0; if [ -d "$RO_REV" ]; then find "$RO_REV" -name .git -prune -exec rm -rf {} + 2>/dev/null || cleanup_rc=$?; find "$RO_REV" -type l -delete 2>/dev/null || cleanup_rc=$?; find "$RO_REV" \( -name '.env' -o -name '.env.*' \) -delete 2>/dev/null || cleanup_rc=$?; fi; [ "$rm_rc" = 0 ] && [ "$cp_rc" = 0 ] && [ "$cleanup_rc" = 0 ]; }; then
     ( cd "$RO_REV" && command agy --print-timeout 600s --dangerously-skip-permissions --model "Gemini 3.1 Pro (High)" \
-      --print "$(cat "$RUN/xreview/brief-gemini-on-codex.md")" ) > "$RUN/xreview/gemini-on-codex.md" 2>&1
+      -p "$(cat "$RUN/xreview/brief-gemini-on-codex.md")" ) > "$RUN/xreview/gemini-on-codex.md" 2>&1
     # 종료 후: rm -rf "$RO_REV"
   else echo "SKIP gemini xreview: $RO_REV 사본 격리 실패(.git/심링크 잔존 가능) — 비격리 사본에서 리뷰어를 돌리지 않는다." >&2; fi
 else echo "SKIP xreview(gemini→codex): codex diff 없음(참가자 실패/무변경)" >&2; fi

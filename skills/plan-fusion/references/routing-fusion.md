@@ -2,7 +2,7 @@
 
 사용자가 자연어로 부르는 모델명을 `(backend, model, effort/variant, dir/session 플래그)`로 정규화하는 단일 진실 소스.
 plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두 백엔드와 **CLI Fusion 프리셋**을 추가했다.
-검증 환경(실측): codex-cli 0.139.0 · opencode 1.16.2 · omo 4.10.0 · **agy 1.0.8** · **claude 2.1.x** — 각 `--help` / `models` / 스모크로 확인.
+검증 환경(실측): codex-cli 0.139.0 · opencode 1.16.2 · omo 4.10.0 · **agy 1.0.9** · **claude 2.1.x** — 각 `--help` / `models` / 스모크로 확인.
 
 > **오케스트레이터 자동감지**: 오케스트레이터는 `check-fusion.sh`가 env `PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude`(argv 폴백)에서 읽어 `ORCHESTRATOR_FAMILY`로 내보낸다. **감지된 패밀리는 동족(확증편향) 회피를 위해 참가자·Judge·Synth 후보에서 자동 제외**된다. 따라서 아래 프리셋 표의 "기본"은 오케스트레이터=`unknown`일 때의 기준이며, 구체 오케스트레이터별로는 **오케스트레이터 패밀리 제거 변형**(아래 별표)을 적용한다.
 
@@ -13,7 +13,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | 호명 모델 | 백엔드 | 이유 |
 |---|---|---|
 | **codex / gpt 계열** | `codex exec` | GPT 1급 시민(결정론 샌드박스, `exec review` 코드리뷰). 기본 **Synthesizer**. ⚠️ 오케스트레이터가 gpt 패밀리면 동족. |
-| **gemini 계열** | `agy --print` | Antigravity CLI가 Gemini 전용 실행기. **새 패밀리(Google)** — 교차검증 다양성↑. ⚠️ 오케스트레이터가 gemini 패밀리면 동족. |
+| **gemini 계열** | `agy -p` | Antigravity CLI가 Gemini 전용 실행기. **새 패밀리(Google)** — 교차검증 다양성↑. ⚠️ 오케스트레이터가 gemini 패밀리면 동족. **agy 1.0.9에선 `-p` 우선 + `--model`은 `-p` 앞** (아래 특이사항 참고). |
 | **opus / claude 계열** | `claude --print` | Anthropic 직접. 기본 **Judge**(오케스트레이터가 claude 패밀리가 아닐 때). ⚠️ 오케스트레이터가 claude 패밀리면 동족. |
 | **그 외 모든 provider** (glm·kimi·deepseek·qwen·minimax·opus-via-dgrid 등) | **opencode 계열** (`omo run`/`opencode run`) | 멀티 프로바이더는 opencode 생태계 담당. ⚠️ 오케스트레이터가 glm 패밀리면 동족. |
 
@@ -25,8 +25,8 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 |---|---|---|---|---|---|
 | codex / gpt5.5 / "gpt5.5 xhigh" | `codex exec` | `gpt-5.5` | `-c model_reasoning_effort="xhigh"` | `-C` | `exec resume <id>` |
 | gpt5.5 fast / pro | `codex exec` | `gpt-5.5-fast` / `gpt-5.5-pro` | `-c model_reasoning_effort="<v>"` | `-C` | 〃 |
-| **gemini / "gemini 3.1 pro" / "gemini pro"** | `agy --print` | `"Gemini 3.1 Pro (High)"` | **모델 문자열에 내장**(High/Low) | **`cd`** (`-C` 없음) | `--conversation <id>` |
-| **gemini flash / "gemini 3.5 flash"** | `agy --print` | `"Gemini 3.5 Flash (Medium)"` | 〃 (Low/Medium/High) | **`cd`** | `--conversation <id>` |
+| **gemini / "gemini 3.1 pro" / "gemini pro"** | `agy -p` | `"Gemini 3.1 Pro (High)"` | **모델 문자열에 내장**(High/Low) | **`cd`** (`-C` 없음) | `--conversation <id>` |
+| **gemini flash / "gemini 3.5 flash"** | `agy -p` | `"Gemini 3.5 Flash (Medium)"` | 〃 (Low/Medium/High) | **`cd`** | `--conversation <id>` |
 | **opus / "opus 4.8" / claude** | `claude --print` | `opus` (alias) 또는 `claude-opus-4-8` | (모델 alias) | **`cd`** (`--add-dir` 보조) | `--continue`(최근) / `--resume <id>`(`-r`) |
 | glm5.2 / "glm 5.2" | opencode | `zai-coding-plan/glm-5.2` | `--variant high` | `-d`(omo)/`--dir`(opencode) | `--session-id`/`-s` |
 | glm5.1 / glm4.7 | opencode | `zai-coding-plan/glm-5.1` / `glm-4.7` | `--variant high` | `-d`/`--dir` | 〃 |
@@ -49,6 +49,12 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 ## agy / claude 호출 특이사항 (Fusion 병렬에서 엉키지 않도록)
 
 - **agy**: `-C`/`-o` 없음 → 작업디렉토리는 **`( cd "$RUN/wt/<id>" && command agy ... )`**, 출력은 **stdout 리다이렉트**(`> round1.log`). 함수 래퍼 회피 위해 **`command agy`**. **쓰기(코드)엔 `--dangerously-skip-permissions` 필수**(헤드리스 권한 프롬프트 차단 회피 — 실측 검증). 자체 `--print-timeout`(기본 5m)이 행을 차단.
+- ⚠️ **agy 1.0.9 플래그 순서 결함 (실측)**: `--print`와 `--model`을 **결합하면 위치인자(프롬프트) 파싱이 깨져 task를 무시**하고 workspace의 `loop.md`/`AGENTS.md`로 빠진다. 실측 결과:
+    - `agy --print --model "X" "prompt"` → ❌ 프롬프트 무시
+    - `agy -p --model "X" "prompt"` → ❌ 프롬프트 무시
+    - `agy --model "X" -p "prompt"` → ✅ 정상 (사용자 직접 테스트로 확인)
+    - `agy --print "prompt"` (`--model` 없음) → ✅ 정상
+  → **결론: agy 호출은 항상 `-p` 단축 플래그를 쓰고, `--model`은 `-p` *앞에* 둔다.** 모델 지정 시: `command agy --model "<문자열>" -p "<프롬프트>"`. 모델 생략 시: `command agy -p "<프롬프트>"`. `--print`/`-p` 뒤에 `--model`이 오거나 위치인자가 `--print` 뒤에 나오는 패턴은 **금지**.
 - **claude**: `-C` 없음 → **`( cd "$RUN/wt/<id>" && claude --print ... )`** + `--add-dir` 보조. 쓰기 작업이면 `--dangerously-skip-permissions`. 기본은 **Judge(읽기·판정)** 라 쓰기 불필요.
 - 둘 다 resume id 추출 경로가 codex/opencode만큼 확정적이지 않다 → **추출 실패 시 fresh 재위임**(부모 패턴).
 
@@ -132,7 +138,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | **omo run** | `omo run --agent Sisyphus -m <prov/model> -d <dir> --json [--session-id <id>] "<msg>"` | 구현(쓰기)·다단계·완수보장 |
 | **opencode run** | `opencode run -m <prov/model> --variant high --format json --dir <dir> [-s <id>] "<msg>"` | 리뷰·분석·2nd opinion·N개 병렬 |
 
-codex는 항상 `codex exec`, gemini는 항상 `agy --print`, opus는 항상 `claude --print`.
+codex는 항상 `codex exec`, gemini는 항상 `agy -p`(--model은 -p 앞 — 1.0.9 결함), opus는 항상 `claude --print`.
 
 ## ⚠️ 백엔드별 플래그 차이 (5-CLI 실행경로 — Fusion 병렬에서 디렉토리/세션 섞임 방지)
 
