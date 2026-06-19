@@ -9,25 +9,30 @@
 
 - **거버넌스** — [`loop-md`](skills/loop-md/README.md)(완료 기준 강제) · [`cmux-handoff`](skills/cmux-handoff/README.md)(멈춘 패널 이어받기): 작업의 **품질·연속성**을 지킨다.
 - **멀티모델 위임** — [`plan-then-codex`](skills/plan-then-codex/README.md) · [`plan-then-opencode`](skills/plan-then-opencode/README.md) · [`plan-codex-opencode`](skills/plan-codex-opencode/README.md) · [`plan-fusion`](skills/plan-fusion/README.md): **"Claude=두뇌, 외부 CLI=손"** split-brain으로 한 모델 또는 여러 모델 패밀리에 구현을 맡기고 교차검증·종합한다.
+- **체이닝** — [`plan-fusion-dev`](skills/plan-fusion-dev/README.md): plan-fusion으로 계획을 확정한 뒤 그 결과를 **자동으로** plan-codex-opencode 개발(GPT 주축 + GLM 보조)로 넘기는 메타 스킬. 계획→개발을 한 번에.
 - **유틸리티** — [`img-maker-codex`](skills/img-maker-codex/README.md): 로컬 Codex CLI의 `image_generation` 도구를 구동해 ChatGPT Plus/Pro 구독 한도 내에서 이미지를 생성·편집한다. 별도 API 키·과금 없이 단일 작업을 수행한다.
 
 ## 스킬 한눈에
 
 | 스킬 | 한 줄 | 대표 트리거 | 필요 외부 CLI |
 |------|-------|-------------|---------------|
+| **delegate** | `plan-*` 진입점이 헷갈릴 때 분류 후 선택 sibling 실행 | "어느 위임 스킬 쓰지?", "delegate로 골라줘" | 선택 스킬의 전제 |
 | **loop-md** | 완료 선언 전 3단계 DoD 검증 강제 (Setup/Verify) | "DoD 루프 세팅", "완료 전 검증" | 없음 (bash·git) |
 | **cmux-handoff** | 멈춘 에이전트 패널 읽기·요약·이어받기 | "옆 cmux 패널 codex 작업 이어받아" | cmux |
 | **plan-then-codex** | Claude 계획 → **Codex 단일** 구현 위임 | "구현은 codex gpt5.5 xhigh로" | codex |
 | **plan-then-opencode** | Claude 계획 → **omo 에이전트** 구현 위임 | "구현은 omo sisyphus로 위임해" | opencode + omo |
 | **plan-codex-opencode** | 여러 모델 패밀리 **Council/Pipeline** 교차검증 | "codex·glm·kimi로 교차검증해 정리" | codex + opencode + omo |
 | **plan-fusion** | 멀티 CLI 독립 실행 → **Judge→Synth** 합성 | "GPT·Gemini·GLM·Kimi로 풀고 Opus 판정·GPT 종합" | codex + agy + opencode + omo + claude |
+| **plan-fusion-dev** | **계획(plan-fusion) → 자동 개발(plan-codex-opencode)** 체이닝 | "fusion으로 계획 잡고 GPT+GLM으로 개발까지 한 번에" | codex + opencode + (agy/claude 권장) |
 | **img-maker-codex** | 로컬 Codex `image_generation` 도구로 이미지 생성·편집 | "ChatGPT 구독으로 이미지 생성해", "imagegen으로 편집" | codex (+ python3) |
 
 ## 위임 스킬, 어느 것을 쓰나
 
-네 위임 스킬은 트리거가 일부 겹친다. **모델 수**와 **종합 주체**로 고른다:
+다섯 위임 스킬은 트리거가 일부 겹친다. **모델 수**와 **종합 주체**, 그리고 **계획→개발 자동화 여부**로 고른다:
 
 ```
+진입점이 헷갈리는가?                    → delegate (분류 후 선택 sibling 실행)
+
 한 모델로 충분한가?
 ├─ OpenAI/GPT 한 모델            → plan-then-codex
 └─ 멀티프로바이더 / 에이전트 선택 → plan-then-opencode  (Prometheus/Sisyphus/Hephaestus)
@@ -36,15 +41,19 @@
 ├─ Claude가 직접 종합            → plan-codex-opencode  (Council 병렬 / Pipeline 구현→리뷰)
 └─ 종합도 CLI에 위임(Judge→Synth)
    + Gemini·Opus까지 패밀리 확장 → plan-fusion
+
+계획(fusion)을 잡고 바로 개발까지 한 번에?
+└─ 계획 확정 → 자동으로 GPT+GLM 개발 체이닝 → plan-fusion-dev
 ```
 
-| | plan-then-codex | plan-then-opencode | plan-codex-opencode | plan-fusion |
-|-|-----------------|--------------------|---------------------|-------------|
-| 모델 수 | 1 (GPT) | 1 (omo 에이전트) | 2~3+ 패밀리 | 4~5 패밀리 |
-| 백엔드 | codex | opencode/omo | codex + opencode | + agy(Gemini) + claude(Opus) |
-| 종합 주체 | — (단일) | — (단일) | **Claude 직접** | **Judge CLI → Synth CLI** |
-| 격리 | workspace-write | 풀 파일시스템 | 패널별 worktree | 참가자별 worktree |
-| 대략 비용 | 1× | 1× | N× | (N+2)× |
+| | plan-then-codex | plan-then-opencode | plan-codex-opencode | plan-fusion | **plan-fusion-dev** |
+|-|-----------------|--------------------|---------------------|-------------|---------------------|
+| 모델 수 | 1 (GPT) | 1 (omo 에이전트) | 2~3+ 패밀리 | 4~5 패밀리 | fusion패널 + GPT+GLM |
+| 백엔드 | codex | opencode/omo | codex + opencode | + agy(Gemini) + claude(Opus) | 위 둘의 합 |
+| 종합 주체 | — (단일) | — (단일) | **Claude 직접** | **Judge CLI → Synth CLI** | 단계별 해당 스킬 방식 |
+| 격리 | workspace-write | 풀 파일시스템 | 패널별 worktree | 참가자별 worktree | 계획/개발 각 worktree |
+| 계획→개발 자동 | X | X | X | X | **O (변환 단계 포함)** |
+| 대략 비용 | 1× | 1× | N× | (N+2)× | **3~5×** |
 
 > **단일 위임이 가장 가볍다.** 모델을 늘릴수록 토큰·시간이 N배 이상으로 든다 — 신뢰도가 정말 필요한 분기에서만 council/fusion을 쓴다.
 
@@ -55,6 +64,9 @@
 
 ### 🔗 cmux-handoff — 멈춘 패널 이어받기
 cmux의 Unix 소켓 CLI로 다른 터미널 패널(Claude/Codex/opencode/셸)의 **보이는 상태를 캡처**하고, 후속 지시를 보내고, 작업을 넘겨받는다. 경계 원칙이 핵심 — **모델의 숨은 컨텍스트·툴 상태는 복구 불가**, 모든 판단은 스크롤백 텍스트로 한정하고 읽은 것/추론한 것/보낸 것을 구분 보고한다. → [상세](skills/cmux-handoff/README.md)
+
+### 🧭 delegate — 위임 스킬 단일 진입점
+5개 `plan-*` 위임 스킬의 진입점이 헷갈릴 때, 사용자 요청을 분류해 **선택된 sibling 스킬의 `SKILL.md`를 런타임에 읽고 같은 세션에서 그 절차를 실행**한다. 절차를 복제하지 않고 sibling이 단일 진실원. 라우팅 우선순위: 명시 스킬명 > 체이닝 신호(plan-fusion-dev) > 모델 수/다양성(plan-fusion·plan-codex-opencode) > 명시 백엔드(plan-then-*) > 기본값(모호 요청은 경량 단일 위임 plan-then-codex). 사전점검은 선택 스킬의 check 1개만(route-first). → [상세](skills/delegate/README.md)
 
 ### ⚙️ plan-then-codex — Claude 계획 × Codex 구현
 "분석은 claude, 구현은 codex"를 표준화한 split-brain. Claude가 **자기완결 HANDOFF**(파일별 지시·Baseline·BLOCKED 프로토콜·Acceptance Criteria)를 쓰고 `codex exec`에 위임, baseline diff와 직접 실행 증거로 검증한다(최대 3라운드). Claude는 검증 중 발견한 문제도 직접 안 고치고 Codex에 되돌린다. → [상세](skills/plan-then-codex/README.md)
@@ -67,6 +79,9 @@ cmux의 Unix 소켓 CLI로 다른 터미널 패널(Claude/Codex/opencode/셸)의
 
 ### 🔀 plan-fusion — CLI Fusion (Judge → Synthesizer)
 종합 자체를 모델에 위임한다: **참가자 CLI 독립 실행 → Judge CLI 후보 평가 → Synthesizer CLI 최종 합성 → Claude 검증**. `plan-codex-opencode`에 **agy(Gemini)·claude(Opus)** 를 더해 **백엔드 패밀리 4 / 대표 모델 5종**(기본 패널 GPT·Gemini·GLM·Kimi, Judge=Opus, Synth=GPT). Claude의 단일 관점 편향을 줄이고 검증·사실확인에 집중. → [상세](skills/plan-fusion/README.md)
+
+### ⛓️ plan-fusion-dev — 계획 → 자동 개발 체이닝
+plan-fusion(Fusion-Research)으로 계획을 확정한 뒤, 그 결과를 **자동으로** plan-codex-opencode 개발 단계로 넘긴다 — 변환 단계(체이닝 전용 Synth 템플릿 + HANDOFF-chain)만 오케스트레이터가 조율한다. 개발은 기본 **Pipeline**(구현 GPT-5.5 xhigh + 리뷰 GLM-5.2 교차검증, "개발엔 고스펙 불필요" 철학 반영)이되, 오케스트레이터가 태스크 특성으로 **Council**로 전환할 수 있다. 계획(N+2 호출) + 개발(2~3) = 단일 위임의 3~5배 비용이므로 복잡·고위험 작업에 한정. → [상세](skills/plan-fusion-dev/README.md)
 
 ### 🎨 img-maker-codex — Codex 기반 이미지 생성
 별도 OpenAI API 키·과금 없이, 사용자의 **ChatGPT Plus/Pro 구독 한도** 내에서 로컬 `codex` CLI의 `image_generation` 도구로 이미지를 생성·편집한다. text-to-image, image-to-image(스타일 전이), 다중 참조 합성, 한 번에 여러 결과(`--count`)를 지원. Codex 0.139 실측 기반 rollout 파싱(saved_path 우선, base64 폴백, 다중 신원 병합)으로 세션을 격리하고, 시스템 디렉토리 거부·magic 헤더 검사로 안전하게 동작한다. 기존 `gpt-image-2` 스킬의 개선 후속작. → [상세](skills/img-maker-codex/README.md)
@@ -106,6 +121,8 @@ npx skills add allaixlabs/skills --skill plan-then-codex --agent claude-code
 npx skills add allaixlabs/skills --skill plan-then-opencode --agent claude-code
 npx skills add allaixlabs/skills --skill plan-codex-opencode --agent claude-code
 npx skills add allaixlabs/skills --skill plan-fusion --agent claude-code
+npx skills add allaixlabs/skills --skill delegate --agent claude-code
+npx skills add allaixlabs/skills --skill plan-fusion-dev --agent claude-code
 npx skills add allaixlabs/skills --skill img-maker-codex --agent claude-code
 npx skills add allaixlabs/skills --skill '*' --agent claude-code   # 전부 설치
 ```
@@ -136,6 +153,8 @@ skills/
 ├── plan-then-opencode/  # Claude 계획 → omo run 위임 — Prometheus/Sisyphus/Hephaestus 선택
 ├── plan-codex-opencode/ # 멀티모델 패널 Council/Pipeline 교차검증 — worktree 격리·종합
 ├── plan-fusion/         # 멀티 CLI 독립 실행 → Judge→Synth 합성 — agy(Gemini)·claude(Opus) 포함
+├── delegate/            # plan-* 위임 스킬 단일 진입점 — 분류 후 sibling SKILL.md 런타임 읽기 실행
+├── plan-fusion-dev/     # 계획(plan-fusion) → 자동 개발(plan-codex-opencode) 체이닝 메타 스킬
 └── img-maker-codex/     # 로컬 Codex image_generation 도구 구동 — ChatGPT 구독 한도 내 이미지 생성·편집
 ```
 
