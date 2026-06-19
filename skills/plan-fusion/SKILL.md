@@ -105,9 +105,10 @@ GLM·Kimi는 같은 opencode 백엔드(런타임·인증 공유)라 **모델 다
 - 자기완결성: 참가자는 대화 컨텍스트를 모른다. Baseline·Out-of-scope·BLOCKED 프로토콜·실행가능 Acceptance Criteria를 문서에 다 담는다.
 - baseline 스냅샷(코드): `git -C "<root>" status --short > "$RUN/baseline.status"` · `git -C "<root>" rev-parse HEAD > "$RUN/baseline.head"`.
 
-## 3. DELEGATE — 참가자 병렬 (전부 백그라운드 + 참가자별 manifest)
+## 3. DELEGATE — 참가자 병렬 (백그라운드 + 참가자별 manifest, 능동 폴링)
 
-> 각 참가자는 **별도 Bash `run_in_background: true`**(한 셸 `&` 금지). 산출물 `$RUN/<id>/`. **모든 참가자 완료 알림 후에만** read(race 방지). **모든 참가자의 완료 알림이 도착하면 즉시** 결과 read → §4 FUSE로 넘어간다 — "기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(부분 완료 진행 보고는 허용)("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다). 셸 상세·5-CLI경로 호출은 `references/fusion.md` §2 · `references/cli-fusion-map.md`.
+> 각 참가자는 **별도 Bash `run_in_background: true`**(한 셸 `&` 금지). 산출물 `$RUN/<id>/`. 다중 패널은 병렬이 본질이라 백그라운드가 기본이되, **수동 대기(턴 종료 후 알림만 기다림)는 금지** — 다음 응답마다 **능동적으로** 각 참가자의 exit 파일(`$RUN/<id>/exit.txt` 또는 manifest)을 폴링해 완료 수를 센다(예: "3/3 완료" / "2/3 완료, 나머지 agy 실행 중"). 전원 완료 확인 시 즉시 §4 FUSE로 넘어간다 — "기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(부분 완료 진행 보고는 허용).
+> **race 가드**: 참가자 결과 파일(`result.md`/`round1.log`)은 해당 참가자 완료 *후에만* 읽는다(완료 전 read는 빈/직전 결과). 단, exit/manifest로 진행 상태 카운트하는 것은 완료 전에 허용. 셸 상세·5-CLI경로 호출은 `references/fusion.md` §2 · `references/cli-fusion-map.md`.
 
 ### Fusion-Code — 격리 worktree 병렬
 ```bash
