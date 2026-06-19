@@ -91,7 +91,7 @@ echo "round1_exit=$?" >> "$RUN/kimi/manifest"
 ```
 
 규칙:
-- **모든 패널 완료 알림 후에만** 결과 read (race 방지). **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** 결과 read → 종합으로 넘어간다 — "기다리겠다"며 멈추거나 안내문만 출력하지 않는다("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다). 읽는 순서: manifest exit → codex 패널은 `result.md`, omo/opencode 패널은 `round1.log`.
+- **모든 패널 완료 알림 후에만** 결과 read (race 방지). **모든 패널의 완료 알림이 도착하면 즉시** 결과 read → 종합으로 넘어간다 — "기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(부분 완료 진행 보고는 허용)("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다). 읽는 순서: manifest exit → codex 패널은 `result.md`, omo/opencode 패널은 `round1.log`.
 - **부분 실패 허용 / quorum**: 생존 모델 패밀리 ≥2일 때만 Council 성립. 1패밀리만 생존하면 교차검증 미성립이므로 단일위임 결과 + `Council 미성립` 표기로 격하한다. CLI/인증/플래그 오류 = `ORCHESTRATION_FAIL`(라운드 미산입, 그 패널만 재시도).
 - codex 패널은 council당 1개 권장(세션 저장소 경합 회피, GPT 1표).
 
