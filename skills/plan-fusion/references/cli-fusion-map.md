@@ -151,4 +151,4 @@ $RUN/final.md           # Synthesizer CLI 최종 답변 (Fusion-Research)
 $RUN/handoff.synth.md   # Synthesizer 합성 HANDOFF (Fusion-Code — 실제 구현은 백엔드 위임)
 ```
 
-읽는 순서: 모든 참가자 완료 알림 → manifest exit → codex는 `result.md`, 그 외는 `round1.log`.
+읽는 순서: 모든 참가자 완료 알림이 도착하면 즉시 read(대기/안내문만 출력 금지 — 부분 완료 진행 보고는 허용) → manifest exit → codex는 `result.md`, 그 외는 `round1.log`.

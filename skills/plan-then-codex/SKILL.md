@@ -109,7 +109,7 @@ exit "$round1_rc"
 
 - **반드시 Bash `run_in_background: true`로 실행** — xhigh 구현은 수 분~수십 분.
 - 완료 알림을 받기 전에는 `$RUN/result-rN.md`, `$RUN/roundN.log`, `$RUN/manifest`를 읽지 않는다(race 방지 — 완료 전 read는 빈 파일·직전 라운드 결과).
-- **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** 결과 read → §4 VERIFY로 넘어간다. 알림을 "기다리겠다"며 멈추거나 안내문만 출력하지 않는다 — "전(read) 금지"는 알림 **후** 진행을 막는 게 아니라 **전** race만 막는다.
+- **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** 결과 read → §4 VERIFY로 넘어간다. 알림을 "기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(진행 상황 보고는 허용) — "전(read) 금지"는 알림 **후** 진행을 막는 게 아니라 **전** race만 막는다.
 - `session_id`가 비어 있으면 구현 실패가 아니라 `ORCHESTRATION_FAIL`로 분류하고 fresh 재위임한다.
 - 플래그 상세·트러블슈팅: [references/codex-cli.md](references/codex-cli.md)
 

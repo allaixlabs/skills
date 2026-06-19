@@ -270,9 +270,19 @@ fi
 
 # mtime 검사 — 마커보다 나중에 수정된 추적 텍스트 소스 탐색 (바이너리·생성물 제외, 첫 발견 시 중단)
 # lockfile(.lock)은 제외하지 않는다 — 의존성 변경도 DoD 검증 대상이다.
+# ⚠️ 2차 content 검증: mtime은 checkout/stash/restore 시 현재 시각으로 갱신돼 노이즈 차단을 유발한다(bypass.log
+#    수십 건 참조). 그래서 mtime 히트 시 git diff --quiet로 실제 내용 변화를 2차 확인한다 —
+#    내용 변화 없으면 통과(checkout/stash 노이즈), 내용 변화 있을 때만 차단(정당).
 newer=$(cd "$root" && git -c core.quotePath=false ls-files 2>/dev/null \
   | grep -vE '\.(pyc|pyo|so|o|class|jar|png|jpe?g|gif|svg|pdf|ico|woff2?|ttf|map)$|(^|/)(__pycache__|node_modules|vendor|dist|build|tmp|\.loop)/' \
   | while IFS= read -r f; do [ "$f" -nt "$marker" ] && { echo "$f"; break; }; done)
 
-[ -n "$newer" ] && block "검증 후 소스가 변경되었습니다($newer 등) — 재검증이 필요합니다."
+if [ -n "$newer" ]; then
+  # mtime이 늦은 파일이 있어도, 실제 내용이 HEAD와 다른지 2차 확인 (mtime 노이즈 필터).
+  if git -C "$root" diff --quiet HEAD -- $newer 2>/dev/null; then
+    : # mtime만 흔들림(checkout/stash/restore) — 내용 변화 없음 → 통과
+  else
+    block "검증 후 소스가 변경되었습니다($newer 등) — 재검증이 필요합니다."
+  fi
+fi
 exit 0

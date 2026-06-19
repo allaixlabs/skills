@@ -92,7 +92,7 @@ grep -m1 'session id:' "$RUN/<id>/round1.log" | awk '{print $NF}'
 
 xhigh 구현은 수 분~수십 분. 포그라운드는 타임아웃(기본 2분).
 1. Bash `run_in_background: true` + `> "$RUN/<id>/round1.log" 2>&1`.
-2. **완료 알림 후에만** 결과 read(완료 전 `-o` 읽기는 race). **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** read → 다음 절차로 넘어간다 — "기다리겠다"며 멈추거나 안내문만 출력하지 않는다("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다).
+2. **완료 알림 후에만** 결과 read(완료 전 `-o` 읽기는 race). **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** read → 다음 절차로 넘어간다 — "기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(부분 완료 진행 보고는 허용)("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다).
 3. 읽는 순서: manifest exit → codex `result.md` → 이상하면 `round1.log` 에러.
 
 ## 세션 이어가기 (VERIFY 라운드) — 0.139.0 실측
