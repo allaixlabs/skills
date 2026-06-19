@@ -107,9 +107,11 @@ session_id=$(grep -m1 'session id:' "$RUN/round1.log" | awk '{print $NF}')
 exit "$round1_rc"
 ```
 
-- **반드시 Bash `run_in_background: true`로 실행** — xhigh 구현은 수 분~수십 분.
-- 완료 알림을 받기 전에는 `$RUN/result-rN.md`, `$RUN/roundN.log`, `$RUN/manifest`를 읽지 않는다(race 방지 — 완료 전 read는 빈 파일·직전 라운드 결과).
-- **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** 결과 read → §4 VERIFY로 넘어간다. 알림을 "기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(진행 상황 보고는 허용) — "전(read) 금지"는 알림 **후** 진행을 막는 게 아니라 **전** race만 막는다.
+- **실행 모드 선택(수동 대기 회피)**:
+  - **짧은 작업(예상 < 2분)**: 포그라운드 동기 실행(`run_in_background: false`). 백엔드가 끝날 때까지 같은 턴에서 기다린 뒤 바로 §4 VERIFY로 넘어간다 — 다른 동기 스킬처럼 "대기 없는 진행".
+  - **긴 작업(수분~수십분, xhigh 등)**: `run_in_background: true`로 실행. 단, 턴을 끝내고 수동으로 알림만 기다리지 **않는다** — 완료 가능성이 있으면 다음 응답에서 **능동적으로** `cat "$RUN/round1.exit" 2>/dev/null`(또는 로그 tail)로 상태를 확인하고, 완료 시 즉시 §4 VERIFY로, 미완료 시 "아직 실행 중(예상 N분)" 1줄만 보고한다.
+- 완료 전에는 `$RUN/result-rN.md`, `$RUN/roundN.log`, `$RUN/manifest`의 **최종 결과**를 읽지 않는다(race 방지 — 빈 파일·직전 라운드 결과). 단 exit/로그 tail로 진행 상태 확인은 허용한다.
+- **완료(exit 파일 존재 또는 `Background task completed`/`task-notification` 알림) 확인 시 즉시** 결과 read → §4 VERIFY로 넘어간다. "기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(진행 상황 보고는 허용) — "전(read) 금지"는 알림 **후** 진행을 막는 게 아니라 **전** race만 막는다.
 - `session_id`가 비어 있으면 구현 실패가 아니라 `ORCHESTRATION_FAIL`로 분류하고 fresh 재위임한다.
 - 플래그 상세·트러블슈팅: [references/codex-cli.md](references/codex-cli.md)
 

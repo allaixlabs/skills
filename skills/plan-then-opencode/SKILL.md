@@ -68,7 +68,9 @@ bash "$SKILL_DIR/scripts/check-omo.sh"
 
 ## 3. DELEGATE
 
-백그라운드로 omo를 실행하고 manifest에 메타데이터를 기록한다:
+omo를 실행하고 manifest에 메타데이터를 기록한다. **실행 모드 선택(수동 대기 회피)**:
+- **짧은 작업(예상 < 2분)**: 포그라운드 동기 실행. 끝날 때까지 같은 턴에서 기다린 뒤 바로 §4 VERIFY로.
+- **긴 작업(다단계/Sisyphus 등)**: 백그라운드 실행. 단, 턴을 끝내고 수동으로 알림만 기다리지 **않는다** — 다음 응답에서 능동적으로 `cat "$RUN/round1.exit"`/로그 tail로 상태 확인. 완료 시 즉시 §4, 미완료 시 "실행 중" 1줄 보고.
 
 ```bash
 # omo 바이너리 결정 (omo PATH 우선, 없으면 bunx oh-my-openagent)
