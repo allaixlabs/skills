@@ -45,6 +45,9 @@ bash "$SKILL_DIR/scripts/check-omo.sh"
 - 변경 대상 파일·컴포넌트, 스택, 빌드·테스트·린트 명령
 - 의존성·부작용, 인간 승인 필요 여부(스키마/보안/결제/배포)
 - 태스크 복잡도 → 에이전트 선택 근거
+- **UI 노출 판정(필수)**: 이 작업이 사용자에게 노출되는 변경인가(새 화면·컴포넌트·라우트·상호작용·표시 로직)를 yes/no로 판정하고 **1줄 근거**를 HANDOFF의 'UI 노출 판정' 필드에 기록한다.
+  - yes → HANDOFF의 '디자인 스펙' 섹션 + UI Acceptance Criteria를 필수화(아래 §2 PLAN · §4 VERIFY 연동).
+  - no → '디자인 스펙' 생략 가능하되, **근거 없는 no는 금지** — 판정 사유를 HANDOFF에 명시해 감사 가능성을 유지한다.
 
 ---
 
@@ -121,9 +124,10 @@ echo "roundN_exit=$?" >> "$RUN/manifest"
 검증 항목:
 1. **빌드·타입·테스트·린트** — Bash로 실제 실행, exit code·출력 확인
 2. **Acceptance Criteria** — Handoff의 각 항목 대조
-3. **Baseline 보존** — dirty 파일이 의도치 않게 revert·수정되지 않았는지
+3. **UI 노출 판정=yes이면** — 디자인 스펙(타이포/컬러/간격/레이아웃) 반영 여부 + UI AC(예: before/after 스크린샷 대조) 충족. 스펙 미준수·UI 누락 시 FAIL → omo resume으로 수정 지시.
+4. **Baseline 보존** — dirty 파일이 의도치 않게 revert·수정되지 않았는지
    - `git -C "<프로젝트 루트>" status --short | diff "$RUN/baseline.status" -` 로 현재 차이가 의도한 변경 파일뿐인지 확인
-4. **범위 준수** — '변경 지시' 밖 파일이 수정되지 않았는지
+5. **범위 준수** — '변경 지시' 밖 파일이 수정되지 않았는지
 
 - 검증 통과 → 5. REPORT 진행
 - 미달 → `$RUN/roundN.log` 로 원인 파악 → resume으로 수정 요청 → 재검증
