@@ -9,7 +9,7 @@
 
 1. **에이전트 선택** — 태스크 특성에 맞는 에이전트를 Claude가 선택 (Prometheus·Sisyphus·Hephaestus)
 2. **계획** — HANDOFF.md 자기완결 문서 생성 (Mission·Context·Baseline·변경 지시·Acceptance Criteria)
-3. **위임** — `omo run` 비대화형 실행, session ID 추출
+3. **위임** — `omo run` 비대화형 실행(짧은 작업은 포그라운드 동기, 긴 작업은 백그라운드+능동 폴링; **수동 대기 금지**), session ID 추출
 4. **검증** — 빌드·테스트·린트 실제 실행 + Acceptance Criteria 대조, 미달 시 resume으로 수정 요청 (최대 3라운드)
 5. **리포트** — 변경 파일·기준별 충족 증거·에이전트·라운드 수 보고
 

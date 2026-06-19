@@ -129,7 +129,7 @@ description: >
 - **체이닝 추가 검증**: 개발 결과가 상위 plan-fusion의 `final.md` 설계 결정과 **충돌하지 않는지** 1회 대조(예: 기각한 대안이 구현에 들어갔는지). 충돌이면 synthesis.md에 명시.
 
 ### loop-md 연동
-루트 `loop.md` 있으면: 개발 단계는 **plan-codex-opencode의 loop-md 연동 절차를 그대로** 수행 — `council_wt_adopt` 후 **메인 ROOT에서** Verify(①②③) 실행 → `.loop/last-verified`가 현재 HEAD인지 확인 → 커밋. council/Pipeline 교차리뷰가 ③정성의 독립 검증을 자연 충족. 계획 단계($RUN_PF)는 read-only라 `.loop/last-verified`와 무관하므로 마커 처리는 개발 단계($RUN_PCO)만 담당한다. 루트 `loop.md` 없으면 N/A.
+루트 `loop.md` 있으면: 개발 단계는 **plan-codex-opencode의 loop-md 연동 절차를 그대로** 수행(**완료 결과를 사용자에게 먼저 보고한 뒤** 별도로 loop-md Verify — 지연 방지) — `council_wt_adopt` → 결과 보고 → **메인 ROOT에서** Verify(①②③) 실행 → `.loop/last-verified`가 현재 HEAD인지 확인 → 커밋. council/Pipeline 교차리뷰가 ③정성의 독립 검증을 자연 충족. 계획 단계($RUN_PF)는 read-only라 `.loop/last-verified`와 무관하므로 마커 처리는 개발 단계($RUN_PCO)만 담당한다. 루트 `loop.md` 없으면 N/A.
 
 ### REPORT
 최종 메시지에 포함:
