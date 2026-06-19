@@ -91,7 +91,7 @@ echo "round1_exit=$?" >> "$RUN/kimi/manifest"
 ```
 
 규칙:
-- **모든 패널 완료 알림 후에만** 결과 read (race 방지). 읽는 순서: manifest exit → codex 패널은 `result.md`, omo/opencode 패널은 `round1.log`.
+- **모든 패널 완료 알림 후에만** 결과 read (race 방지). **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** 결과 read → 종합으로 넘어간다 — "기다리겠다"며 멈추거나 안내문만 출력하지 않는다("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다). 읽는 순서: manifest exit → codex 패널은 `result.md`, omo/opencode 패널은 `round1.log`.
 - **부분 실패 허용 / quorum**: 생존 모델 패밀리 ≥2일 때만 Council 성립. 1패밀리만 생존하면 교차검증 미성립이므로 단일위임 결과 + `Council 미성립` 표기로 격하한다. CLI/인증/플래그 오류 = `ORCHESTRATION_FAIL`(라운드 미산입, 그 패널만 재시도).
 - codex 패널은 council당 1개 권장(세션 저장소 경합 회피, GPT 1표).
 
@@ -166,7 +166,7 @@ council_wt_adopt "$ROOT" "$RUN" "<채택 id>"   # rev-parse 드리프트 체크 
 | 브랜치명 충돌 | `council/<slug>-<id>-<ts>` 유니크 명명 |
 | 동시 파일 충돌 | 패널마다 독립 worktree(비-git은 `cp -a`) |
 | baseline 오염 / 사용자 dirty 중복충돌 | `stash create`(워킹트리 불변)→worktree apply로 동일 출발선. diff·adopt의 base는 `council_wt_diffbase`(=stash 출발점)라 **패널 순수 기여분만** 추출. 메인 적용은 `apply --3way` 단일 시도이며, 실패 시 `APPLY_CONFLICT`로 표면화(수동 머지) — plain 재시도는 충돌을 가중시키므로 하지 않는다 |
-| race(완료 전 read) | 모든 패널 완료 알림 후 read, manifest exit→codex result.md 또는 omo/opencode round1.log |
+| race(완료 전 read) | 완료 알림 **전** read 금지(race); 알림 도착 즉시 read → 종합(대기/안내문 금지). manifest exit→codex result.md 또는 omo/opencode round1.log |
 | 부분 실패로 council 마비 | 생존 모델 패밀리 ≥2면 Council 진행. 1패밀리만 생존하면 단일위임 결과 + `Council 미성립`으로 격하. ORCHESTRATION_FAIL 라운드 미산입 |
 | 합성 모호성 | 임의 채택 금지 — diff·교차리뷰·테스트 증거로 판정, 근거 synthesis.md 명시 |
 | 역할경계 침범 | 최종 코드는 항상 백엔드. patch apply는 변경 생성 아님 |
