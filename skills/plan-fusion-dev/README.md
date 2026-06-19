@@ -96,7 +96,7 @@ fusion으로 잡은 계획을 바로 개발로 이어가줘 — GPT 주축에 GL
 
 ## loop-md 연동
 
-루트 `loop.md`가 있으면: **plan-codex-opencode의 loop-md 연동 절차를 그대로** 수행 — council 교차리뷰가 ③정성의 독립 검증을 자연 충족. 메타 스킬이 추가로 하는 건 없다. 루트 `loop.md` 없으면 N/A.
+루트 `loop.md`가 있으면: **plan-codex-opencode의 loop-md 연동 절차를 그대로** 수행(완료 결과를 사용자에게 먼저 보고한 뒤 별도로 loop-md Verify) — council 교차리뷰가 ③정성의 독립 검증을 자연 충족. 메타 스킬이 추가로 하는 건 없다. 루트 `loop.md` 없으면 N/A.
 
 ## 구조
 

@@ -14,7 +14,7 @@
 1. **사전 점검 + 파싱** — `scripts/check-panels.sh`(read-only)로 codex·opencode 두 백엔드 가용성 + provider 인증 매트릭스 확인. "codex·glm5.2·kimi" 호명을 `(backend, model, effort, dir 플래그)`로 정규화. 호명 없으면 **교차검증 독립성 기준 기본 패널** 추천.
 2. **모드 선택** — Council(다양성) / Pipeline(검증깊이) / Council-Research(비코드 분석)를 작업 유형으로 분기.
 3. **계획(HANDOFF)** — 모든 패널이 공유하는 **단일 자기완결 스펙** 작성(Baseline·Out-of-scope·BLOCKED·Acceptance Criteria).
-4. **위임** — Council은 **git worktree 격리** 병렬, Pipeline은 구현→리뷰→수정 순차. 전부 백그라운드 + 패널별 manifest.
+4. **위임** — Council은 **git worktree 격리** 병렬, Pipeline은 구현→리뷰→수정 순차. 백그라운드 병렬 + 패널별 manifest + **능동 폴링(수동 대기 금지)**.
 5. **종합** — 패널별 diff/답변 비교 → **교차리뷰**(`codex exec review`로 다른 패밀리가 리뷰) → 합의/충돌/고유통찰 + 판정 근거를 `synthesis.md`로. 코드면 채택/합성을 `apply --3way` 단일 시도로 메인 반영하고, 실패 시 `APPLY_CONFLICT`로 표면화해 수동 머지한다(plain `git apply` 재시도 없음).
 6. **검증·리포트** — 직접 실행 증거로 검증(result 주장은 근거 아님), loop-md 연동, 패널·모드·근거 보고.
 
@@ -95,7 +95,7 @@ ln -s ~/project/skills/skills/plan-codex-opencode ~/.claude/skills/plan-codex-op
 
 ## loop-md 연동
 
-루트에 `loop.md`가 있으면 VERIFY에서 loop-md Verify 모드(①Pass/Fail·②정량·③정성)를 수행한다. **③정성의 독립 검증자를 council 교차리뷰로 자연 충족**한다. 없으면 N/A.
+루트에 `loop.md`가 있으면 **완료 결과를 사용자에게 먼저 보고한 뒤** loop-md Verify 모드(①Pass/Fail·②정량·③정성)를 별도로 수행한다(완료 보고 지연 방지). **③정성의 독립 검증자를 council 교차리뷰로 자연 충족**한다. 없으면 N/A.
 
 ## 구조
 

@@ -75,7 +75,7 @@ git -C "<프로젝트 루트>" ls-files -o --exclude-standard -z > "$RUN/baselin
 다음 중 하나라도 해당하면 진행 전 명시 확인을 받는다: 네트워크 허용, 의존성 설치, 스키마/보안/시크릿/결제/배포/PRD범위/아키텍처 영향, xhigh 장시간 실행, baseline dirty 파일과 변경 대상 겹침.
 그 외 저위험 단순 위임은 사용자 요청이 이미 명시적이면 3단계로 진행한다.
 
-## 3. DELEGATE — codex exec (항상 백그라운드)
+## 3. DELEGATE — codex exec (포그라운드 또는 백그라운드+능동 폴링)
 
 ```bash
 NETWORK_FLAGS=()

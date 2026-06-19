@@ -10,7 +10,7 @@
 1. **사전 점검 + 파싱** — `scripts/check-codex.sh`는 Codex 설치/버전/인증/config 추정값만 read-only로 점검한다. 요청 파싱과 `$RUN` 생성은 `SKILL.md` 0단계에서 Claude가 수행한다.
 2. **ANALYZE** — Claude가 코드·실행 중인 페이지를 직접 분석 (UI면 스크린샷 캡처 → 텍스트 스펙 변환)
 3. **PLAN** — 자기완결 HANDOFF 작성: 파일별 구체 지시 · Baseline(위임 전 dirty 파일 보존 규칙) · Out of scope · **BLOCKED 프로토콜**(차단 모호성 = 변경 0 + 질문만 / 비차단 = 기본 결정으로 진행 후 보고) · 실행 가능한 Acceptance Criteria
-4. **DELEGATE** — `codex exec`를 백그라운드 실행, 라운드 산출물을 **manifest 세트**(log·exit code·session id·result)로 기록
+4. **DELEGATE** — `codex exec` 실행(짧은 작업은 포그라운드 동기, 긴 작업은 백그라운드+능동 폴링; **수동 대기 금지**), 라운드 산출물을 **manifest 세트**(log·exit code·session id·result)로 기록
 5. **VERIFY** — baseline 대비 diff 검사 + 기준별 직접 실행 증거 확인. 미달분은 **명시 session id로 `codex exec resume`** (`--last` 금지 — 동시 세션 오선택 위험). 구현 실패만 라운드에 산입(최대 3), CLI/환경 문제는 `ORCHESTRATION_FAIL`로 별도 처리
 
 역할 경계는 절대 규칙: Claude는 검증 중 발견한 문제도 직접 고치지 않고 Codex에 되돌린다. Codex는 재계획·범위 확장 금지.
@@ -64,7 +64,7 @@ http://localhost:3999/ 랜딩페이지를 상세하게 분석하고 디자인을
 
 ## loop-md 연동
 
-프로젝트 루트에 `loop.md`가 있으면 VERIFY 단계에서 loop-md 스킬 Verify 모드(①Pass/Fail 게이트·②정량·③정성)를 함께 수행한다. 없으면 N/A.
+프로젝트 루트에 `loop.md`가 있으면 VERIFY 통과 직후·**완료 결과를 사용자에게 먼저 보고한 뒤** loop-md 스킬 Verify 모드(①Pass/Fail 게이트·②정량·③정성)를 별도로 수행한다(완료 보고 지연 방지). 없으면 N/A.
 
 ## 구조
 

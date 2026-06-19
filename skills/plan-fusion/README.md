@@ -29,7 +29,7 @@
 2. **사전 점검** — `scripts/check-fusion.sh`(read-only)로 codex·agy·opencode·claude 가용성 + provider 인증 + `ORCHESTRATOR_FAMILY`/`EXCLUDED_FAMILIES`/`PARTICIPANT_FAMILIES`/`FUSION_CAPABILITY` 확인. 호명 정규화, 없으면 비-동족 기본 패널 추천.
 3. **모드 선택** — Fusion-Research(비코드 분석) / Fusion-Code(구현·신뢰도↑).
 4. **계획(HANDOFF)** — 모든 참가자가 공유하는 단일 자기완결 스펙.
-5. **참가자 위임** — Fusion-Code는 worktree 격리 병렬, Research는 read-only 병렬. 전부 백그라운드 + 참가자별 manifest.
+5. **참가자 위임** — Fusion-Code는 worktree 격리 병렬, Research는 read-only 병렬. 백그라운드 병렬 + 참가자별 manifest + **능동 폴링(수동 대기 금지)**.
 6. **FUSE** — 후보 묶음 → **Judge CLI**(오케스트레이터 패밀리 회피) 평가 → **Synthesizer CLI**(동일) 합성.
 7. **검증·리포트** — 오케스트레이터가 직접 실행/grep 증거로 검증(result·final 주장은 근거 아님), loop-md 연동, 근거 보고.
 
@@ -143,7 +143,7 @@ PLAN_FUSION_ORCHESTRATOR=glm   # ZCode 환경에서
 
 ## loop-md 연동
 
-루트에 `loop.md`가 있으면 VERIFY의 loop-md 연동은 `council_wt_adopt` → **메인 ROOT에서** loop-md Verify 전체 ①Pass/Fail·②정량·③정성 실행 → `.loop/last-verified`가 현재 HEAD인지 확인 → 그 다음 커밋 순서로 고정한다. 패널 worktree 검증은 사전검증일 뿐 hard-guard 충족이 아니다. 루트에 `loop.md` 없으면 N/A.
+루트에 `loop.md`가 있으면 loop-md 연동은 **완료 결과를 사용자에게 먼저 보고한 뒤** 별도로 수행한다(지연 방지): `council_wt_adopt` → 결과 보고 → **메인 ROOT에서** loop-md Verify 전체 ①Pass/Fail·②정량·③정성 실행 → `.loop/last-verified`가 현재 HEAD인지 확인 → 커밋 순서로 고정한다. 패널 worktree 검증은 사전검증일 뿐 hard-guard 충족이 아니다. 루트에 `loop.md` 없으면 N/A.
 
 Judge는 후보 비교용으로 loop-md ③정성(fresh-context 채점)과 입력·목적이 다르다. `loop.md` 감지 시 Judge 입력에 loop.md ③루브릭 + ①② 실행로그를 조건부 주입해 ③을 실제 충족하고, ②정량(커버리지 등)은 메인 검증 단계에서 loop.md 명령으로 직접 실행한다.
 
