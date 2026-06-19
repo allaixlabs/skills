@@ -37,6 +37,16 @@ council_wt_setup() {
     echo "WARN: 사용자 untracked 파일은 패널 worktree에 전파되지 않습니다(git stash create 한계). 패널 작업에 필요하면 먼저 커밋하세요." >&2
   fi
   local stash; stash=$(git -C "$ROOT" stash create 2>/dev/null || echo "")
+  # stash create는 성공 시 커밋 SHA(40hex)를 내고, 변경 없으면 빈 출력을 낸다.
+  # ⚠️ PATH의 git이 wrapper(rtk 등)면 "ok stash create" 같은 비-SHA 문자열을 내보낼 수 있다 →
+  #    이를 SHA로 쓰면 council_wt_diffbase → council_wt_adopt 의 `git diff <base>`가 bad revision으로 ABORT된다.
+  #    SHA 형식(40 hex)인 경우만 저장하고, 아니면 빈 값(변경 없음과 동일 취급)으로 둔다.
+  case "$stash" in
+    *[!0-9a-f]* | ??????????????????????????????????????) : ;;   # 40 hex 통과 (두 패턴: 비hex포함 OR 정확히 40자리)
+    *) stash="" ;;                                               # 그 외(빈 문자열·wrapper 노이즈) = 변경 없음
+  esac
+  # 엄격히: 정확히 40자리 hex인지 재확인 (위 case는 보조)
+  if ! printf '%s' "$stash" | grep -qE '^[0-9a-f]{40}$'; then stash=""; fi
   printf '%s' "$stash" > "$RUN/stash.sha"
   git -C "$ROOT" rev-parse HEAD > "$RUN/baseline.head" 2>/dev/null
   git -C "$ROOT" status --porcelain=v1 --untracked-files=all > "$RUN/baseline.status" 2>/dev/null || :
