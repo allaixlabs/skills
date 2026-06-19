@@ -238,6 +238,19 @@ if [ -n "$staged" ] && [ "$(printf '%s\n' "$staged" | grep -cv '^docs/loop-md/')
   fi
 fi
 
+# 셋업 산출물 커밋 면제 — 자기참조 모순 방지 (loop-md Setup 결함 수정)
+# Setup이 loop.md+가드를 설치한 직후 셋업 산출물을 커밋하면 마커가 아직 없어 무조건 차단되는
+# 모순(실제 makeskill bypass.log 29회의 원인 중 하나)을 막는다.
+# 스테이징된 파일이 전부 '순수 셋업 산출' 범위면 마커 없어도 통과:
+#   loop.md · AGENTS.md · .gitignore · scripts/(loop-gates 등) · skills/loop-md/ · docs/loop-md/
+# 단 다른 스킬 소스(skills/<다른스킬>/)가 섞이면 면제 안 함 — 그건 진짜 작업 커밋이므로.
+if [ -n "$staged" ] && [ "$MODE" = "git-hook" -o "$MODE" = "commit-msg" -o "$MODE" = "claude-hook" ]; then
+  non_setup=$(printf '%s\n' "$staged" | grep -vE '^(loop\.md|AGENTS\.md|\.gitignore|scripts/|skills/loop-md/|docs/loop-md/)' || true)
+  if [ -z "$non_setup" ]; then
+    exit 0
+  fi
+fi
+
 marker="$root/.loop/last-verified"
 block() {
   printf '⛔ loop.md DoD 가드: %s\n' "$1" >&2
