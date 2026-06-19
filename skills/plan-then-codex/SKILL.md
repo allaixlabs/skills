@@ -45,6 +45,9 @@ echo "$RUN"
 - 관련 소스 파일, 스택, 실행/빌드/테스트 명령을 파악한다.
 - UI 작업이면 실행 중인 URL을 직접 확인하고(playwright-cli 스크린샷 → `$RUN/before-*.png`)
   **본 것을 텍스트 스펙으로 변환**한다 — Codex는 브라우저를 보지 못한다.
+- **UI 노출 판정(필수)**: 이 작업이 사용자에게 노출되는 변경인가(새 화면·컴포넌트·라우트·상호작용·표시 로직)를 yes/no로 판정하고 **1줄 근거**를 HANDOFF의 'UI 노출 판정' 필드에 기록한다.
+  - yes → HANDOFF의 '디자인 스펙' 섹션 + UI Acceptance Criteria를 필수화(아래 §2 PLAN · §4 VERIFY 연동).
+  - no → '디자인 스펙' 생략 가능하되, **근거 없는 no는 금지** — 판정 사유를 HANDOFF에 명시해 감사 가능성을 유지한다.
 
 ## 2. PLAN — HANDOFF 작성 + baseline 스냅샷
 
@@ -116,6 +119,7 @@ exit "$round1_rc"
 2. `result-r1.md`의 성공 주장을 믿지 말고 Acceptance Criteria를 **직접 실행 증거로** 확인
    — 빌드/테스트 실행, UI면 재스크린샷(`$RUN/after-*.png`) 후 before와 비교.
    Codex의 localhost 확인은 "시도"일 뿐, 최종 진실은 Claude의 브라우저 검증이다.
+   **UI 노출 판정=yes**이면 디자인 스펙(타이포/컬러/간격/레이아웃) 반영 여부도 대조한다 — 스펙을 안 따르면 FAIL → Codex resume으로 수정 지시.
 3. 프로젝트 루트에 `loop.md`가 있으면 loop-md 스킬 Verify 모드를 수행한다.
 4. 미달 시 재작업 — **manifest의 session id로 resume** (`--last` 금지: 동시 세션 오선택 위험):
 

@@ -69,6 +69,7 @@ description: >
 - 참가자 패널·Judge·Synth 백엔드는 plan-fusion의 게이트(SKILL.md §0.2.5)가 결정한 대로. 단, 이 스킬의 목적상 **최종 구현이 GPT+GLM 혼용**이므로, 가능하면 Synth 백엔드가 개발 주축과 충돌하지 않게 두는 게 깔끔하다(강제 아님 — 동족 룰이 우선).
 - 검증(plan-fusion §5): final.md의 위험·미검증 주장은 오케스트레이터가 grep으로 사실 판정. 이 단계에서 검증된 설계만 다음으로 넘긴다.
 - 산출물: `$RUN_PF/final.md`(코드 스펙 포함), `$RUN_PF/judge.md`, `$RUN_PF/synthesis.md`.
+- **UI 노출 판정 위임·보존**: UI 노출 판정은 계획 단계(plan-fusion ANALYZE)에서 내려지며, 합성 템플릿(`templates/fusion-synth-code.md.tmpl`)의 `### UI 노출 판정`·`### 디자인 스펙` 섹션을 통해 `final.md`에 반드시 포함된다. 변환 단계(§2)는 이것을 그대로 handoff로 옮긴다 — UI 노출 판정이 yes인데 디자인 스펙이 없으면 변환을 중단하고 계획 단계 산출을 보완한다.
 
 ---
 
@@ -78,7 +79,8 @@ description: >
 
 **`templates/HANDOFF-chain.md.tmpl`** 을 기준으로 `$RUN_PCO/handoff.md`를 작성:
 
-1. **복사(재구성 최소)**: final.md 섹션 → handoff 대응 섹션으로 1:1 매핑 — `Mission` → Mission, `설계 결정`(채택·근거·기각대안) → 설계 결정, `Context`(루트/스택) → Context, `변경 지시(파일별)` → 변경 지시(파일별), `Out of scope` → Out of scope, `위험·미검증` → 위험·미검증(계획 단계 검증 결과를 같이 기입), `Acceptance Criteria` → Acceptance Criteria. 체이닝 메타데이터(상위 RUN 경로·Judge/Synth 주체)는 handoff 상단에 채운다.
+1. **복사(재구성 최소)**: final.md 섹션 → handoff 대응 섹션으로 1:1 매핑 — `Mission` → Mission, `UI 노출 판정`(노출 여부·근거) → UI 노출 판정, `디자인 스펙`(UI 노출=yes 시) → 디자인 스펙, `설계 결정`(채택·근거·기각대안) → 설계 결정, `Context`(루트/스택) → Context, `변경 지시(파일별)` → 변경 지시(파일별), `Out of scope` → Out of scope, `위험·미검증` → 위험·미검증(계획 단계 검증 결과를 같이 기입), `Acceptance Criteria` → Acceptance Criteria. 체이닝 메타데이터(상위 RUN 경로·Judge/Synth 주체)는 handoff 상단에 채운다.
+   - ⚠️ **UI 매핑 가드**: `final.md`에 `### UI 노출 판정` 섹션이 반드시 있어야 한다(synth-code 템플릿이 산출하도록 지시). 노출 판정=yes인데 `디자인 스펙` 섹션이 비었거나 없으면 변환을 **중단**하고 계획 단계(synth) 산출을 보완한 뒤 재변환한다 — 이 매핑을 건너뛰면 UI 결정이 handoff로 전달되지 않아 개발 단계에서 UI가 통째로 누락된다.
 2. **오케스트레이터가 직접 보강하는 3개** (final.md엔 없는 read-only 캡처 정보):
    - **Baseline**: `git -C "<root>" status --short` + `git -C "<root>" rev-parse HEAD` 실행 → 결과를 handoff의 Baseline 섹션에 기입.
    - **빌드/테스트/린트 명령**: 프로젝트에서 식별(package.json scripts · Makefile · Gemfile · Cargo.toml 등). final.md의 `$TODO_BUILD`/`$TODO_TEST`/`$TODO_LINT` 자리표시자를 실제 명령으로 치환. Acceptance Criteria 안의 자리표시자도 같이 치환.
@@ -123,6 +125,7 @@ description: >
 
 ### 검증
 - **하위 스킬 검증에 맡김**: plan-codex-opencode의 §4 VERIFY(직접 실행 증거 — 빌드/타입/테스트/린트 exit·출력, AC 대조, baseline·범위 확인)를 그대로 수행. result/final 주장은 근거 아님.
+- **UI 노출 작업이면(handoff 'UI 노출 판정=yes')**: 하위 스킬 검증에 더해, 디자인 스펙(타이포/컬러/간격/레이아웃) 반영 여부 + UI AC 충족을 명시적으로 대조한다. final.md의 '디자인 스펙'이 handoff로 전달됐는지도 확인(변환 단계 누락 탐지) — 누락 시 계획 단계 산출 보완 후 재변환.
 - **체이닝 추가 검증**: 개발 결과가 상위 plan-fusion의 `final.md` 설계 결정과 **충돌하지 않는지** 1회 대조(예: 기각한 대안이 구현에 들어갔는지). 충돌이면 synthesis.md에 명시.
 
 ### loop-md 연동
