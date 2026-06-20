@@ -395,8 +395,8 @@ fi
 if [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
   judge_chain_append 1 opencode "glm/kimi" no
 fi
-# 차순위가 하나도 없으면 self(완전 비독립).
-_jchain="${_jchain:-orchestrator-self:glm:yes}"
+# 차순위가 하나도 없으면 self(완전 비독립). 라벨의 패밀리는 런타임 오케스트레이터 패밀리를 따른다.
+_jchain="${_jchain:-orchestrator-self:${ORCH_FAMILY:-glm}:yes}"
 
 JUDGE_DEFAULT=""
 JUDGE_CONFLICT_RISK=no

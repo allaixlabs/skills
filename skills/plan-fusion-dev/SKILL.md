@@ -41,6 +41,8 @@ description: >
 
 ## 0. 사전 점검 + 모드/패널 결정
 
+> **진입 규칙**: 이 스킬이 명시 호출(`/plan-fusion-dev …`)되면 — 하위 `plan-fusion`의 진입 규칙과 같이 — 요청 종류(개발 체이닝·메타/스킬 검토·리서치)와 무관하게 **반드시 §0부터 실행**한다. 단, **코드 산출물이 0인 요청**(스킬 자체 검토·개선 제안·리서치 등)은 §1 계획 단계(Fusion-Research 리포트 산출)까지만 수행하고, §2 변환·§3 모드선택·§4 개발 체인은 **N/A로 종료**한다(역할경계: 개발 백엔드가 없는 작업에 dev 체인을 강제하지 않는다). silent bail-out은 금지.
+
 1. **메타 점검**(read-only): `bash "$SKILL_DIR/scripts/check-fusion-dev.sh"` → `FUSION_DEV_PLAN_READY` · `FUSION_DEV_DEV_READY` · `FUSION_DEV_CAPABILITY`.
    - `full`(양쪽 가용) → 진행. `plan-only`(계획만) → 개발은 plan-then-codex 등으로 안내 후 사용자 결정. `dev-only`/`none` → exit 1, 안내·중단.
    - 두 하위 스크립트(check-fusion.sh · check-panels.sh)의 출력(오케스트레이터 패밀리·Judge/Synth 기본·패널 가용성·GLM 인증)이 같이 나오니 숙지한다.
@@ -56,7 +58,7 @@ description: >
    printf 'plan_run=%s\ndev_run=%s\nslug=%s\n' "$RUN_PF" "$RUN_PCO" "$slug" > "$RUN_PCO/manifest"
    echo "RUN_PF=$RUN_PF"; echo "RUN_PCO=$RUN_PCO"
    ```
-4. **개발 모드·패널·비용 1회 요약** 후 진행 — 계획(N+2 호출) + 개발(2~3 호출) = 단일 위임의 **3~5배** 비용/시간. 인간 승인 영역(스키마/보안/키·시크릿/결제/배포/PRD범위/아키텍처)이면 여기서 BLOCKED.
+4. **개발 모드·패널·비용 1회 요약** 후 진행 — **호출 수 기준: 계획(N+2 호출) + 개발(2~3 호출) = N+4~N+5회** (기본 N=4 패널이면 8~9회, 최소 N=2면 6~7회) = 단일 위임(1회) 대비 **약 6~9배** 비용/시간. 인간 승인 영역(스키마/보안/키·시크릿/결제/배포/PRD범위/아키텍처)이면 여기서 BLOCKED.
 
 ---
 
@@ -69,7 +71,7 @@ description: >
 - 참가자 패널·Judge·Synth 백엔드는 plan-fusion의 게이트(SKILL.md §0.2.5)가 결정한 대로. 단, 이 스킬의 목적상 **최종 구현이 GPT+GLM 혼용**이므로, 가능하면 Synth 백엔드가 개발 주축과 충돌하지 않게 두는 게 깔끔하다(강제 아님 — 동족 룰이 우선).
 - 검증(plan-fusion §5): final.md의 위험·미검증 주장은 오케스트레이터가 grep으로 사실 판정. 이 단계에서 검증된 설계만 다음으로 넘긴다.
 - 산출물: `$RUN_PF/final.md`(코드 스펙 포함), `$RUN_PF/judge.md`, `$RUN_PF/synthesis.md`.
-- **UI 노출 판정 위임·보존**: UI 노출 판정은 계획 단계(plan-fusion ANALYZE)에서 내려지며, 합성 템플릿(`templates/fusion-synth-code.md.tmpl`)의 `### UI 노출 판정`·`### 디자인 스펙` 섹션을 통해 `final.md`에 반드시 포함된다. 변환 단계(§2)는 이것을 그대로 handoff로 옮긴다 — UI 노출 판정이 yes인데 디자인 스펙이 없으면 변환을 중단하고 계획 단계 산출을 보완한다.
+- **UI 노출 판정 위임·보존**: UI 노출 판정은 계획 단계(plan-fusion ANALYZE)에서 내려지며, 합성 템플릿(`templates/fusion-synth-code.md.tmpl`)의 `### UI 노출 판정`(h3)·`#### 디자인 스펙`(h4, 서브) 섹션을 통해 `final.md`에 반드시 포함된다. 변환 단계(§2)는 이것을 레벨을 정규화하여(`### UI 노출 판정` → `## UI 노출 판정`, `#### 디자인 스펙` → `## 디자인 스펙`) handoff로 옮긴다 — UI 노출 판정이 yes인데 디자인 스펙이 없으면 변환을 중단하고 계획 단계 산출을 보완한다.
 
 ---
 
@@ -81,11 +83,12 @@ description: >
 
 1. **복사(재구성 최소)**: final.md 섹션 → handoff 대응 섹션으로 1:1 매핑 — `Mission` → Mission, `UI 노출 판정`(노출 여부·근거) → UI 노출 판정, `디자인 스펙`(UI 노출=yes 시) → 디자인 스펙, `설계 결정`(채택·근거·기각대안) → 설계 결정, `Context`(루트/스택) → Context, `변경 지시(파일별)` → 변경 지시(파일별), `Out of scope` → Out of scope, `위험·미검증` → 위험·미검증(계획 단계 검증 결과를 같이 기입), `Acceptance Criteria` → Acceptance Criteria. 체이닝 메타데이터(상위 RUN 경로·Judge/Synth 주체)는 handoff 상단에 채운다.
    - ⚠️ **UI 매핑 가드**: `final.md`에 `### UI 노출 판정` 섹션이 반드시 있어야 한다(synth-code 템플릿이 산출하도록 지시). 노출 판정=yes인데 `디자인 스펙` 섹션이 비었거나 없으면 변환을 **중단**하고 계획 단계(synth) 산출을 보완한 뒤 재변환한다 — 이 매핑을 건너뛰면 UI 결정이 handoff로 전달되지 않아 개발 단계에서 UI가 통째로 누락된다.
+   - **레벨 정규화**: final.md(`### UI 노출 판정`/`#### 디자인 스펙`) → handoff(`## UI 노출 판정`/`## 디자인 스펙`)로 헤딩 레벨을 맞춘다(두 템플릿 레벨이 다름 — `templates/fusion-synth-code.md.tmpl` h3/h4, `templates/HANDOFF-chain.md.tmpl` h2/h2). 변환 후 handoff에서 `grep -nE '^## UI 노출 판정'` 존재 + yes일 때 `grep -nE '^## 디자인 스펙'` 존재를 확인한다.
 2. **오케스트레이터가 직접 보강하는 3개** (final.md엔 없는 read-only 캡처 정보):
    - **Baseline**: `git -C "<root>" status --short` + `git -C "<root>" rev-parse HEAD` 실행 → 결과를 handoff의 Baseline 섹션에 기입.
    - **빌드/테스트/린트 명령**: 프로젝트에서 식별(package.json scripts · Makefile · Gemfile · Cargo.toml 등). final.md의 `$TODO_BUILD`/`$TODO_TEST`/`$TODO_LINT` 자리표시자를 실제 명령으로 치환. Acceptance Criteria 안의 자리표시자도 같이 치환.
    - **dev 서버 URL**(해당 시): 실행 중이면 캡처, 아니면 N/A 표시.
-3. **치환 검증**: `grep -nE '\$TODO_|<.*>|{{' "$RUN_PCO/handoff.md"` 로 미치환 자리표시자/placeholder가 0인지 확인. 남아 있으면 채운다.
+3. **치환 검증**: `grep -nE '\$TODO_(BUILD|TEST|LINT|URL)|<UNKNOWN|<\.\.\.|{{' "$RUN_PCO/handoff.md"` 로 미치환 자리표시자가 0인지 확인(실제 마커만 검사 — `<.*>` 광역 패턴은 합법 `<T>` 제네릭·HTML 옵션 오탐을 낳으므로 쓰지 않는다). 남아 있으면 채운다. `{{` 검사는 진짜 미치환 템플릿 토큰 누수를 잡으므로 유지한다.
 
 ⚠️ **역할경계**: 변환은 문서 작성만. 이 단계에서 코드를 직접 수정하지 않는다. Baseline/명령 캡처는 read-only 조회(`git status`/매니페스트 읽기)만.
 
@@ -98,9 +101,11 @@ description: >
 | 신호 | 모드 | 이유 |
 |---|---|---|
 | 스키마/보안/결제/배포/아키텍처 변경 | **BLOCKED** | 인간 승인 영역 — 자동 진행 금지 |
-| 답이 갈릴 수 있는 설계·구현 + 신뢰도↑ | **Council** | GPT+GLM 병렬 구현 → 교차리뷰 → 채택/합성 |
+| 답이 갈릴 수 있는 설계·구현 + 신뢰도↑ | **Council-Code** | GPT+GLM 병렬 구현 → 교차리뷰 → 채택/합성 |
 | 범위 명확 + 구현 품질 검증 깊이 | **Pipeline** | GPT-5.5 구현+수정, GLM-5.2 리뷰(역할 분리, 비용 효율) |
 | 모호(기본) | **Pipeline** | 비용 효율 + "개발엔 고스펙 불필요" 철학과 GPT 주축 부합 |
+
+> **모드명 정규화**: 사용자 표시명은 `Council`로 줄여 써도 되나, 내부·REPORT·synthesis 문맥(하위 `plan-codex-opencode`가 구분하는 `Council-Code`/`Council-Research`/`Pipeline`)에는 `Council-Code`로 명시한다.
 
 선택 시 1줄 근거를 사용자에게 표시하고 진행.
 
@@ -110,13 +115,15 @@ description: >
 
 하위 스킬 `plan-codex-opencode/SKILL.md`의 절차를 `$RUN_PCO`에서 그대로 수행한다. 이 스킬은 §1 ANALYZE(코드 분석)·§2 PLAN(handoff 작성)를 **이미 변환 단계(§2)가 대신했으므로 건너뛰고** §3 DELEGATE부터 진입한다.
 
+> **`$RUN` 바인딩**: 이하 `plan-codex-opencode` 절차 본문이 말하는 `$RUN`은 **이 스킬의 `$RUN_PCO`** 이다(계획 단계 `$RUN_PF`가 아님). 모든 handoff·worktree·council·manifest 경로는 `$RUN_PCO` 아래다.
+
 - **패널(기본 라인업)**: codex `gpt-5.5`(effort xhigh 또는 high) + opencode `glm-5.2`. 둘 다 이 스킬 사전점검(check-fusion-dev.sh)에서 가용 확인됨.
 - **Pipeline 모드 시 역할 분배**(SKILL.md plan-codex-opencode §3 Pipeline):
   - 구현(메인): codex `gpt-5.5` xhigh — `$RUN_PCO`의 handoff로 위임, SESSION_A 추출.
   - 리뷰: 구현자와 다른 패밀리 = opencode `glm-5.2`. (codex 구현이면 리뷰는 omo/opencode로 — 역방향도 허용.)
   - 수정: codex `gpt-5.5` resume — 리뷰 지적 반영.
   - 종합: 오케스트레이터(plan-codex-opencode §4 종합).
-- **Council 모드 시**: 두 패널이 각자 worktree에서 병렬 구현 → 교차리뷰 → 채택/합성. 비용 2배지만 독립성 최대.
+- **Council-Code 모드 시**: 두 패널이 각자 worktree에서 병렬 구현 → 교차리뷰 → 채택/합성. 비용 2배지만 독립성 최대.
 - ⚠️ **오케스트레이터 동족 주의**: 오케스트레이터=glm(ZCode)이면, 개발 단계에 GLM이 들어가는 게 "동족"이 될 수 있다. 단 **개발 단계는 계획 단계와 다르다** — 여기선 GLM이 "리뷰어/견제" 역할로 GPT 구현을 교차검증하므로, 오케스트레이터의 분석·검증과 GLM 리뷰가 같은 패밀리여도 *패널 내* 교차검증(GPT↔GLM)은 유효하다. synthesis에 "오케스트레이터-GLM 동족"을 표기만 하고 진행(계획 단계의 엄격 동족 제거와 다른 정책).
 
 ---
@@ -136,7 +143,7 @@ description: >
 - **체이닝 전체 요약**: 계획(plan-fusion 패널·Judge·Synth) → 개발(plan-codex-opencode 모드·패널) → 최종 변경
 - 계획 단계: 참가자·Judge·Synth 백엔드 + 동족/비독립 여부 · 핵심 설계 결정
 - 변환 단계: 보강한 3개(Baseline 출처·빌드/테스트/린트 명령 출처·dev URL) + 미치환 자리표시자 0 확인
-- 개발 단계: 모드(Pipeline/Council)·패널·effort · 패널별 상태(DONE/BLOCKED/ORCHESTRATION_FAIL) · 종합(합의/충돌/판정 + 근거)
+- 개발 단계: 모드(Pipeline/Council-Code)·패널·effort · 패널별 상태(DONE/BLOCKED/ORCHESTRATION_FAIL) · 종합(합의/충돌/판정 + 근거)
 - **최종 변경 파일 목록 + 기준별 충족 증거**(실행 로그 요약)
 - **BLOCKED 여부·적용한 기본 결정·남은 질문**(분리)
 - 라운드 수(계획+개발 합산, `ORCHESTRATION_FAIL` 횟수)
@@ -159,4 +166,4 @@ description: >
 - **계획만 필요** → **plan-fusion** 단독. 개발까지 자동으로 가면 비용만 커진다.
 - **개발만 필요**(계획이 이미 명확) → **plan-codex-opencode** 단독. plan-fusion 계획 단계는 낭비.
 - **단일 모델 위임** → **plan-then-codex**(GPT) / **plan-then-opencode**(omo). 혼용 필요 없으면 훨씬 가볍다.
-- **비용/시간이 가치를 못 넘을 때**: 계획(N+2) + 개발(2~3) = 단일 위임의 **3~5배**. 사소·저위험·되돌리기 쉬운 작업이거나 답이 갈릴 여지가 작으면 과하다. **답이 갈릴 수 있고 틀리면 비용이 큰 복잡 구현·판단**에만 의미.
+- **비용/시간이 가치를 못 넘을 때**: 계획(N+2) + 개발(2~3) = 단일 위임의 **약 6~9배**(N+4~N+5회; N=4면 8~9배, N=2면 6~7배). 사소·저위험·되돌리기 쉬운 작업이거나 답이 갈릴 여지가 작으면 과하다. **답이 갈릴 수 있고 틀리면 비용이 큰 복잡 구현·판단**에만 의미.

@@ -4,6 +4,9 @@
 #    심링크가 아니라 실파일 복제다(Windows/core.symlinks 배포 호환). 수정은 정본(plan-codex-opencode)에서
 #    한 뒤 plan-fusion 쪽으로 복사해 동기화하라. plan-fusion/check-fusion.sh가 두 파일 diff로 드리프트를 경고한다.
 #
+# 책임 경계: 이 헬퍼는 **worktree 물리 격리 전용**이다. read-only 사본 보안 불변식(.git/.env 제외,
+# 심링크 차단)은 `references/fusion.md §1`(사본 격리) 소관이며 이 파일이 담당하지 않는다.
+#
 # 같은 작업트리에 N개 패널을 동시 위임하면 파일 충돌·baseline 오염이 난다.
 # 패널마다 독립 브랜치의 worktree를 만들어 물리 격리하고, 정리까지 책임진다.
 #
@@ -40,8 +43,13 @@ council_wt_setup() {
   # stash create는 성공 시 커밋 SHA(40hex)를 내고, 변경 없으면 빈 출력을 낸다.
   # ⚠️ PATH의 git이 wrapper(rtk 등)면 "ok stash create" 같은 비-SHA 문자열을 내보낼 수 있다 →
   #    이를 SHA로 쓰면 council_wt_diffbase → council_wt_adopt 의 `git diff <base>`가 bad revision으로 ABORT된다.
-  #    SHA 형식(정확히 40 hex)인 경우만 저장하고, 아니면 빈 값(변경 없음과 동일 취급)으로 둔다.
-  printf '%s' "$stash" | grep -qE '^[0-9a-f]{40}$' || stash=""
+  #    SHA 형식(40 hex)인 경우만 저장하고, 아니면 빈 값(변경 없음과 동일 취급)으로 둔다.
+  case "$stash" in
+    *[!0-9a-f]* | ??????????????????????????????????????) : ;;   # 40 hex 통과 (두 패턴: 비hex포함 OR 정확히 40자리)
+    *) stash="" ;;                                               # 그 외(빈 문자열·wrapper 노이즈) = 변경 없음
+  esac
+  # 엄격히: 정확히 40자리 hex인지 재확인 (위 case는 보조)
+  if ! printf '%s' "$stash" | grep -qE '^[0-9a-f]{40}$'; then stash=""; fi
   printf '%s' "$stash" > "$RUN/stash.sha"
   git -C "$ROOT" rev-parse HEAD > "$RUN/baseline.head" 2>/dev/null
   git -C "$ROOT" status --porcelain=v1 --untracked-files=all > "$RUN/baseline.status" 2>/dev/null || :

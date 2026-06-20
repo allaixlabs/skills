@@ -4,7 +4,7 @@
 각 모델 패밀리를 자기 CLI로 독립 실행하는 방법의 단일 참조. codex/opencode 상세는 `codex-cli.md`·`opencode-cli.md`에,
 **신규 백엔드 agy(Gemini)·claude(Opus)** 상세는 이 문서에 둔다. 호명→정규화는 `routing-fusion.md`.
 
-검증 환경(실측): codex 0.139.0 · opencode 1.16.2 · omo 4.10.0 · **agy 1.0.8** · **claude 2.1.x**.
+검증 환경(실측): codex 0.139.0 · opencode 1.16.2 · omo 4.10.0 · **agy 1.0.10** · **claude 2.1.x**.
 
 ## 통합 매트릭스
 
