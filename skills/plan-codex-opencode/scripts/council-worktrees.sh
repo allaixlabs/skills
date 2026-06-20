@@ -4,6 +4,9 @@
 #    심링크가 아니라 실파일 복제다(Windows/core.symlinks 배포 호환). 수정은 정본(plan-codex-opencode)에서
 #    한 뒤 plan-fusion 쪽으로 복사해 동기화하라. plan-fusion/check-fusion.sh가 두 파일 diff로 드리프트를 경고한다.
 #
+# 책임 경계: 이 헬퍼는 **worktree 물리 격리 전용**이다. read-only 사본 보안 불변식(.git/.env 제외,
+# 심링크 차단)은 `references/fusion.md §1`(사본 격리) 소관이며 이 파일이 담당하지 않는다.
+#
 # 같은 작업트리에 N개 패널을 동시 위임하면 파일 충돌·baseline 오염이 난다.
 # 패널마다 독립 브랜치의 worktree를 만들어 물리 격리하고, 정리까지 책임진다.
 #
