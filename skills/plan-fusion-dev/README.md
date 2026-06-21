@@ -108,7 +108,9 @@ plan-fusion-dev/
 │   ├── fusion-synth-code.md.tmpl         # 체이닝 전용 Synth 프롬프트 — final.md가 코드 스펙까지 산출
 │   └── HANDOFF-chain.md.tmpl             # 변환 결과 코드용 HANDOFF(체이닝 메타데이터 + plan-codex-opencode 호환)
 └── scripts/
-    └── check-fusion-dev.sh               # 두 형제 스킬 점검 묶음 실행 (read-only)
+    ├── check-fusion-dev.sh               # 두 형제 스킬 점검 묶음 실행 (read-only)
+    ├── check-cleanup.sh                  # worktree/branch/ro 정리 누수 점검 (read-only, REPORT 전)
+    └── smoke-test.sh                     # 파이프라인 구조 end-to-end 검증 (dry-run, 비용 0)
 ```
 
 > 변환·개발 절차의 상세(references)는 두 하위 스킬의 것을 재사용 — 이 스킬이 별도 references/를 두지 않는다. plan-fusion의 routing-fusion/fusion, plan-codex-opencode의 routing/council이 해당.
