@@ -58,7 +58,7 @@ description: >
    printf 'plan_run=%s\ndev_run=%s\nslug=%s\n' "$RUN_PF" "$RUN_PCO" "$slug" > "$RUN_PCO/manifest"
    echo "RUN_PF=$RUN_PF"; echo "RUN_PCO=$RUN_PCO"
    ```
-4. **개발 모드·패널·비용 1회 요약** 후 진행 — **호출 수 기준: 계획(N+2 호출) + 개발(2~3 호출) = N+4~N+5회** (기본 N=4 패널이면 8~9회, 최소 N=2면 6~7회) = 단일 위임(1회) 대비 **약 6~9배** 비용/시간. 인간 승인 영역(스키마/보안/키·시크릿/결제/배포/PRD범위/아키텍처)이면 여기서 BLOCKED.
+4. **개발 모드·패널·비용 1회 요약** 후 진행 — **호출 수 기준: 계획(N+2 호출) + 개발(모드별: Pipeline 2~3회 · Council-Code 4~5회)** = 합계 **Pipeline이면 N+4~N+5회, Council-Code면 N+6~N+7회** (기본 N=4 패널이면 각각 8~9회 / 10~11회, 최소 N=2면 6~7회 / 8~9회) = 단일 위임(1회) 대비 **Pipeline 약 6~9배, Council-Code 약 8~11배** 비용/시간. 모드 선택(§3)이 비용을 좌우하므로 요약 시 어느 모드로 갈지 미리 힌트를 준다. 인간 승인 영역(스키마/보안/키·시크릿/결제/배포/PRD범위/아키텍처)이면 여기서 BLOCKED.
 
 ---
 
@@ -83,7 +83,10 @@ description: >
 
 1. **복사(재구성 최소)**: final.md 섹션 → handoff 대응 섹션으로 1:1 매핑 — `Mission` → Mission, `UI 노출 판정`(노출 여부·근거) → UI 노출 판정, `디자인 스펙`(UI 노출=yes 시) → 디자인 스펙, `설계 결정`(채택·근거·기각대안) → 설계 결정, `Context`(루트/스택) → Context, `변경 지시(파일별)` → 변경 지시(파일별), `Out of scope` → Out of scope, `위험·미검증` → 위험·미검증(계획 단계 검증 결과를 같이 기입), `Acceptance Criteria` → Acceptance Criteria. 체이닝 메타데이터(상위 RUN 경로·Judge/Synth 주체)는 handoff 상단에 채운다.
    - ⚠️ **UI 매핑 가드**: `final.md`에 `### UI 노출 판정` 섹션이 반드시 있어야 한다(synth-code 템플릿이 산출하도록 지시). 노출 판정=yes인데 `디자인 스펙` 섹션이 비었거나 없으면 변환을 **중단**하고 계획 단계(synth) 산출을 보완한 뒤 재변환한다 — 이 매핑을 건너뛰면 UI 결정이 handoff로 전달되지 않아 개발 단계에서 UI가 통째로 누락된다.
-   - **레벨 정규화**: final.md(`### UI 노출 판정`/`#### 디자인 스펙`) → handoff(`## UI 노출 판정`/`## 디자인 스펙`)로 헤딩 레벨을 맞춘다(두 템플릿 레벨이 다름 — `templates/fusion-synth-code.md.tmpl` h3/h4, `templates/HANDOFF-chain.md.tmpl` h2/h2). 변환 후 handoff에서 `grep -nE '^## UI 노출 판정'` 존재 + yes일 때 `grep -nE '^## 디자인 스펙'` 존재를 확인한다.
+   - **레벨 정규화**: final.md(`### UI 노출 판정`/`#### 디자인 스펙`) → handoff(`## UI 노출 판정`/`## 디자인 스펙`)로 헤딩 레벨을 맞춘다(두 템플릿 레벨이 다름 — `templates/fusion-synth-code.md.tmpl` h3/h4, `templates/HANDOFF-chain.md.tmpl` h2/h2). 변환 후 handoff에서 다음 3단계로 검증한다:
+     1. `grep -nE '^## UI 노출 판정' "$RUN_PCO/handoff.md"` — 섹션 존재 (없으면 변환 중단, 계획 단계 산출 보완).
+     2. 노출 판정=yes면 `grep -nE '^## 디자인 스펙' "$RUN_PCO/handoff.md"` — 섹션 존재 (없으면 변환 중단).
+     3. 노출 판정=yes면 디자인 스펙 **본문 내용** 검증 — `awk '/^## 디자인 스펙/{f=1;next} /^## /{f=0} f' "$RUN_PCO/handoff.md" | grep -qE '타이포|컬러|간격|레이아웃|폰트|HEX|spacing|layout|color'` — 빈 섹션이나 자리표시자만 있는 경우(예: `{{폰트}}`만 있고 실제 수치 없음)를 잡는다. 매칭이 없으면 synth 산출이 미완이므로 계획 단계 보완 후 재변환. (키워드는 synth-code 템플릿이 요구하는 항목 — 타이포/컬러/간격-레이아웃 — 과 대응.)
 2. **오케스트레이터가 직접 보강하는 3개** (final.md엔 없는 read-only 캡처 정보):
    - **Baseline**: `git -C "<root>" status --short` + `git -C "<root>" rev-parse HEAD` 실행 → 결과를 handoff의 Baseline 섹션에 기입.
    - **빌드/테스트/린트 명령**: 프로젝트에서 식별(package.json scripts · Makefile · Gemfile · Cargo.toml 등). final.md의 `$TODO_BUILD`/`$TODO_TEST`/`$TODO_LINT` 자리표시자를 실제 명령으로 치환. Acceptance Criteria 안의 자리표시자도 같이 치환.
@@ -98,12 +101,12 @@ description: >
 
 오케스트레이터가 태스크 특성·final.md의 설계 결정을 보고 모드를 정한다. **강제가 아니라 추천** — 사용자가 명시하면 따른다.
 
-| 신호 | 모드 | 이유 |
-|---|---|---|
-| 스키마/보안/결제/배포/아키텍처 변경 | **BLOCKED** | 인간 승인 영역 — 자동 진행 금지 |
-| 답이 갈릴 수 있는 설계·구현 + 신뢰도↑ | **Council-Code** | GPT+GLM 병렬 구현 → 교차리뷰 → 채택/합성 |
-| 범위 명확 + 구현 품질 검증 깊이 | **Pipeline** | GPT-5.5 구현+수정, GLM-5.2 리뷰(역할 분리, 비용 효율) |
-| 모호(기본) | **Pipeline** | 비용 효율 + "개발엔 고스펙 불필요" 철학과 GPT 주축 부합 |
+| 신호 | 모드 | 개발 호출 수 | 이유 |
+|---|---|---|---|
+| 스키마/보안/결제/배포/아키텍처 변경 | **BLOCKED** | — | 인간 승인 영역 — 자동 진행 금지 |
+| 답이 갈릴 수 있는 설계·구현 + 신뢰도↑ | **Council-Code** | **4~5회** (구현 병렬 2 + 교차리뷰 2 + 합성 시 +1) | GPT+GLM 병렬 구현 → 교차리뷰 → 채택/합성 |
+| 범위 명확 + 구현 품질 검증 깊이 | **Pipeline** | **2~3회** (구현 1 + 리뷰 1 + 수정 resume 0~1) | GPT-5.5 구현+수정, GLM-5.2 리뷰(역할 분리, 비용 효율) |
+| 모호(기본) | **Pipeline** | 2~3회 | 비용 효율 + "개발엔 고스펙 불필요" 철학과 GPT 주축 부합 |
 
 > **모드명 정규화**: 사용자 표시명은 `Council`로 줄여 써도 되나, 내부·REPORT·synthesis 문맥(하위 `plan-codex-opencode`가 구분하는 `Council-Code`/`Council-Research`/`Pipeline`)에는 `Council-Code`로 명시한다.
 
@@ -149,7 +152,13 @@ description: >
 - 라운드 수(계획+개발 합산, `ORCHESTRATION_FAIL` 횟수)
 - `$RUN_PF`·`$RUN_PCO` 경로(handoff/judge/final/synthesis/diff/xreview/manifest)
 - UI면 before/after 스크린샷 경로
-- **정리**: 두 단계의 worktree/branch/`ro/` 누수 점검 — plan-fusion은 `$RUN_PF`의 wt/council/ro, plan-codex-opencode은 `$RUN_PCO`의 wt/council/ro. 양쪽 다 잔존 0 확인(`git worktree list` · `git branch --list 'council/*'`).
+- **정리(기계적 게이트)**: 두 단계의 worktree/branch/`ro/` 누수를 REPORT 직전 **스크립트로 점검**한다 — 문서 지시에만 의존하면 오케스트레이터가 깜빡하고 누수를 남긴다.
+  ```bash
+  # exit 0=잔존 0(정상) / exit 1=누수 발견 → council_wt_cleanup 재호출 또는 수동 정리 후 재점검
+  PLAN_RUN="$RUN_PF" DEV_RUN="$RUN_PCO" bash "$SKILL_DIR/scripts/check-cleanup.sh"
+  ```
+  - 점검 범위: `git worktree list`의 `/wt/`·`/council/` 경로 · `council/*` 브랜치 잔존 · `$RUN_PF/ro`·`$RUN_PCO/ro` 디렉토리(council_wt_cleanup이 다루지 않는 영역 — plan-fusion/references/fusion.md §5).
+  - `CLEANUP_STATUS=LEAK`면 REPORT를 **내보내기 전에** 정리 후 재점검. exit 1을 무시하고 REPORT하면 누수가 사용자에게 전달된다.
 
 ---
 
