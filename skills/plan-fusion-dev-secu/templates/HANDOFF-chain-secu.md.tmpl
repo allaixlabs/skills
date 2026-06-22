@@ -1,0 +1,89 @@
+<!-- HANDOFF-chain-secu.md.tmpl — plan-fusion-dev-secu 변환 단계에서 만드는 코드용 HANDOFF.
+     기반: ../plan-fusion-dev/templates/HANDOFF-chain.md.tmpl + 보안 AC/SECURE_SCOPE 매핑 추가.
+     변환 단계는 이 템플릿에 final.md 섹션을 1:1로 매핑한다.
+     실제 Pipeline/Council 백엔드가 이 문서를 읽고 구현한다. -->
+
+# 멀티모델 보안 구현 지시서 (체이닝) — {{제목}}
+
+> 이 문서는 단독 실행 스펙이다. 이 문서 밖의 대화 컨텍스트는 존재하지 않는다.
+> 여기 적힌 범위만, 적힌 대로 구현하라. 재계획·범위 확장·무관 리팩토링 금지.
+> **🔒 보안 AC + SECURE_CHECKLIST 평가는 필수** — 생략 시 결과 폐기.
+
+## 체이닝 메타데이터
+
+- **출처**: plan-fusion-dev-secu 체이닝. 상위 plan-fusion-secu(Fusion-Research) 산출에서 변환됨.
+- **상위 RUN 경로**: {{절대경로 — $RUN_PF}} (judge.md · synthesis.md · l1-findings.json이 이 경로에 있음)
+- **계획 합성 주체**: Judge={{judge}} · Synth={{synth}} (동족 여부: {{비고}})
+- **🔒 계획 단계 L1 결과**: exit={{0/1/2}}, 발견={{N}}, 치명적 위험={{목록 또는 "없음"}}
+
+## 패널 맥락
+
+- **모드**: {{Pipeline / Council-Code}}
+- **패널**: {{예: codex(GPT-5.5) · opencode(glm-5.2)}}
+- **🔒 스킬**: plan-fusion-dev-secu — 보안 체크리스트 평가 필수.
+
+## Mission (1줄)
+{{한 문장}}
+
+## UI 노출 판정
+- **노출 여부**: {{yes | no}}
+- **근거**: {{1줄}}
+
+## 설계 결정 (재검토 금지)
+- **채택**: {{설계 + 출처}}
+- **근거**: {{왜}}
+- **기각 대안**: {{목록 + 이유}}
+
+## Context
+- 루트: {{절대경로}}
+- 스택: {{프레임워크}}
+- 변경 대상: {{파일}}
+
+## Baseline
+```
+{{git status --short}}
+HEAD: {{rev-parse HEAD}}
+```
+
+## 🔒 SECURE_SCOPE (보안 민감 영역 — L2 집중)
+{{final.md에서 매핑 — 오케스트레이터 §1 + Judge 검증}}
+- {{예: 인증 미들웨어 — T1-4/T1-8/T2-1/T2-6}}
+
+## 🔒 SECURE_CHECKLIST (평가 항목)
+{{final.md에서 매핑 — references/secure-coding.md에서 발췌}}
+{{T1-x, T2-x, T3-x, T4-x 목록}}
+**루브릭**: `../plan-fusion-secu/references/secure-coding.md` §9 (묶음 A/B/C).
+
+## 변경 지시 (파일별)
+{{파일별 변경 — 구체적}}
+
+## Out of scope
+- {{범위 밖}}
+- **🔒 보안 취약점 자동 패치 금지** — 발견해도 보고만, 수정은 별도 라운드.
+- 스키마/보안/시크릿/결제/배포 변경은 인간 승인 영역(BLOCKED).
+
+## 빌드/테스트/린트 명령
+- 빌드: {{$TODO_BUILD}}
+- 테스트: {{$TODO_TEST}}
+- 린트: {{$TODO_LINT}}
+- dev URL: {{$TODO_URL}}
+
+## Acceptance Criteria
+- [ ] {{기능 AC 1}}
+- [ ] {{기능 AC 2}}
+- [ ] **🔒 보안 AC**: SECURE_CHECKLIST 항목 L2 자기평가 PASS(치명적 위험 0)
+- [ ] **🔒 L1 통과**: 개발 후 run-secure-l1.sh exit 0(신규 도입 취약점 0)
+- [ ] UI 노출=yes 시: 디자인 스펙 준수
+
+## 모호성 처리
+- 가정 명시 후 진행(BLOCKED 대신).
+- **🔒 보안 판정 애매하면 보수적**(위협 우선).
+- 스킬 철학·loop.md 충돌 시 BLOCKED + 사유.
+
+## 답변/산출 형식
+
+1. 구현한 변경 요약(파일별)
+2. **🔒 L2 자기 보안 평가**: SECURE_CHECKLIST 항목별 PASS/FAIL + 파일:라인 인용
+3. 치명적 위험 자가 진단(있으면 보고, 없으면 "0건 — Judge/오케스트레터 최종 검증 필요")
+4. 테스트 결과(exit code + 출력 꼬리 3~5줄)
+5. (선택) 보안 개선 제안
