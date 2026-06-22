@@ -100,7 +100,14 @@ run_gitleaks() {
     _rc=$?
     if [ "$_rc" -eq 1 ] && [ -f "$_RAW/gitleaks.json" ]; then
       _HAD_FINDING=1
-      _n=$(jq 'length' "$_RAW/gitleaks.json" 2>/dev/null || echo "?")
+      # ⚠️ 파손 방지: jq 실패 시 "?" 가 숫자 자리에 들어가 l1-findings.json 이 invalid JSON 이 된다.
+      #    숫자로 폴백(grep -c 는 매칭 없어도 0을 내고 exit 1 — || true 로 종료코드 무시).
+      if command -v jq >/dev/null 2>&1; then
+        _n=$(jq 'length' "$_RAW/gitleaks.json" 2>/dev/null || grep -c '"RuleID"' "$_RAW/gitleaks.json" || echo 0)
+      else
+        _n=$(grep -c '"RuleID"' "$_RAW/gitleaks.json" 2>/dev/null || echo 0)
+      fi
+      _n=${_n:-0}
       append_finding "{\"tool\":\"gitleaks\",\"findings\":$_n,\"details\":\"$_RAW/gitleaks.json\"}"
     else
       _HAD_ERROR=1
@@ -149,27 +156,46 @@ run_dep_scan() {
     command -v pip-audit >/dev/null 2>&1 || return 0
     _HAD_TOOL=1
     echo "INFO: pip-audit 실행 중..." >&2
-    if pip-audit -r "${_SCAN_ROOT}/requirements.txt" -f json -o "$_RAW/pip-audit.json" 2>"$_RAW/pip-audit.err" \
-       || [ -f "$_SCAN_ROOT/pyproject.toml" ]; then
+    # ⚠️ 재검토(2026-06-23) 수정: 기존 `|| [ -f pyproject.toml ]` 폴백은 pip-audit 실패를
+    #    pyproject.toml 존재 여부로 덮어쓰는 버그(실제 audit 없이 성공 분기로 흐름).
+    #    requirements.txt 와 pyproject.toml 을 각각 올바르게 처리하고, 실패 시 _HAD_ERROR 반영.
+    _pip_args=()
+    if [ -f "$_SCAN_ROOT/requirements.txt" ]; then
+      _pip_args=(-r "$_SCAN_ROOT/requirements.txt")
+    elif [ -f "$_SCAN_ROOT/pyproject.toml" ]; then
+      # pyproject.toml 있으면 그 프로젝트 자체를 audit (별도 -r 없이)
+      _pip_args=()
+    fi
+    if pip-audit "${_pip_args[@]}" -f json -o "$_RAW/pip-audit.json" 2>"$_RAW/pip-audit.err"; then
       if [ -s "$_RAW/pip-audit.json" ]; then
         _n=$(jq '.dependencies | length' "$_RAW/pip-audit.json" 2>/dev/null || grep -c '"name"' "$_RAW/pip-audit.json" || echo 0)
-        if [ "${_n:-0}" -gt 0 ]; then
+        _n=${_n:-0}
+        if [ "$_n" -gt 0 ]; then
           _HAD_FINDING=1
           append_finding "{\"tool\":\"pip-audit\",\"vulnerabilities\":$_n,\"details\":\"$_RAW/pip-audit.json\"}"
         fi
       fi
+    else
+      _HAD_ERROR=1
+      append_finding "{\"tool\":\"pip-audit\",\"error\":true,\"stderr\":\"$_RAW/pip-audit.err\"}"
     fi
   elif [ -f "$_SCAN_ROOT/Cargo.lock" ]; then
     command -v cargo >/dev/null 2>&1 || return 0
     _HAD_TOOL=1
     echo "INFO: cargo audit 실행 중..." >&2
-    ( cd "$_SCAN_ROOT" && cargo audit --json > "$_RAW/cargo-audit.json" 2>"$_RAW/cargo-audit.err" )
-    if [ -s "$_RAW/cargo-audit.json" ]; then
-      _n=$(jq '.vulnerabilities | length' "$_RAW/cargo-audit.json" 2>/dev/null || grep -c '"advisory"' "$_RAW/cargo-audit.json" || echo 0)
-      if [ "${_n:-0}" -gt 0 ]; then
-        _HAD_FINDING=1
-        append_finding "{\"tool\":\"cargo-audit\",\"vulnerabilities\":$_n,\"details\":\"$_RAW/cargo-audit.json\"}"
+    # ⚠️ 재검토(2026-06-23) 수정: cargo audit 실패(exit!=0) 시 _HAD_ERROR 반영.
+    if ( cd "$_SCAN_ROOT" && cargo audit --json > "$_RAW/cargo-audit.json" 2>"$_RAW/cargo-audit.err" ); then
+      if [ -s "$_RAW/cargo-audit.json" ]; then
+        _n=$(jq '.vulnerabilities | length' "$_RAW/cargo-audit.json" 2>/dev/null || grep -c '"advisory"' "$_RAW/cargo-audit.json" || echo 0)
+        _n=${_n:-0}
+        if [ "$_n" -gt 0 ]; then
+          _HAD_FINDING=1
+          append_finding "{\"tool\":\"cargo-audit\",\"vulnerabilities\":$_n,\"details\":\"$_RAW/cargo-audit.json\"}"
+        fi
       fi
+    else
+      _HAD_ERROR=1
+      append_finding "{\"tool\":\"cargo-audit\",\"error\":true,\"stderr\":\"$_RAW/cargo-audit.err\"}"
     fi
   fi
 }
