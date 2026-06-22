@@ -363,14 +363,26 @@ fi
 # JUDGE_FALLBACK_CHAIN: 런타임 Judge 폴백이 소비하는 후보 순서(fusion.md §3-2·§3-4).
 #    "primary -> fallback1 -> fallback2 -> ... -> self" 형식. self 전 단계까지 차순위가 없으면 self.
 #    각 후보는 "backend:model:conflict" 튜플 — conflict=no|partial|yes(partial=동종할인, yes=완전동족/self).
-build_judge_candidate() {  # $1=backend $2=model $3=conflict  → stdout: "backend:model:conflict" 또는 빈줄(스킵)
-  printf '%s|%s|%s\n' "$1" "$2" "$3"
+
+# ⚠️ #5 강제: disabledModels(fable-5/mythos-5) 는 사용자 정책상 참가자·Judge·Synth 어디에도 금지.
+#    과거엔 routing-fusion.md 문서에만 정책을 적어 LLM 준수에 의존했으나(routing-fusion.md L118-120),
+#    기계적 게이트가 없으면 호명/폴백 시 스며들 수 있다. 아래 judge_chain_append 가 모델명을 검사해 거부한다.
+_is_disabled_model() {  # $1=model → 0=금지아님, 1=금지
+  case "$1" in
+    *fable-5*|*fable_5*|*mythos-5*|*mythos_5*) return 1 ;;
+    *) return 0 ;;
+  esac
 }
 
 _jchain=""
 _j_self_added=0
 judge_chain_append() {  # $1=허용여부(1/0) $2=backend $3=model $4=conflict
   if [ "$1" = 1 ]; then
+    # ⚠️ #7: 과거 build_judge_candidate() 데드코드(정의만 있고 호출 0건, | 구분자가 실사용 : 과 불일치)는 삭제.
+    if ! _is_disabled_model "$3"; then
+      echo "WARN: disabledModels 정책 위반 — backend=$2 model=$3 (fable-5/mythos-5) 후보에서 제외." >&2
+      return 0
+    fi
     if [ -n "$_jchain" ]; then _jchain="${_jchain} -> "; fi
     _jchain="${_jchain}${2}:${3}:${4}"
   fi

@@ -44,11 +44,10 @@ council_wt_setup() {
   # ⚠️ PATH의 git이 wrapper(rtk 등)면 "ok stash create" 같은 비-SHA 문자열을 내보낼 수 있다 →
   #    이를 SHA로 쓰면 council_wt_diffbase → council_wt_adopt 의 `git diff <base>`가 bad revision으로 ABORT된다.
   #    SHA 형식(40 hex)인 경우만 저장하고, 아니면 빈 값(변경 없음과 동일 취급)으로 둔다.
-  case "$stash" in
-    *[!0-9a-f]* | ??????????????????????????????????????) : ;;   # 40 hex 통과 (두 패턴: 비hex포함 OR 정확히 40자리)
-    *) stash="" ;;                                               # 그 외(빈 문자열·wrapper 노이즈) = 변경 없음
-  esac
-  # 엄격히: 정확히 40자리 hex인지 재확인 (위 case는 보조)
+  # ⚠️ 정정: 과거 case 패턴(*[!0-9a-f]* | ??…??) 은 주석이 "40 hex"라 했으나 실제 `?` 가 38개여서
+  #    40자 SHA가 *) stash="" 로 빠져 사용자 dirty 가 유실될 뻔(아래 grep 이 교정해 다행). 혼란만 가중하는 잉여라
+  #    case 블록을 제거하고 단일 grep(정확히 40자리 hex)만으로 검증한다.
+  #    빈 문자열(변경 없음)·wrapper 노이즈(비-SHA) 모두 grep 미통과 → stash="" (변경 없음과 동일 취급).
   if ! printf '%s' "$stash" | grep -qE '^[0-9a-f]{40}$'; then stash=""; fi
   printf '%s' "$stash" > "$RUN/stash.sha"
   git -C "$ROOT" rev-parse HEAD > "$RUN/baseline.head" 2>/dev/null
