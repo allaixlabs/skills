@@ -57,7 +57,7 @@ bash scripts/check-fusion.sh glm
 
 패밀리 매핑: `glm`→opencode(GLM/Kimi) · `gpt`→codex · `gemini`→agy · `claude`→claude(Opus).
 
-감지되면 그 패밀리는 동족(확증편향) 회피를 위해 **참가자·Judge·Synth에서 자동 제외**된다(`EXCLUDED_FAMILIES`로 사유 표시). `JUDGE_DEFAULT`/`SYNTH_DEFAULT`도 오케스트레이터 패밀리를 회피한 차순위로 산출된다. **Judge 런타임 폴백**: claude(기본 Judge)가 런타임에 죽어도 즉시 self로 직행하지 않는다 — `JUDGE_FALLBACK_CHAIN`(claude→codex→agy→opencode-deepseek→self)이 차순위로 자동 전환한다. `ORCH_FAMILY=glm`이면 opencode는 *참가자*에서 제외되되 DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)만 Judge 폴백에 살아남는다(동종할인 `judge_conflict=partial` 경고 — synthesis에 명시).
+감지되면 그 패밀리는 동족(확증편향) 회피를 위해 **참가자·Judge·Synth에서 자동 제외**된다(`EXCLUDED_FAMILIES`로 사유 표시). `JUDGE_DEFAULT`/`SYNTH_DEFAULT`도 오케스트레이터 패밀리를 회피한 차순위로 산출된다. **Judge 런타임 폴백**: claude(기본 Judge)가 런타임에 죽어도 즉시 self로 직행하지 않는다 — `JUDGE_FALLBACK_CHAIN`(claude→codex→agy→opencode-deepseek→opencode-glm/kimi→self, 총 6후보)이 차순위로 자동 전환한다. `ORCH_FAMILY=glm`이면 opencode는 *참가자*에서 제외되되 DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)와 glm/kimi 라우트가 별도 후보로 Judge 폴백에 살아남는다(동종할인 `judge_conflict=partial` 경고 — synthesis에 명시).
 
 ### 오케스트레이터별 default 패널 변형
 

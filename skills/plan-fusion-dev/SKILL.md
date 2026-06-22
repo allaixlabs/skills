@@ -110,7 +110,9 @@ description: >
    - **Baseline**: `git -C "<root>" status --short` + `git -C "<root>" rev-parse HEAD` 실행 → 결과를 handoff의 Baseline 섹션에 기입.
    - **빌드/테스트/린트 명령**: 프로젝트에서 식별(package.json scripts · Makefile · Gemfile · Cargo.toml 등). final.md의 `$TODO_BUILD`/`$TODO_TEST`/`$TODO_LINT` 자리표시자를 실제 명령으로 치환. Acceptance Criteria 안의 자리표시자도 같이 치환.
    - **dev 서버 URL**(해당 시): 실행 중이면 캡처, 아니면 N/A 표시.
+   - **전수 영향 분석(grep)** ⚠️ **필수 — 누락 시 린트/테스트가 잡지 못하는 구멍이 prod에 감**: final.md가 *기존 스키마 필드·모델 메서드·뷰 헬퍼·라벨 문자열*의 의미를 바꾸거나 새 것을 도입하면(예: `source` → `display_name`, `project.source` 직접 접근 → 메서드, 상태 배지 교체), 그 **이름을 쓰는 모든 호출 지점**을 `grep -rn '<old_name>' app/` `app/views` 등으로 전수 추출한다. 결과를 handoff의 `변경 지시(파일별)`와 `AC`의 "범위 내 파일" 목록에 **기계적으로 병합**한다 — final.md가 나열한 파일만 믿고 수동 나열 금지(Synth는 눈에 띄는 파일만 나열하는 경향이 있어 숨은 호출 지점을 놓친다). 특히 뷰(`.erb`/`.tsx`)의 `<%= obj.field %>` 직접 접근, 헬퍼/데코레이터 우회 호출, 다형 연관(`approvalable_type`) 분기가 있는 모든 컨트롤러/잡/메일러를 포함. 추출 후 `grep -c`로 handoff에 해당 파일이 전부 들어갔는지 교차 확인.
 3. **치환 검증**: `grep -nE '\$TODO_(BUILD|TEST|LINT|URL)|<UNKNOWN|<\.\.\.|{{' "$RUN_PCO/handoff.md"` 로 미치환 자리표시자가 0인지 확인(실제 마커만 검사 — `<.*>` 광역 패턴은 합법 `<T>` 제네릭·HTML 옵션 오탐을 낳으므로 쓰지 않는다). 남아 있으면 채운다. `{{` 검사는 진짜 미치환 템플릿 토큰 누수를 잡으므로 유지한다.
+4. **영향 분석 수행 여부 게이트**: final.md가 스키마/메서드/필드/라벨 변경을 포함하면(위 '전수 영향 분석' 트리거), handoff가 grep 결과를 **실제로 반영했는지** 1회 점검 — `grep -rn '<old_name>' <root>/app/` 결과의 각 파일이 handoff `변경 지시(파일별)` 또는 `Out of scope`(명시적 제외 사유 포함) 중 하나에 들어있어야 한다. 빠진 파일이 있으면 변환을 **중단**하고 보강 후 재개 — 이 게이트를 건너뛰면 §5 검증이 잡지 못하는 prod 구멍이 사용자에게 전달된다(빌드/테스트는 단위 범위라 뷰 렌더링 에러를 탐지 못함).
 
 ⚠️ **역할경계**: 변환은 문서 작성만. 이 단계에서 코드를 직접 수정하지 않는다. Baseline/명령 캡처는 read-only 조회(`git status`/매니페스트 읽기)만.
 
@@ -155,7 +157,8 @@ description: >
 ### 검증
 - **하위 스킬 검증에 맡김**: plan-codex-opencode의 §4 VERIFY(직접 실행 증거 — 빌드/타입/테스트/린트 exit·출력, AC 대조, baseline·범위 확인)를 그대로 수행. result/final 주장은 근거 아님.
 - **UI 노출 작업이면(handoff 'UI 노출 판정=yes')**: 하위 스킬 검증에 더해, 디자인 스펙(타이포/컬러/간격/레이아웃) 반영 여부 + UI AC 충족을 명시적으로 대조한다. final.md의 '디자인 스펙'이 handoff로 전달됐는지도 확인(변환 단계 누락 탐지) — 누락 시 계획 단계 산출 보완 후 재변환.
-- **체이닝 추가 검증**: 개발 결과가 상위 plan-fusion의 `final.md` 설계 결정과 **충돌하지 않는지** 1회 대조(예: 기각한 대안이 구현에 들어갔는지). 충돌이면 synthesis.md에 명시.
+- **전수 렌더링/호출 검증** ⚠️ **필수 — 빌드/테스트 exit 0가 prod-safe를 보장하지 않음**: 변환 단계의 grep 전수 영향 분석으로 잡아낸 *모든* 호출 지점(뷰·컨트롤러·잡·헬퍼)이 실제로 새 의미론으로 전환됐는지, 직접 확인한다. 방법: (a) `grep -rn '<old_name>' app/` 로 잔존 호출 0인지, (b) dev 서버가 러닝 중이면 **영향받는 모든 라우트**를 `curl -s -o /dev/null -w "%{http_code}"`로 순회하며 200/예상 코드인지(500/빈 렌더링 잡기 — 단위 테스트가 커버 안 하는 뷰 렌더링 에러를 직접 탐지). 교훈: "AC 범위 내 파일만 고쳤다"는 AC 자체가 불완전한 목록이면 구멍을 정당화하는 함정이 됨 — grep 결과가 진실의 원천.
+- **체이닝 추가 검증**: 개발 결과가 상위 plan-fusion의 `final.md` 설계 결정과 **충충돌하지 않는지** 1회 대조(예: 기각한 대안이 구현에 들어갔는지). 충돌이면 synthesis.md에 명시.
 
 ### loop-md 연동
 루트 `loop.md` 있으면: 개발 단계는 **plan-codex-opencode의 loop-md 연동 절차를 그대로** 수행(**완료 결과를 사용자에게 먼저 보고한 뒤** 별도로 loop-md Verify — 지연 방지) — `council_wt_adopt` → 결과 보고 → **메인 ROOT에서** Verify(①②③) 실행 → `.loop/last-verified`가 현재 HEAD인지 확인 → 커밋. council/Pipeline 교차리뷰가 ③정성의 독립 검증을 자연 충족. 계획 단계($RUN_PF)는 read-only라 `.loop/last-verified`와 무관하므로 마커 처리는 개발 단계($RUN_PCO)만 담당한다. 루트 `loop.md` 없으면 N/A.
@@ -164,7 +167,7 @@ description: >
 최종 메시지에 포함:
 - **체이닝 전체 요약**: 계획(plan-fusion 패널·Judge·Synth) → 개발(plan-codex-opencode 모드·패널) → 최종 변경
 - 계획 단계: 참가자·Judge·Synth 백엔드 + 동족/비독립 여부 · 핵심 설계 결정
-- 변환 단계: 보강한 3개(Baseline 출처·빌드/테스트/린트 명령 출처·dev URL) + 미치환 자리표시자 0 확인
+- 변환 단계: 보강한 4개(Baseline 출처·빌드/테스트/린트 명령 출처·dev URL·**전수 영향 분석 grep 결과**) + 미치환 자리표시자 0 확인 + 영향 분석 게이트 통과 여부
 - 개발 단계: 모드(Pipeline/Council-Code)·패널·effort · 패널별 상태(DONE/BLOCKED/ORCHESTRATION_FAIL) · 종합(합의/충돌/판정 + 근거)
 - **최종 변경 파일 목록 + 기준별 충족 증거**(실행 로그 요약)
 - **BLOCKED 여부·적용한 기본 결정·남은 질문**(분리)
