@@ -54,21 +54,29 @@ run_semgrep() {
   command -v semgrep >/dev/null 2>&1 || return 0
   _HAD_TOOL=1
   echo "INFO: semgrep 실행 중..." >&2
-  # --config=auto 는 OWASP/SANS 룰셋 자동 선택. --json 으로 결과.
-  if semgrep --config=auto --json --quiet "$_SCAN_ROOT" > "$_RAW/semgrep.json" 2>"$_RAW/semgrep.err"; then
-    # 발견 수 추출 (jq 있으면, 없으면 wc)
-    if command -v jq >/dev/null 2>&1; then
-      _n=$(jq '.results | length' "$_RAW/semgrep.json" 2>/dev/null || echo 0)
-    else
-      _n=$(grep -c '"check_id"' "$_RAW/semgrep.json" 2>/dev/null || echo 0)
+  # ⚠️ 실전 검증(2026-06-22) 발견: --config=auto 는 편의용이라 핵심 보안 룰 일부를 빼먹는다
+  #    (command injection·하드코딩 패스워드·AWS key 패턴 등 누락 확인).
+  #    보안 게이트는 명시적 멀티 룰셋으로 엄격하게 — auto 보다 더 많이 잡는다.
+  #    p/default(기본) + p/security-audit(포괄 보안) + p/owasp-top-ten(OWASP 매핑) + p/secrets(시크릿).
+  _SEMGREP_CFG="--config=p/default --config=p/security-audit --config=p/owasp-top-ten --config=p/secrets"
+  if ! semgrep $_SEMGREP_CFG --json --quiet "$_SCAN_ROOT" > "$_RAW/semgrep.json" 2>"$_RAW/semgrep.err"; then
+    # 명시적 룰셋 실패(네트워크/룰 다운로드) → auto 로 폴백. auto 도 실패면 도구 오류.
+    echo "WARN: 명시적 룰셋 실패, --config=auto 로 폴백." >&2
+    if ! semgrep --config=auto --json --quiet "$_SCAN_ROOT" > "$_RAW/semgrep.json" 2>"$_RAW/semgrep.err"; then
+      _HAD_ERROR=1
+      append_finding "{\"tool\":\"semgrep\",\"error\":true,\"stderr\":\"$_RAW/semgrep.err\"}"
+      return
     fi
-    if [ "${_n:-0}" -gt 0 ]; then
-      _HAD_FINDING=1
-      append_finding "{\"tool\":\"semgrep\",\"findings\":$_n,\"details\":\"$_RAW/semgrep.json\"}"
-    fi
+  fi
+  # 발견 수 추출 (jq 있으면, 없으면 wc)
+  if command -v jq >/dev/null 2>&1; then
+    _n=$(jq '.results | length' "$_RAW/semgrep.json" 2>/dev/null || echo 0)
   else
-    _HAD_ERROR=1
-    append_finding "{\"tool\":\"semgrep\",\"error\":true,\"stderr\":\"$_RAW/semgrep.err\"}"
+    _n=$(grep -c '"check_id"' "$_RAW/semgrep.json" 2>/dev/null || echo 0)
+  fi
+  if [ "${_n:-0}" -gt 0 ]; then
+    _HAD_FINDING=1
+    append_finding "{\"tool\":\"semgrep\",\"findings\":$_n,\"details\":\"$_RAW/semgrep.json\"}"
   fi
 }
 

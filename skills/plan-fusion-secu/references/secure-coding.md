@@ -164,6 +164,12 @@
 - `1` = 발견 있음 (FAIL — 보안 게이트 차단)
 - `2` = 도구 자체 오류 (WARN — L2로 폴백, 산출에 표기)
 
+⚠️ **L1 한계 (실전 검증 2026-06-22 확인)**: 정적 분석은 **패턴 매칭 + taint tracking**에 의존한다.
+- 잘 잡는 것: 명확한 시그니처(약한 해시 MD5/SHA1·pickle 역직렬화·SQL 문자열 결합·semgrep 레지스트리의 시크릿 패턴).
+- 놓치는 것: **taint source가 추적 불가능한 단편 코드**(`def f(x): os.system(x)` — x가 어디서 오는지 맥락 없으면 잡기 어려움)·**맥락 의존 권한 결함**(IDOR·비즈니스 로직).
+- 따라서 **L1 PASS가 "안전하다"가 아니라 "도구가 잡을 수 있는 패턴 위험이 없다"** — L2(LLM 판단)가 맥락을 보완해야 한다(L1+L2 혼합 항목이 많은 이유).
+- **룰셋 주의**: `--config=auto`는 편의용이라 핵심 룰 일부를 빼먹는다(실전 검증에서 command injection·AWS key·hardcoded password 누락 확인). `run-secure-l1.sh`는 명시적 멀티 룰셋(`p/default` + `p/security-audit` + `p/owasp-top-ten` + `p/secrets`)을 사용한다.
+
 ---
 
 ## 9. L2 루브릭 (Judge/Synth 템플릿에 주입되는 평가 기준)
