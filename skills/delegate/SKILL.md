@@ -19,6 +19,8 @@ description: >-
 - `plan-codex-opencode`
 - `plan-fusion`
 - `plan-fusion-dev`
+- `plan-fusion-secu` — 보안 검증 통합(L1 정적분석 + L2 LLM 루브릭, 진입 즉시 강제)
+- `plan-fusion-dev-secu` — 보안 체이닝(계획 plan-fusion-secu → 자동 개발, 양쪽에 보안 게이트)
 
 ## 라우팅 우선순위
 
@@ -30,14 +32,18 @@ description: >-
 2. **명시적 체이닝 신호가 있는 경우**
    - 예: "계획 후 개발까지 한 번에", "fusion으로 잡고 개발까지"
    - `plan-fusion-dev`를 선택한다.
-3. **모델 수나 다양성 요구가 있는 경우**
+3. **보안 검증 신호가 있는 경우**
+   - 예: "보안 검증 포함", "시큐어 코딩 점검", "취약점", "codeSecurity 프리셋"
+   - 체이닝(계획+개발)까지 요구하면 `plan-fusion-dev-secu`를 선택한다.
+   - 계획·평가만 요구하면 `plan-fusion-secu`를 선택한다.
+4. **모델 수나 다양성 요구가 있는 경우**
    - 예: "여러 모델로 검증", "교차검증"
    - Judge/Synth 위임까지 요구하면 `plan-fusion`을 선택한다.
    - 직접 종합하거나 Council/Pipeline 패널만 요구하면 `plan-codex-opencode`를 선택한다.
-4. **명시 백엔드가 있는 경우**
+5. **명시 백엔드가 있는 경우**
    - "codex로", "gpt로"는 `plan-then-codex`를 선택한다.
    - "omo로", "opencode 에이전트로", "sisyphus로"는 `plan-then-opencode`를 선택한다.
-5. **기본값: 모호한 위임 요청**
+6. **기본값: 모호한 위임 요청**
    - 예: "이거 구현해줘", "적절한 위임 스킬로 처리해줘"
    - 비용 효율 기본값으로 경량 단일 위임인 `plan-then-codex`를 선택한다.
    - 단, 작업이 명백히 복잡하거나 고위험이면 1회 확인 질문 후 분기한다.
@@ -62,8 +68,10 @@ description: >-
 | `plan-codex-opencode` | `skills/plan-codex-opencode/scripts/check-panels.sh` |
 | `plan-fusion` | `skills/plan-fusion/scripts/check-fusion.sh` |
 | `plan-fusion-dev` | `skills/plan-fusion-dev/scripts/check-fusion-dev.sh` |
+| `plan-fusion-secu` | `skills/plan-fusion-secu/scripts/check-fusion-secu.sh` |
+| `plan-fusion-dev-secu` | `skills/plan-fusion-dev-secu/scripts/check-fusion-dev-secu.sh` |
 
-사용자가 "가능한 스킬 다 보여줘"처럼 매트릭스를 요청한 경우에만 `scripts/check-delegate.sh --matrix`를 실행한다. 이 모드는 5개 check 스크립트를 전부 순차 실행하지 않고, `SKILL.md` 존재 여부와 `command -v codex/opencode/agy/claude` 공통 백엔드 프로브 1회로 가용성 매트릭스를 출력한다.
+사용자가 "가능한 스킬 다 보여줘"처럼 매트릭스를 요청한 경우에만 `scripts/check-delegate.sh --matrix`를 실행한다. 이 모드는 7개 check 스크립트를 전부 순차 실행하지 않고, `SKILL.md` 존재 여부와 `command -v codex/opencode/agy/claude` 공통 백엔드 프로브 1회로 가용성 매트릭스를 출력한다.
 
 ## 미설치 처리
 

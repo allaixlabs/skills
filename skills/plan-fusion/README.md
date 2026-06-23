@@ -169,3 +169,12 @@ plan-fusion/
     ├── check-fusion.sh               # 오케스트레이터 감지 + codex+agy+opencode+claude 점검 + 동족 제거 (read-only)
     └── council-worktrees.sh          # worktree setup/cleanup/adopt 헬퍼 (cd 기반 — 전 백엔드 호환)
 ```
+
+## 보안 변형 (-secu)
+
+이 스킬을 기반으로 **시큐어 코딩 검증**을 통합한 두 변형이 같은 레포에 있다:
+
+- **`plan-fusion-secu`** — 동일 워크플로우에 **L1 정적분석(semgrep/gitleaks/audit) + L2 LLM 보안 루브릭**을 진입 즉시 강제하고, `codeSecurity` 프리셋·심층 작업 시 **L3 강제 보안 백엔드**(PoC·공급망 평판)를 추가 발동. 43개 체크리스트(OWASP Top 10 2021/2025 + LLM Top 10 + CWE/SANS + 누락 3개). SSOT는 [`plan-fusion-secu/references/secure-coding.md`](../plan-fusion-secu/references/secure-coding.md). 일반 다중 모델 작업엔 본 `plan-fusion`을 쓰고, 보안 검증이 본질인 작업에만 `-secu` 변형.
+- **`plan-fusion-dev-secu`** — 위 보안 계획을 **자동 개발**로 이어 체이닝. 변환 단계에 보안 AC 매핑 게이트, 개발 단계에 L1 재실행(신규 도입 취약점 잡기)을 둔다.
+
+보안 검증 없는 일반 작업에는 본 스킬(`plan-fusion`)을 그대로 쓴다 — `-secu`는 L1 도구·루브릭 평가로 비용이 추가된다.
