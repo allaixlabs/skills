@@ -80,21 +80,29 @@ loop-md가 만드는 루트 `loop.md`는 **완료 검증 기준문(DoD)**이다.
    - **다중 에이전트 어댑터 선택 시** → `templates/AGENTS.md.tmpl`을 프로젝트 루트 `AGENTS.md`로 복사(이미 있으면 검증 규칙 섹션만 append). Codex CLI·ZCode·opencode 등 `AGENTS.md`를 자동 로드하는 에이전트가 동일한 `loop.md` 검증을 따른다. (Claude Code는 글로벌 가드로 별도 커버.)
    - **reference 참조 정책 (일원화)**: loop.md가 가리키는 `DOD.md`/`RNR.md`/`WATCH-LOOP.md`는 **감지된 `$SKILL_DIR` 기준 절대경로**(`<SKILL_DIR>/reference/<NAME>.md`, 예: `~/.zcode/skills/loop-md/reference/DOD.md`)로 표기한다(끊긴 참조·임의 rename 방지). `~/.claude/`에만 있다는 가정 금지 — Setup 0에서 감지한 실제 자산 경로를 쓴다. 프로젝트에 두길 원하면 `docs/loop-md/`에 **이름 그대로** 복사하고 그 경로로 가리킨다. (롤백 절차는 loop.md 5번에 이미 있으므로 별도 `ROLLBACK.md`를 새로 만들지 않는다.)
 
-6. **완료 검증 가드 (글로벌 1회 — 감지된 모든 에이전트 대칭, 프로젝트 주입 금지)**: 프로젝트마다 주입하지 않는다(복붙·중복·누락 유발). 대신 Setup 0에서 감지된 각 에이전트의 글로벌 지침 파일에 가드가 있는지 확인하고, 없는 쪽만 1회 추가 제안한다(글로벌 파일은 인간 승인 영역 → 사용자 확인 후 주입):
+6. **글로벌 실행 가드 (완료 검증 + 비동기 폴링 — 감지된 모든 에이전트 대칭, 프로젝트 주입 금지)**: 프로젝트마다 주입하지 않는다(복붙·중복·누락 유발). 대신 Setup 0에서 감지된 각 에이전트의 글로벌 지침 파일에 **가드 2종**(① dod-guard, ② async-polling-guard)을 배포한다. **감지·배포·검증은 전부 `scripts/deploy-global-guards.sh`가 기계화**한다(스크립트가 단일 소스인 템플릿을 읽어 각 에이전트 파일로 렌더링). 글로벌 파일은 인간 승인 영역이므로 **기본은 dry-run**, 사용자 승인 후 `--apply`:
    ```bash
-   # 감지(Setup 0) — env 우선, 없으면 파일시스템 탐침. 어느 축이든 가드 있으면 "✓".
-   grep -q "loop-md:dod-guard" ~/.claude/CLAUDE.md            2>/dev/null && echo "claude ✓"  || echo "claude 미감지 또는 가드 없음"
-   grep -q "loop-md:dod-guard" ~/.codex/AGENTS.md             2>/dev/null && echo "codex ✓"   || echo "codex 미감지 또는 가드 없음"
-   # ZCode/opencode(opencode 포크) — 마커는 별도 파일 + opencode.json instructions 배열로 로드
-   [ -f ~/.config/opencode/loop-md-guard.md ]                  2>/dev/null && echo "opencode ✓" || echo "opencode(zcode 포함) 미감지 또는 가드 없음"
+   # 1단계: 감지 + 정합성 검증 (dry-run, 변경 없음, exit 0=전부 정합 / 1=누락·불일치)
+   bash "$SKILL_DIR/scripts/deploy-global-guards.sh" --check
+
+   # 2단계: 변경 계획 확인 (dry-run, ACTION=create/replace/none 표시)
+   bash "$SKILL_DIR/scripts/deploy-global-guards.sh"
+
+   # 3단계: 사용자 승인 후 실배포 (모든 감지 에이전트). idempotent(이미 정합이면 아무것도 안 함).
+   bash "$SKILL_DIR/scripts/deploy-global-guards.sh" --apply
+   # 특정 에이전트만: --apply claude  (또는 codex/zcode)
    ```
-   - **감지 기준**(Setup 0 표와 동일): claude=`~/.claude/` 존재 · codex=`~/.codex/` 존재 · zcode/opencode=`~/.zcode/` 또는 `~/.config/opencode/opencode.json` 존재.
-   - **에이전트별 주입 방식**:
-     - **claude** → `~/.claude/CLAUDE.md`, **codex** → `~/.codex/AGENTS.md`: `<!-- loop-md:dod-guard -->` … `<!-- /loop-md:dod-guard -->` 마커 블록 삽입. 재실행 시 마커 블록을 통째로 교체(idempotent).
-     - **zcode/opencode** → `~/.config/opencode/loop-md-guard.md` 파일을 통째로 만들고(안에 같은 조건부 규칙 + 마커), `~/.config/opencode/opencode.json`의 `instructions` 배열에 `"loop-md-guard.md"` 가 없으면 추가(jq 또는 수동 — 멤버십 체크로 중복 방지). ZCode/opencode는 `opencode.json`의 `instructions` 배열만 글로벌 지침으로 로드하므로 이 방식이 정확한 타겟(실측: ZCode `config.json`이 `opencode.ai/config.json` 스키마 사용).
-   - 둘 다 같은 조건부 규칙: *"loop.md 있으면 완료 선언 전 반드시 ①②③ 리포트(실행 증거 포함) 출력, 없으면 N/A."*
-   - **마커 컨벤션(표준)**: 주입은 항상 `<!-- loop-md:dod-guard -->` … `<!-- /loop-md:dod-guard -->` 블록으로 감싼다(zcode/opencode 별도 파일도 마커로 감싼다 — 향후 claude/codex와 통합 병합 시 식별 가능).
-   - 조건부라 `loop.md` 없는 프로젝트엔 무해 → **1회 설정으로 감지된 전 에이전트의 전 프로젝트가 커버**된다.
+   - **스크립트 계약**: 자동 감지(claude=`~/.claude/` · codex=`~/.codex/` · zcode=`~/.zcode/` 또는 `~/.config/opencode/opencode.json`) → 템플릿 읽기 → 마커 블록 교체(claude/codex) 또는 파일 복사+`opencode.json` 멤버십(zcode) → 백업(`*.bak.<ts>`) 후 원자적 치환(mktemp→mv). 멱등: 이미 정합이면 `STATUS=ok ACTION=none`. python3 필요(마커 블록 교체용 — 멀티라인 안전).
+   - **가드 2종 (축 분리 — 각각 단일 책임) — 내용은 템플릿이 단일 소스(source-of-truth)**:
+   - **가드 2종 (축 분리 — 각각 단일 책임) — 내용은 템플릿이 단일 소스(source-of-truth)**:
+     - **① dod-guard** (완료 검증, 조건부 — `loop.md` 있을 때만 발동, 작업 **끝** 시점): 소스 템플릿 `$SKILL_DIR/templates/loop-md-guard.md.tmpl`. 이 안에 `①②③ 리포트 / R&R / N/A 규칙 / 검증 마커` 전부가 들어있다. §6 본문에는 규칙을 중복 기술하지 **않는다** — 템플릿이 유일한 소스.
+     - **② async-polling-guard** (비동기 폴링, 무조건 — `loop.md` 유무 무관 항상 적용, 작업 **중간** 시점): 소스 템플릿 `$SKILL_DIR/templates/async-polling-guard.md.tmpl`. 이 안에 `능동 폴링 루프 / 알림 대기 금지 / 하네스 'notified when completes'는 폴링 의무 면제 안 함 / 적용 범위` 전부가 들어있다.
+     - ⚠️ **중복 기술 금지**: 가드 규칙을 SKILL.md 본문에 인라인으로도 적지 말 것 — 템플릿과 §6가 엇갈리면 배포 시 어느 쪽을 따를지 모호해진다. 규칙 변경 시 **템플릿만** 고치고, §6는 절차(스크립트 호출)만 담당.
+   - **에이전트별 주입 방식 (스크립트 `deploy-global-guards.sh`가 자동 처리)**:
+     - **claude** → `~/.claude/CLAUDE.md`, **codex** → `~/.codex/AGENTS.md`: 마커 블록이 있으면 통째 교체(idempotent), 없으면 삽입. 두 마커는 독립(하나만 있어도 다른 하나 별도 식별·배포). python3로 마커 구간 정확 치환(rstrip으로 바이트 동일 보존).
+     - **zcode/opencode** → `~/.config/opencode/`에 별도 파일 2개(`loop-md-guard.md`, `async-polling-guard.md`)로 만드는데, 각 파일 = 템플릿 그대로 복사. `opencode.json`의 `instructions` 배열에 누락된 파일만 추가(python3 json으로 멤버십 중복 방지). ZCode/opencode는 `instructions` 배열만 글로벌 지침으로 로드(실측: `opencode.ai/config.json` 스키마).
+   - **마커 컨벤션(표준)**: 템플릿은 항상 마커 블록으로 시작·끝난다 — ① `<!-- loop-md:dod-guard -->`…`<!-- /loop-md:dod-guard -->`, ② `<!-- loop-md:async-polling-guard -->`…`<!-- /loop-md:async-polling-guard -->`. 렌더링 시 마커 보존(zcode 별도 파일도 동일 마커 — 향후 통합 병합 시 식별 가능).
+   - dod-guard는 조건부라 `loop.md` 없는 프로젝트엔 무해하지만, **async-polling-guard는 무조건**이므로 **1회 설정으로 감지된 전 에이전트의 전 프로젝트가 커버**된다.
    - hard 강제를 원하면 **옵트인** 세 가지를 안내: ① 에이전트 PreToolUse hook(Claude `~/.claude/settings.json`; ZCode/opencode는 hook 메커니즘이 다를 수 있어 해당 에이전트 문서 확인) — `git commit`시 `--no-verify`도 잡고 `[skip-loop]`·`LOOP_SKIP=1` 모두 지원. ② **에이전트 불문 강제**: `.git/hooks/pre-commit`에서 `precommit-guard.sh --git-hook` 호출 — Codex/ZCode/Claude/사람 누구든 셸 `git commit` 시 발동·차단. 커밋 메시지를 못 읽어 `[skip-loop]`는 불가하므로 `LOOP_SKIP=1`을 쓴다. ③ 셸 `git commit`에서도 `[skip-loop]`를 쓰려면 `.git/hooks/commit-msg`에서 `precommit-guard.sh --commit-msg "$1"` 호출. 단 `--no-verify`는 git hook을 건너뛰므로 ①과 병행 권장. (Stop hook은 매 턴 발동해 노이즈가 크므로 비권장.)
    - ⚠️ **옵트인 명시성(결함 방지)**: 위 세 가지 hard 가드는 **"안내"로 끝내고, 사용자가 명시적으로 "설치하라"고 승인하기 전에는 절대 설치하지 않는다.** Setup 흐름에서 가드를 조용히 설치하면(=안내만 하고 설치까지) 이후 매 커밋이 차단→`LOOP_SKIP=1` 우회 사이클에 빠진다(실제 makeskill에서 발생 — bypass.log 29회). 특히 **자기참조 모순** 주의: Setup이 `loop.md`+가드를 설치한 직후 셋업 산출물(loop.md/AGENTS.md/scripts)을 커밋하려면 마커가 필요한데, 마커는 Verify 통과 후에만 생기므로 셋업 커밋이 무조건 차단된다. 따라서:
      - Setup §6은 가드 **후보만 식별**(위 grep)하고 설치는 **사용자 승인 후 별도 단계**로. `AskUserQuestion`으로 "hard 가드(①/②/③) 설치할까?" 명시 확인 없이는 `.git/hooks/`·`settings.json` 수정 금지.
