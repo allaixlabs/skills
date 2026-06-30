@@ -63,7 +63,7 @@ description: >
 1. **메타 점검**(read-only): `bash "$SKILL_DIR/scripts/check-fusion-dev.sh"` → `FUSION_DEV_PLAN_READY` · `FUSION_DEV_DEV_READY` · `FUSION_DEV_CAPABILITY`.
    - `full`(양쪽 가용) → 진행. `plan-only`(계획만) → 개발은 plan-then-codex 등으로 안내 후 사용자 결정. `dev-only`/`none` → exit 1, 안내·중단.
    - 두 하위 스크립트(check-fusion.sh · check-panels.sh)의 출력(오케스트레이터 패밀리·Judge/Synth 기본·패널 가용성·GLM 인증)이 같이 나오니 숙지한다.
-2. **오케스트레이터 패밀리 확인**: `PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude` env(없으면 argv/탐침). 동족 회피 룰이 계획 단계에 자동 적용된다(check-fusion.sh). **개발 단계는 이 제약을 받지 않는다** — 계획에서 빠진 패밀리도 개발 패널엔 들어간다(예: 오케스트레이터=glm이면 계획엔 GLM이 안 들어가지만 개발엔 GLM이 리뷰어로 들어감).
+2. **오케스트레이터 패밀리 확인**: `PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude` env(없으면 argv/탐침). 동족 회피 룰이 계획 단계에 자동 적용된다(check-fusion.sh). **⚠️ GLM 예외(참가자 한정)**: 오케스트레이터=glm이면 opencode(GLM)가 동족이어도 **계획 단계 패널에 필수 포함**(`GLM_MANDATORY_PARTICIPANT=yes`) — 역할 분리(오케스트레이터=검증 only / 참가자=독립 풀이)로 정당화, 동종할인 synthesis 명시. 따라서 GLM 환경에서 계획 패널은 codex·agy·glm **3종**(N=3). **개발 단계는 동족 제약을 받지 않는다** — 계획과 무관하게 GLM이 리뷰어/검증자로 패널에 들어간다.
 3. **격리 폴더 2개 생성**:
    ```bash
    slug=$(printf '%s' "<task 한단어>" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | cut -c1-20)
@@ -75,7 +75,7 @@ description: >
    printf 'plan_run=%s\ndev_run=%s\nslug=%s\n' "$RUN_PF" "$RUN_PCO" "$slug" > "$RUN_PCO/manifest"
    echo "RUN_PF=$RUN_PF"; echo "RUN_PCO=$RUN_PCO"
    ```
-4. **개발 모드·패널·비용 1회 요약** 후 진행 — **호출 수 기준: 계획(N+2 호출) + 개발(모드별: Pipeline 2~3회 · Council-Code 4~5회)** = 합계 **Pipeline이면 N+4~N+5회, Council-Code면 N+6~N+7회** (기본 N=4 패널이면 각각 8~9회 / 10~11회, 최소 N=2면 6~7회 / 8~9회) = 단일 위임(1회) 대비 **Pipeline 약 6~9배, Council-Code 약 8~11배** 비용/시간. 모드 선택(§3)이 비용을 좌우하므로 요약 시 어느 모드로 갈지 미리 힌트를 준다. 인간 승인 영역(스키마/보안/키·시크릿/결제/배포/PRD범위/아키텍처)이면 여기서 BLOCKED.
+4. **개발 모드·패널·비용 1회 요약** 후 진행 — **호출 수 기준: 계획(N+2 호출) + 개발(모드별: Pipeline 2~3회 · Council-Code 4~5회)** = 합계 **Pipeline이면 N+4~N+5회, Council-Code면 N+6~N+7회** (기본 N=4 패널이면 각각 8~9회 / 10~11회; ⚠️ GLM 오케스트레이터는 GLM 예외로 계획 패널이 3종이라 N=3 → 각각 7~8회 / 9~10회; 최소 N=2면 6~7회 / 8~9회) = 단일 위임(1회) 대비 **Pipeline 약 6~9배, Council-Code 약 8~11배** 비용/시간. 모드 선택(§3)이 비용을 좌우하므로 요약 시 어느 모드로 갈지 미리 힌트를 준다. 인간 승인 영역(스키마/보안/키·시크릿/결제/배포/PRD범위/아키텍처)이면 여기서 BLOCKED.
 
 > **스모크테스트(선택, 비용 0)**: 스킬 수정 후 구조가 끝까지 도는지 확인하려면 `bash "$SKILL_DIR/scripts/smoke-test.sh"` — 임시 sandbox에서 stub 산출 + 단계별 게이트 검증(§0 사전점검 → §2 변환·치환·UI 매핑 → §5 정리 게이트). **모델 호출 없이**(dry-run) 파이프라인 구조만 검증. exit 0=PASS. 실제 모델 호출을 포함한 풀 e2e는 별도(인간 승인, 비용 발생).
 
@@ -148,7 +148,7 @@ description: >
   - 수정: codex `gpt-5.5` resume — 리뷰 지적 반영.
   - 종합: 오케스트레이터(plan-codex-opencode §4 종합).
 - **Council-Code 모드 시**: 두 패널이 각자 worktree에서 병렬 구현 → 교차리뷰 → 채택/합성. 비용 2배지만 독립성 최대.
-- ⚠️ **오케스트레이터 동족 주의**: 오케스트레이터=glm(ZCode)이면, 개발 단계에 GLM이 들어가는 게 "동족"이 될 수 있다. 단 **개발 단계는 계획 단계와 다르다** — 여기선 GLM이 "리뷰어/견제" 역할로 GPT 구현을 교차검증하므로, 오케스트레이터의 분석·검증과 GLM 리뷰가 같은 패밀리여도 *패널 내* 교차검증(GPT↔GLM)은 유효하다. synthesis에 "오케스트레이터-GLM 동족"을 표기만 하고 진행(계획 단계의 엄격 동족 제거와 다른 정책).
+- ⚠️ **오케스트레이터 동족 주의**: 오케스트레이터=glm(ZCode)이면, 계획·개발 양 단계 모두 GLM이 "동족"이 될 수 있다. **계획 단계**: GLM 예외로 opencode(GLM)가 참가자에 필수 포함(`GLM_MANDATORY_PARTICIPANT=yes`) — 역할 분리(오케스트레이터=검증 only / 참가자=독립 풀이)로 정당화, 동종할인 synthesis 명시. **개발 단계**: GLM이 "리뷰어/견제" 역할로 GPT 구현을 교차검증하므로, 오케스트레이터 분석·검증과 GLM 리뷰가 같은 패밀리여도 *패널 내* 교차검증(GPT↔GLM)은 유효하다. 양쪽 모두 synthesis에 "오케스트레이터-GLM 동족(역할 분리)"을 표기하고 진행.
 
 ---
 

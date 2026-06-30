@@ -1,12 +1,22 @@
 # 라우팅 레퍼런스 — 호명 → 백엔드 (plan-fusion 전용)
 
-사용자가 자연어로 부르는 모델명을 `(backend, model, effort/variant, dir/session 플래그)`로 정규화하는 단일 진실 소스.
+사용자가 자연어로 부르는 모델명을 `(backend, model, effort/variant, dir/session 플래그)`로 정규화한다.
 plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두 백엔드와 **CLI Fusion 프리셋**을 추가했다.
 검증 환경(실측): codex-cli 0.139.0 · opencode 1.16.2 · omo 4.10.0 · **agy 1.0.10** · **claude 2.1.x** — 각 `--help` / `models` / 스모크로 확인.
 
 > **오케스트레이터 자동감지**: 오케스트레이터는 `check-fusion.sh`가 env `PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude`(argv 폴백)에서 읽어 `ORCHESTRATOR_FAMILY`로 내보낸다. **감지된 패밀리는 동족(확증편향) 회피를 위해 참가자·Judge·Synth 후보에서 자동 제외**된다. 따라서 아래 프리셋 표의 "기본"은 오케스트레이터=`unknown`일 때의 기준이며, 구체 오케스트레이터별로는 **오케스트레이터 패밀리 제거 변형**(아래 별표)을 적용한다.
+>
+> ⚠️ **GLM 예외(참가자 한정)**: 오케스트레이터=`glm`일 때만 opencode(GLM)를 동족이어도 **참가자에 필수 포함**한다(`GLM_MANDATORY_PARTICIPANT=yes`). 정당화 — 오케스트레이터는 검증-only(불가양도)·opencode 참가자는 독립 풀이 수행으로 역할 분리 → 동족 위험 완화 + '최소 3종 백엔드(codex·agy·glm)' 보장. 동종할인(`PARTICIPANT_CONFLICT_RISK=partial`)을 synthesis/REPORT에 명시. **Judge·Synth는 여전히 동족 회피**(참가자만 예외). gpt/gemini/claude 오케스트레이터는 종전대로 동족 회피.
 
-> **모델/버전 문자열 SSOT**: agy 모델명(`"Gemini 3.1 Pro (High)"` 등)·CLI 버전 문자열은 **이 문서가 단일 진실원**이다. 마크다운엔 변수가 없어 `cli-fusion-map.md`·`fusion.md`·`SKILL.md`·`scripts/check-fusion.sh`·`README.md`에 동일 문자열이 하드코딩돼 있다 → **갱신 시 이 문서를 먼저 고치고** `grep -rl '<옛 문자열>' .`로 잔존을 일괄 교체한다(누락하면 백엔드별 모델명 불일치로 위임 실패).
+> **모델명 SSOT(단일 진실원) = `models.yaml`**: 모델명·cli_model·패밀리·disabled 정책·패널 프리셋의
+> 진실원은 **models.yaml**(레포 루트 + sync-models.sh 로 각 스킬 폴더에 복제)이다. 과거엔 이 문서가
+> SSOT 를 자처했으나(마크다운 표의 값을 check-fusion.sh·council.md·SKILL.md·README.md·templates 가
+> 복사), 이제 **models.yaml 이 진실원**이고 이 표는 사람이 읽는 뷰다. 버전업·모델명 변경 시:
+> 1. **models.yaml 만 고친다**(단일 편집점).
+> 2. `bash sync-models.sh` → models.lib.sh 재생성 + 각 스킬로 복제.
+> 3. `bash check-models.sh` → 이 문서·스크립트·템플릿과 SSOT 정합 자동 검증(드리프트=FAIL).
+> 스크립트(check-fusion.sh)는 models.lib.sh 를 source 해 `$M_GPT_CLI`·`is_disabled_model` 로 소비한다.
+> agy 모델명(`"Gemini 3.1 Pro (High)"` 등)·CLI 버전 문자열의 실측 진실원도 models.yaml 이다.
 
 ## 대원칙
 
@@ -36,6 +46,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | qwen / minimax / mimo … | opencode | `opencode-go/<model>` | `--variant high` | `-d`/`--dir` | 〃 |
 
 > ⚠️ **위 표의 `--variant high`는 opencode 직접 경로(`opencode run`) 전용이다.** omo run엔 `--variant`가 없으므로(아래 'effort / variant 매핑' 참조), 기본 구현 경로인 **omo run으로 위임할 때는 `--variant`를 빼라** — 미지원 플래그는 `ORCHESTRATION_FAIL`이 된다. dir 플래그도 omo는 `-d`, opencode는 `--dir`로 갈린다(한 행에 병기했을 뿐 동시 사용 아님).
+> ⚠️ **`model`열 문자열은 `-m` 인자에 그대로 복사해 넣는다** — 항상 `provider/model` 전체(단일 슬래시, 끝 슬래시 없음). 베어 모델명이나 끝 슬래시(`kimi-k2.7-code/`)는 opencode가 `Model not found`로 exit=1(위임 실패, 무응답 처리 → quorum 피해). SKILL.md §0·`opencode-cli.md` 경로 B의 사후검증 참조.
 > ⚠️ **Gemini 모델명은 실측 문자열 그대로** 쓴다(`agy models` 출력). 스펙에서 본 `gemini-3.5-pro`는 **존재하지 않음** — 실재는 **Gemini 3.1 Pro**(High/Low) + **Gemini 3.5 Flash**(Low/Medium/High). effort는 별도 플래그가 아니라 모델 문자열의 `(High/Medium/Low)`로 지정한다.
 > ⚠️ **Opus 4.8은 `claude` 직접 호출**로만 얻는다. agy의 Claude 모델은 4.6, opencode의 `dgrid/claude-opus-4-8`도 경로가 다르다 → Opus 호명은 `claude --print --model opus`.
 
@@ -84,17 +95,17 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 
 ### ⚙️ 오케스트레이터 패밀리 제거 변형 (default 프리셋 예시)
 
-`check-fusion.sh`의 `EXCLUDED_FAMILIES`/`JUDGE_CONFLICT_RISK`/`SYNTH_CONFLICT_RISK`와 정합. 오케스트레이터 패밀리를 뺀 뒤 남은 가용 패밀리로 재구성한다.
+`check-fusion.sh`의 `EXCLUDED_FAMILIES`/`JUDGE_CONFLICT_RISK`/`SYNTH_CONFLICT_RISK`/`GLM_MANDATORY_PARTICIPANT`/`PARTICIPANT_CONFLICT_RISK`와 정합. 원칙은 오케스트레이터 패밀리를 뺀 뒤 남은 가용 패밀리로 재구성하되, **GLM 예외**(`glm` 행)만 오케스트레이터와 같은 패밀리를 참가자에 필수 포함한다.
 
 | `ORCHESTRATOR_FAMILY` | default 변형(참가자) | Judge | Synth | 비고 |
 |---|---|---|---|---|
 | `claude` | codex·agy·opencode-glm·opencode-kimi | 차순위(claude 제거 → codex/agy/opencode 중 가용) | codex(GPT) | 오케스트레이터가 claude라 Judge=claude는 동족 → check-fusion.sh가 codex 등 차순위로 산출 |
-| `glm` | codex·agy | claude(Opus) → 폴백 체인: codex→agy→opencode-deepseek(동종할인)→self | codex(GPT) | opencode(GLM/Kimi)는 *참가자* 집계에서 제거 — 백엔드 2. 단 Judge 폴백 체인엔 DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)가 살아남는다(JUDGE_FALLBACK_CHAIN — claude가 런타임에 죽어도 self 직행 않고 동종할인 경고로 DeepSeek Judge 허용). |
+| `glm` | **codex·agy·opencode-glm** | claude(Opus) → 폴백 체인: codex→agy→opencode-deepseek(동종할인)→self | codex(GPT) | **GLM 예외**: opencode(GLM)는 오케스트레이터와 동족이나 **참가자에 필수 포함**(`GLM_MANDATORY_PARTICIPANT=yes`) — 역할 분리(오케스트레이터=검증 only·불가양도 / opencode 참가자=독립 풀이)로 동족 위험 완화 + '최소 3종 백엔드' 보장. 동종할인(`PARTICIPANT_CONFLICT_RISK=partial`)을 synthesis/REPORT에 명시. Judge·Synth는 여전히 동족 회피(참가자만 예외). Judge 폴백 체인의 DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)는 종전대로 동종할인 후보로 잔존. |
 | `gpt` | agy·opencode-glm·opencode-kimi | claude(Opus) | 차순위(codex 제거 → claude/agy/opencode 중 가용) | codex 제거. Synth가 claude/agy/opencode로 가면 GPT-동족 아님 |
 | `gemini` | codex·opencode-glm·opencode-kimi | claude(Opus) | codex(GPT) | agy 제거 — 백엔드 2(+claude) |
 | `unknown` | codex·agy·opencode-glm·opencode-kimi | claude(Opus) | codex(GPT) | 동족 룰 비활성 — 기본 그대로 |
 
-> 변형 후 **독립 패밀리 수 < 2**(`EFFECTIVE_BACKENDS<2`)면 `check-fusion.sh`가 exit 1(Fusion 불성립) → `plan-then-*` 단일 위임 또는 백엔드 추가 안내. `ORCH_FAMILY=gpt`이고 Synth 차순위가 모두 동족이면 `SYNTH_CONFLICT_RISK=yes`로 표기되어 synthesis에 "비독립 할인" 명시.
+> 변형 후 **독립 패밀리 수 < 2**(`EFFECTIVE_BACKENDS<2`)면 `check-fusion.sh`가 exit 1(Fusion 불성립) → `plan-then-*` 단일 위임 또는 백엔드 추가 안내. `ORCH_FAMILY=gpt`이고 Synth 차순위가 모두 동족이면 `SYNTH_CONFLICT_RISK=yes`로 표기되어 synthesis에 "비독립 할인" 명시. **GLM 예외**: `ORCH_FAMILY=glm`은 변형(제거)이 아니라 default(참가자 3종) 그대로 적용 — opencode(GLM)가 동족이어도 참가자에 필수 포함(`GLM_MANDATORY_PARTICIPANT=yes`, 동종할인 `PARTICIPANT_CONFLICT_RISK=partial` 명시).
 
 **게이트 표시 라벨**(SKILL.md 0-2.5 case D — 가용분으로 필터해 이 형식으로 제시. **숫자(2/3/4/5) 세트 신설 금지** — named 프리셋 재사용):
 `프리셋 · 모델슬롯 N · 독립패밀리 M · 호출 N+2 · 역할독립성`
@@ -129,7 +140,7 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 - **오케스트레이터=`claude`(Opus)**: claude를 참가자로도 쓰면 동족. 기본은 claude=Judge 전용(default 프리셋). highEnd/codeSecurity처럼 claude가 참가자인 프리셋에선 Judge를 다른 패밀리(Gemini/codex)로 바꾸거나 synthesis에 "Judge 비독립" 명시.
 - **오케스트레이터=`gpt`(codex)**: codex를 참가자나 Synth에 쓰면 동족. default의 Synth=codex(GPT)는 Synth 동족 → 차순위(claude/agy/opencode 중 비-동족 가용)로 바꾸거나 약한 비독립 표기.
 - **오케스트레이터=`gemini`(agy)**: agy를 참가자로 쓰면 동족. default에서 agy 제거 → 백엔드 2(codex·opencode)+claude Judge.
-- **오케스트레이터=`glm`(ZCode/opencode)**: opencode(GLM/Kimi)를 참가자로 쓰면 동족. default에서 opencode 제거 → 백엔드 2(codex·agy)+claude Judge. **단 Judge 폴백은 예외** — DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)는 `JUDGE_FALLBACK_CHAIN`에 살아남아, claude가 런타임에 죽어도 동종할인 경고(`judge_conflict=partial`)와 함께 Judge로 허용된다(참가자 집계는 그대로 1패밀리).
+- **오케스트레이터=`glm`(ZCode/opencode)**: **GLM 예외(참가자 한정)** — opencode(GLM/Kimi)는 동족이나 default에서 제거하지 않고 **참가자에 필수 포함**(`GLM_MANDATORY_PARTICIPANT=yes`). 정당화: 오케스트레이터는 검증-only(불가양도)·opencode 참가자는 독립 풀이 수행으로 역할 분리 → 동족 위험 완화 + '최소 3종 백엔드(codex·agy·glm)' 보장. 동종할인 경고(`PARTICIPANT_CONFLICT_RISK=partial`)를 synthesis/REPORT에 명시(DeepSeek `judge_conflict=partial` 선례 재사용). → 백엔드 3(codex·agy·opencode-glm)+claude Judge. **Judge·Synth는 여전히 동족 회피** — Judge 폴백 체인의 DeepSeek 라우트(`opencode-go/deepseek-v4-pro`)는 동종할인 후보로 잔존(claude 런타임 사망 시 `judge_conflict=partial`로 허용).
 - **오케스트레이터=`unknown`**: 동족 룰 비활성 — 모든 패밀리 가용 후보(기본 프리셋 그대로). 단 검증자가 같은 패밀리라는 보장이 없으므로, 추정 가능하면 env로 명시 권장.
 
 **Synth 동족 주의(약)**: 참가자에 오케스트레이터 패밀리가 있고 Synth도 같은 패밀리면 → Synth가 자기(동족) 후보를 과대대표할 여지(Judge 자기심사와 동형, 단 약함). Synth 템플릿이 "Judge 판정·근거 강도로만 선별"하도록 제약해 실효 위험은 제한적이지만, 동족이면 `synthesis.md`에 약하게 표기하거나 Synth를 비-동족 패밀리로 두는 편이 깔끔하다.

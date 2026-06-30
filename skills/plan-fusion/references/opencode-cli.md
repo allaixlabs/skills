@@ -69,7 +69,10 @@ opencode run \
   "$(cat "$RUN/handoff.md")" \
   > "$RUN/kimi/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/kimi/manifest"
+echo "model=opencode-go/kimi-k2.7-code" >> "$RUN/kimi/manifest"   # -m 형식 사후검증용
 ```
+
+⚠️ **`-m`은 항상 `provider/model` 전체 형식**(단일 슬래시, 끝 슬래시 없음). 베어 모델명(`kimi-k2.7-code`)이나 끝 슬래시(`opencode-go/kimi-k2.7-code/`)는 opencode가 **`Model not found`로 즉시 exit=1** → 위임 1건도 안 돌고 무응답 처리돼 quorum에 피해. `routing-fusion.md` 정규화표의 `model`열 문자열을 그대로 복사해 `-m`에 넣고, manifest에 `model=<값>`을 기록해 exit≠0 시 원인 대조에 쓴다.
 
 오케스트레이션·완수보장 없음 → **가볍고 빠르다**. 읽기전용 의견 수집·리뷰·N개 병렬에 적합.
 

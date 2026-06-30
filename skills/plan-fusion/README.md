@@ -64,7 +64,7 @@ bash scripts/check-fusion.sh glm
 | `ORCHESTRATOR_FAMILY` | default 참가자 | Judge | Synth |
 |---|---|---|---|
 | `claude` | codex·agy·opencode-glm·opencode-kimi | 차순위(codex/agy/opencode 중 가용) | codex(GPT) |
-| `glm` | codex·agy | claude(Opus) → 폴백: codex→agy→**opencode-deepseek**(동종할인)→self | codex(GPT) |
+| `glm` | **codex·agy·opencode-glm** | claude(Opus) → 폴백: codex→agy→**opencode-deepseek**(동종할인)→self | codex(GPT) |
 | `gpt` | agy·opencode-glm·opencode-kimi | claude(Opus) | 차순위(claude/agy/opencode) |
 | `gemini` | codex·opencode-glm·opencode-kimi | claude(Opus) | codex(GPT) |
 | `unknown` | codex·agy·opencode-glm·opencode-kimi | claude(Opus) | codex(GPT) |
@@ -80,9 +80,9 @@ bash scripts/check-fusion.sh glm
 | opus / claude | `claude --print` | `opus` (오케스트레이터≠claude일 때 Judge) |
 | glm5.2 / kimi k2.7 / deepseek … | opencode (omo/직접) | `zai-coding-plan/glm-5.2` · `opencode-go/kimi-k2.7-code` |
 
-- **기본 패널**(호명 없을 때): 오케스트레이터 패밀리를 제외한 비-동족 패밀리들 — 위 [오케스트레이터별 변형표](#오케스트레이터별-default-패널-변형) 참조. 프리셋 highEnd/codeSecurity/fullPower/budget는 `references/routing-fusion.md`.
+- **기본 패널**(호명 없을 때): 오케스트레이터 패밀리를 제외한 비-동족 패밀리들 — 위 [오케스트레이터별 변형표](#오케스트레이터별-default-패널-변형) 참조. 프리셋 highEnd/codeSecurity/fullPower/budget는 `references/routing-fusion.md`. **GLM 예외**: `ORCH_FAMILY=glm`은 변형(제거)이 아니라 default(참가자 3종 codex·agy·opencode-glm) 그대로 — `GLM_MANDATORY_PARTICIPANT=yes`.
 - ⚠️ **Gemini 모델명은 실측 문자열**(`gemini-3.5-pro`는 없음 — 실재는 3.1 Pro / 3.5 Flash). **Opus 4.8은 `claude` 직접 호출**.
-- ⚠️ **동족 경고(일반화)**: 오케스트레이터 패밀리를 참가자·Judge·Synth에 또 쓰면 독립성↓. `check-fusion.sh`가 자동으로 제거하되, 호명이 명시적으로 그 패밀리를 다시 넣으려 하면 게이트가 노출하고 synthesis에 "비독립 할인" 명시.
+- ⚠️ **동족 경고(일반화)**: 오케스트레이터 패밀리를 참가자·Judge·Synth에 또 쓰면 독립성↓. `check-fusion.sh`가 자동으로 제거하되, 호명이 명시적으로 그 패밀리를 다시 넣으려 하면 게이트가 노출하고 synthesis에 "비독립 할인" 명시. **GLM은 참가자 한정 예외** — 동종이어도 필수 포함(역할 분리로 정당화, `PARTICIPANT_CONFLICT_RISK=partial` 동종할인 표기). Judge·Synth는 동족 회피 유지.
 
 ## 전제조건
 

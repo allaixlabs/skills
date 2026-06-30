@@ -92,8 +92,10 @@ grep -m1 'session id:' "$RUN/<id>/round1.log" | awk '{print $NF}'
 
 xhigh 구현은 수 분~수십 분. 포그라운드는 타임아웃(기본 2분).
 1. Bash `run_in_background: true` + `> "$RUN/<id>/round1.log" 2>&1`.
-2. **완료 알림 후에만** 결과 read(완료 전 `-o` 읽기는 race). **완료 알림(`Background task completed` / `task-notification`)이 도착하면 즉시** read → 다음 절차로 넘어간다 — "기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(부분 완료 진행 보고는 허용)("전 read 금지"는 알림 **후** 진행이 아니라 **전** race만 막는다).
-3. 읽는 순서: manifest exit → codex `result.md` → 이상하면 `round1.log` 에러.
+2. **완료 알림을 수동으로 기다리지 말 것** — 하네스가 "You will be notified when it completes"를 반환해도, 그것을 **유일한 트리거로 삼아 턴을 종료하면 안 된다**(실제로 알림이 수 시간 누락된 사례가 있었다 — 그 동안 에이전트가 멈춰 사용자가 재촉해야 했다). 대신 **같은 응답 내에서 즉시 능동 폴링 루프**를 이어간다: 짧은 `sleep`(예: 15~60초) 후 `exit.txt`/manifest exit 필드/`round1.log` 크기 변화를 점검하는 것을 반복. 종료 신호(0/1 exit 확보)가 잡히면 즉시 다음 절차로 넘어간다 — "알림을 기다리겠다"며 멈추거나 진행 없이 안내문만 내놓지 않는다(부분 완료 진행 보고는 허용).
+3. **완료 전 `-o`/`result.md` 읽기는 race**(완료 후에만 의미 있는 결과). 능동 폴링은 **진행 상태 카운트**(exit/manifest/로그 꼬리)만 확인하고, 결과 파일 read는 exit=0/1 확보 **후**에.
+4. 읽는 순서: manifest exit → codex `result.md` → 이상하면 `round1.log` 에러.
+5. **이 규칙은 글로벌 가드(`async-polling-guard`)가 강제한다** — loop-md Setup §6이 모든 에이전트(zcode/claude/codex) 글로벌 지침에 배포하며, 스킬 문서뿐 아니라 글로벌 가드가 최후의 방어선이다.
 
 ## 세션 이어가기 (VERIFY 라운드) — 0.139.0 실측
 

@@ -13,6 +13,21 @@
 #   exit 0 = 위임 가능 독립 백엔드 ≥2 (Fusion 성립), exit 1 = <2 (교차 합성 불가).
 set -u
 
+# 모델명 SSOT 소비 — 라우팅 문자열·disabled 정책·Gemini 모델명을 models.lib.sh 에서 읽는다.
+# models.yaml(루트 진실원)을 sync-models.sh 가 변환한 복제본(이 스킬 폴더에 배치).
+# 동일한 값이 routing-fusion.md·council.md·SKILL.md 등에도 있지만, 스크립트 로직이
+# 쓰는 진실원은 이 파일이다. 버전업·모델명 변경 시 models.yaml 만 고치고 sync-models.sh.
+_SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)
+if [ -f "$_SELF_DIR/../../models.lib.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$_SELF_DIR/../../models.lib.sh"
+elif [ -f "$_SELF_DIR/models.lib.sh" ]; then
+  # 루트 복제본이 없으면 스킬 폴더 자체 사본(독립 설치 시).
+  # shellcheck disable=SC1091
+  . "$_SELF_DIR/models.lib.sh"
+fi
+unset _SELF_DIR
+
 # agy 는 zsh 함수로 래핑될 수 있다(.zshrc). bash 스크립트에선 함수 미로드 → 바이너리를 직접 찾는다.
 # 일반 설치 경로 보강(macOS Apple Silicon/Intel·Linuxbrew). ${PATH:-}로 set -u 가드.
 for _p in /opt/homebrew/bin /usr/local/bin /home/linuxbrew/.linuxbrew/bin; do
@@ -29,6 +44,9 @@ else _t() { shift; "$@"; }; fi
 # 이 스크립트를 부른 오케스트레이터(분석·검증 주체)의 모델 패밀리를 식별한다.
 # 같은 패밀리를 참가자·Judge·Synth에 쓰면 교차검증 독립성이 무너지므로(동족),
 # ORCH_FAMILY에 따라 아래 집계에서 그 패밀리를 제외한다.
+# ⚠️ 예외(GLM): ORCH_FAMILY=glm이면 opencode(GLM)는 동족이나 **참가자에 필수 포함**(최소 3종 백엔드 보장).
+#    역할 분리(오케스트레이터=검증 only·불가양도 / opencode 참가자=독립 풀이)로 동족 위험을 완화하고,
+#    synthesis에 '동종할인(partial)' 표기를 붙인다(GLM_MANDATORY_PARTICIPANT 시그널). Judge·Synth는 여전히 동족 회피.
 # env: PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude (헤드리스/cron 안전)
 # argv: 첫 인자를 폴백으로 받는다(env 미설정 시). 둘 다 없으면 unknown.
 ORCH_RAW="${PLAN_FUSION_ORCHESTRATOR:-${1:-}}"
@@ -91,7 +109,10 @@ if command -v agy >/dev/null 2>&1 || [ -x /opt/homebrew/bin/agy ]; then
     echo "AGY_AUTH=ok"
     echo "AGY_MODELS_SAMPLE=$(printf '%s' "$AGY_MODELS" | grep -iE 'Gemini' | head -3 | paste -sd'|' -)"
     # 기본 패널 모델이 실제 존재하는지(샘플 head -3는 정렬상 Flash만 보일 수 있어 별도 확인).
-    echo "AGY_DEFAULT_MODEL_PRESENT=$(printf '%s\n' "$AGY_MODELS" | grep -qiF 'Gemini 3.1 Pro (High)' && echo yes || echo no)"
+    # 기본 Gemini 모델명은 SSOT(M_GEMINI_CLI)에서.
+    _gemini_default="${M_GEMINI_CLI:-Gemini 3.1 Pro (High)}"
+    echo "AGY_DEFAULT_MODEL_PRESENT=$(printf '%s\n' "$AGY_MODELS" | grep -qiF "$_gemini_default" && echo yes || echo no)"
+    unset _gemini_default
     agy_ok=1
   else
     echo "AGY_AUTH=unknown(models-empty)"
@@ -273,6 +294,9 @@ echo "OPENCODE_INDEP_FAMILY=$([ "$opencode_indep" = 1 ] && echo yes || echo 'no(
 # === 동족 제거: 오케스트레이터와 같은 패밀리는 참가자 카운트에서 제외 ===
 # 교차검증 독립성의 핵심 — 오케스트레이터가 이미 그 패밀리를 쓰고 있으므로, 같은 패밀리를 참가자·Judge·Synth에
 # 또 넣으면 동족(확증편향). 각 패밀리별로: ready 여부 + 오케스트레이터 패밀리 충돌 여부를 종합해 카운트한다.
+# ⚠️ 예외: ORCH_FAMILY=glm이면 opencode(GLM)는 동족이나 참가자에서 빼지 않고 **필수 포함**(GLM_MANDATORY_PARTICIPANT=yes).
+#    역할 분리(오케스트레이터=검증 only·불가양도 / opencode 참가자=독립 풀이)로 동족 위험을 완화 + '최소 3종 백엔드' 보장.
+#    동종할인(partial) 표기를 붙인다. Judge·Synth 후보에서는 종전대로 동족 회피(아래 체인·기본값 로직에서 처리).
 EXCLUDED=""   # 휴먼 리딩용 제외 사유 누적
 excluded_codex=0
 if [ "$codex_ok" = 1 ]; then
@@ -286,10 +310,16 @@ if [ "$agy_ok" = 1 ]; then
     excluded_agy=1; EXCLUDED="${EXCLUDED}agy(orch=gemini) "
   fi
 fi
+# ⚠️ GLM 예외: 오케스트레이터=GLM이더라도 opencode(GLM)는 **참가자에 필수 포함**.
+# 정당화: 오케스트레이터는 검증-only(불가양도), opencode 참가자는 독립 풀이 수행 — 역할 분리로
+# 동족 위험을 완화하고, "최소 3종 백엔드(codex·agy·glm)" 다양성을 보장한다. 단 동족이므로
+# synthesis/REPORT에 '동종할인(partial)' 표기를 붙인다(DeepSeek partial 선례 재사용).
+# (Judge·Synth는 여전히 동족 회피 — opencode가 Judge/Synth 후보에서 빠지는 건 아래 체인·기본값 로직에서 별도 처리.)
 excluded_opencode=0
+glm_mandatory_participant=no
 if [ "$opencode_indep" = 1 ]; then
   if [ "$ORCH_FAMILY" = glm ]; then
-    excluded_opencode=1; EXCLUDED="${EXCLUDED}opencode(orch=glm) "
+    glm_mandatory_participant=yes   # 제외하지 않고 필수 참가자로 — families 가산 유지
   fi
 fi
 excluded_claude=0
@@ -300,12 +330,17 @@ if [ "$claude_ok" = 1 ]; then
 fi
 echo "EXCLUDED_FAMILIES=${EXCLUDED:-<none>}"
 echo "ORCH_FAMILY_EXCLUDED=$([ -n "$EXCLUDED" ] && echo yes || echo no)"
+# GLM 예외 시그널 — 참가자 동종(역할 분리) 명시. synthesis/REPORT가 읽어 '동종할인' 표기.
+echo "GLM_MANDATORY_PARTICIPANT=$glm_mandatory_participant"
+if [ "$glm_mandatory_participant" = yes ]; then
+  echo "PARTICIPANT_CONFLICT_RISK=partial(opencode-glm 동족·역할분리)"
+fi
 
 families=0
 [ "$codex_ok" = 1 ] && [ "$excluded_codex" = 0 ]    && families=$((families+1))
 [ "$agy_ok" = 1 ]   && [ "$excluded_agy" = 0 ]      && families=$((families+1))
 [ "$opencode_indep" = 1 ] && [ "$excluded_opencode" = 0 ] && families=$((families+1))
-echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready & 비-오케스트레이터-패밀리 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; openai-only opencode는 GPT 중복이라 제외; 모델 다양성 ≠ 백엔드 다양성; ORCH_FAMILY와 충돌하는 패밀리는 동족이라 제외(EXCLUDED_FAMILIES 참조))"
+echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready & 비-오케스트레이터-패밀리 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; openai-only opencode는 GPT 중복이라 제외; 모델 다양성 ≠ 백엔드 다양성; ORCH_FAMILY와 충돌하는 패밀리는 동족이라 제외(EXCLUDED_FAMILIES 참조); ⚠️ 예외: ORCH_FAMILY=glm이면 opencode는 동족이나 **참가자에 필수 포함**(GLM_MANDATORY_PARTICIPANT=yes, 동종할인 표기 — 역할 분리: 오케스트레이터=검증 only / 참가자=독립 풀이))"
 
 # claude(Opus)는 오케스트레이터가 claude 패밀리가 아닐 때 한해 '참가자 후보 백엔드'로 쓸 수 있다.
 # (오케스트레이터=claude면 claude를 참가자로 쓰면 동족이므로 제외 — effective 가산도 안 함.)
@@ -364,23 +399,22 @@ fi
 #    "primary -> fallback1 -> fallback2 -> ... -> self" 형식. self 전 단계까지 차순위가 없으면 self.
 #    각 후보는 "backend:model:conflict" 튜플 — conflict=no|partial|yes(partial=동종할인, yes=완전동족/self).
 
-# ⚠️ #5 강제: disabledModels(fable-5/mythos-5) 는 사용자 정책상 참가자·Judge·Synth 어디에도 금지.
-#    과거엔 routing-fusion.md 문서에만 정책을 적어 LLM 준수에 의존했으나(routing-fusion.md L118-120),
-#    기계적 게이트가 없으면 호명/폴백 시 스며들 수 있다. 아래 judge_chain_append 가 모델명을 검사해 거부한다.
-_is_disabled_model() {  # $1=model → 0=금지아님, 1=금지
-  case "$1" in
-    *fable-5*|*fable_5*|*mythos-5*|*mythos_5*) return 1 ;;
-    *) return 0 ;;
-  esac
-}
+# ⚠️ #5 강제: disabledModels 는 models.yaml SSOT(disabled_models 키)에서 온다.
+#    과거엔 case 문에 fable-5/mythos-5 를 하드코딩했으나, models.lib.sh 의
+#    is_disabled_model 헬퍼(= SSOT MODELS_DISABLED 에서 glob 생성)로 대체.
+#    새 모델을 disabled 에 추가하려면 models.yaml 만 고치고 sync-models.sh.
+if ! command -v is_disabled_model >/dev/null 2>&1; then
+  # models.lib.sh 미로드(레거시/독립 실행) 폴백 — 빈 집합(아무것도 금지 아님).
+  is_disabled_model() { return 0; }
+fi
 
 _jchain=""
 _j_self_added=0
 judge_chain_append() {  # $1=허용여부(1/0) $2=backend $3=model $4=conflict
   if [ "$1" = 1 ]; then
-    # ⚠️ #7: 과거 build_judge_candidate() 데드코드(정의만 있고 호출 0건, | 구분자가 실사용 : 과 불일치)는 삭제.
-    if ! _is_disabled_model "$3"; then
-      echo "WARN: disabledModels 정책 위반 — backend=$2 model=$3 (fable-5/mythos-5) 후보에서 제외." >&2
+    # ⚠️ #7: 과거 build_judge_candidate() 데드코드(정도만 있고 호출 0건, | 구분자가 실사용 : 과 불일치)는 삭제.
+    if ! is_disabled_model "$3"; then
+      echo "WARN: disabledModels 정책 위반(SSOT MODELS_DISABLED) — backend=$2 model=$3 후보에서 제외." >&2
       return 0
     fi
     if [ -n "$_jchain" ]; then _jchain="${_jchain} -> "; fi
@@ -390,18 +424,23 @@ judge_chain_append() {  # $1=허용여부(1/0) $2=backend $3=model $4=conflict
 
 # 체인 구성: claude → codex → agy → opencode-deepseek(동족할인) → self.
 # claude/codex/agy는 비-동족일 때만(ORCH_FAMILY와 다를 때). DeepSeek는 partial 허용(GLM 오케스트레이터도 라우트 달라 허용).
+# 모델명은 SSOT(models.lib.sh 의 M_*_CLI)에서 — 하드코딩 금지.
+_M_OPUS="${M_OPUS_CLI:-opus}"
+_M_GPT="${M_GPT_CLI:-gpt-5.5}"
+_M_GEMINI="${M_GEMINI_CLI:-gemini}"          # agy judge 식별용 라벨(실제 모델문자열은 아님)
+_M_DEEPSEEK="${M_DEEPSEEK_CLI:-opencode-go/deepseek-v4-pro}"
 _ds_conflict=no; [ "$deepseek_partial_inbreed" = yes ] && _ds_conflict=partial
 if [ "$claude_ok" = 1 ] && [ "$ORCH_FAMILY" != claude ]; then
-  judge_chain_append 1 claude opus no
+  judge_chain_append 1 claude "$_M_OPUS" no
 fi
 if [ "$codex_ok" = 1 ] && [ "$ORCH_FAMILY" != gpt ]; then
-  judge_chain_append 1 codex gpt-5.5 no
+  judge_chain_append 1 codex "$_M_GPT" no
 fi
 if [ "$agy_ok" = 1 ] && [ "$ORCH_FAMILY" != gemini ]; then
-  judge_chain_append 1 agy gemini no
+  judge_chain_append 1 agy "$_M_GEMINI" no
 fi
 if [ "$deepseek_judge_ok" = 1 ]; then
-  judge_chain_append 1 opencode "opencode-go/deepseek-v4-pro" "$_ds_conflict"
+  judge_chain_append 1 opencode "$_M_DEEPSEEK" "$_ds_conflict"
 fi
 # 비동족 opencode(GLM/Kimi) — ORCH_FAMILY≠glm일 때 일반 참가자 라우트로도 Judge 가능(기존 동작 보존).
 if [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then

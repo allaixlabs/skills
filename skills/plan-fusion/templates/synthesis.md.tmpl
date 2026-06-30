@@ -7,9 +7,10 @@
 
 - **모드**: {{Fusion-Code / Fusion-Research}}
 - **오케스트레이터 패밀리**: {{glm|gpt|gemini|claude|unknown — check-fusion.sh ORCHESTRATOR_FAMILY}}
-<!-- 참가자/비교표는 실제 panel대로 가감(아래는 default 4개 예시 — Opus 참가/budget/deepseek/qwen 프리셋, 또는 오케스트레이터 패밀리 제거 변형이면 행 교체). manifest의 panel=·orchestrator_family= 기준. -->
+<!-- 참가자/비교표는 실제 panel대로 가감(아래는 default 4개 예시 — Opus 참가/budget/deepseek/qwen 프리셋, 또는 오케스트레이터 패밀리 제거 변형이면 행 교체). manifest의 panel=·orchestrator_family= 기준. ⚠️ GLM 예외: ORCH_FAMILY=glm이면 opencode(GLM)가 동족이어도 참가자에 필수 포함(GLM_MANDATORY_PARTICIPANT=yes) — 아래 참가자 동종 표기로 '동종할인' 명시. -->
 - **참가자**: {{codex(gpt-5.5) · gemini(agy "Gemini 3.1 Pro (High)") · glm(zai-coding-plan/glm-5.2) · kimi(opencode-go/kimi-k2.7-code) — 실제 panel대로}}
 - **Judge**: {{Judge 백엔드 — 오케스트레이터 패밀리와 동족 여부 표기(check-fusion.sh JUDGE_CONFLICT_RISK)}} · **Synthesizer**: {{Synth 백엔드 — 동족 여부 표기(SYNTH_CONFLICT_RISK)}}
+- **참가자 동족(GLM 예외)**: {{⚠️ manifest의 GLM_MANDATORY_PARTICIPANT=yes · PARTICIPANT_CONFLICT_RISK=partial 이면: "참가자 glm이 오케스트레이터(glm)와 동족 — 역할 분리(오케스트레이터=검증 only / 참가자=독립 풀이)로 동종할인 적용" 명시}}
 - **각 참가자 상태**: {{codex=DONE · gemini=DONE · glm=DONE · kimi=BLOCKED(질문有) · …}}
 - **ORCHESTRATION_FAIL**: {{있으면 어느 참가자·원인}}
 - `$RUN`: {{경로}}
