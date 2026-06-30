@@ -41,10 +41,13 @@ bunx oh-my-openagent run [옵션] "<message>"   # omo 별칭 없을 때
 
 ## 에이전트 가이드
 
+> **모델명 SSOT**: 아래 표의 모델명은 `models.yaml`(단일 진실원)에서 온다. 버전업·변경 시
+> models.yaml 만 고치고 `sync-models.sh` — `check-models.sh` 가 정합 자동 검증.
+
 | 에이전트 | 기본 모델 | 역할 | 언제 |
 |----------|-----------|------|------|
-| **Prometheus** | Kimi K2.6 / Claude Opus | 전략 플래너. 인터뷰 모드로 범위 확정 후 계획 수립 | 요구사항 모호, 범위 확정 먼저 필요 |
-| **Sisyphus** | Kimi K2.6 / GLM-5.1 | 오케스트레이터. 계획·병렬 위임·끝까지 완수 | 다단계 구현, 병렬 서브태스크 (기본) |
+| **Prometheus** | Kimi K2.7 / Claude Opus | 전략 플래너. 인터뷰 모드로 범위 확정 후 계획 수립 | 요구사항 모호, 범위 확정 먼저 필요 |
+| **Sisyphus** | Kimi K2.7 / GLM-5.2 | 오케스트레이터. 계획·병렬 위임·끝까지 완수 | 다단계 구현, 병렬 서브태스크 (기본) |
 | **Hephaestus** | GPT-5.5 | 자율 심층 작업자. 탐색 후 end-to-end 실행 | 범위 명확한 단일 심층 작업 |
 
 **Sisyphus 서브에이전트 카테고리** (위임 시 힌트로 쓸 수 있음):

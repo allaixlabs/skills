@@ -179,6 +179,37 @@ skills/
 
 각 스킬 폴더는 `SKILL.md`(오케스트레이션) · `README.md`(상세) · `references/`(CLI 실측 노트) · `templates/` · `scripts/`(사전점검)로 구성된다.
 
+## 모델명 관리 (SSOT)
+
+`plan-*` 오케스트레이션 스킬들이 라우팅하는 AI 모델명(`gpt-5.5`·`zai-coding-plan/glm-5.2`·
+`"Gemini 3.1 Pro (High)"`·`opencode-go/kimi-k2.7-code`·`opus`·disabled 정책 `fable-5`/`mythos-5` 등)은
+**`models.yaml`(레포 루트)이 단일 진실원(SSOT)**이다. 과거엔 모델명이 routing 문서·스크립트·SKILL.md·
+템플릿에 각각 하드코딩돼 버전업 시 여러 곳을 손으로 고쳐야 했고(실제로 `plan-then-opencode`가 구버전으로
+경직되는 버전 스큐가 발생), `check-fusion.sh`의 Judge 폴백 체인엔 라우팅 문서만 고쳐서는 반영되지 않는
+하드코딩이 박혀 있었다.
+
+**버전업·모델명 변경·신규 모델 추가 절차**(루트에서):
+```bash
+# 1. models.yaml 만 편집 — 단일 편집점. (신규 모델 추가·버전 변경·disabled 정책 변경 모두 여기)
+$EDITOR models.yaml
+
+# 2. 변환 + 스킬별 복제 — models.lib.sh(bash source용) 재생성 + 각 스킬 폴더로 복제본 배치.
+bash sync-models.sh
+
+# 3. 정합 검증 — 문서·스크립트·템플릿의 모델명이 SSOT와 일치하는지(드리프트/미정의 토큰 잡기).
+bash check-models.sh        # exit 0=정합, exit 1=드리프트(어느 파일·토큰인지 보고)
+```
+
+아키텍처:
+- **`models.yaml`**(루트) — 편집 진실원. 스키마 제한(중첩 1단계·고정 키)으로 sync-models.sh 가 awk 로 파싱(yq 의존성 0).
+- **`models.lib.sh`**(루트 + 각 스킬) — sync-models.sh 가 자동 생성. `check-fusion.sh` 등이 `source` 해 `$M_GPT_CLI`·`is_disabled_model` 헬퍼로 소비. **수동 수정 금지**.
+- **스킬별 복제본** — `skills/<스킬>/models.yaml` + `models.lib.sh`. `npx skills add --skill X` 로 단일 스킬만 설치하는 사용자도 SSOT를 받도록(council-worktrees.sh·codex-cli.md 의 "실파일 복제 + cmp 드리프트 감지" 관례와 동일 — 심링크 회피, Windows 호환). `check-models.sh`가 루트 vs 복제본 정합을 검증.
+- **마크다운 문서**(routing.md·routing-fusion.md·SKILL.md·README.md·council.md·템플릿) — 사람이 읽는 뷰. 값은 하드코딩하되 `check-models.sh`가 SSOT와 정합을 자동 검증(드리프트 시 FAIL).
+
+> 게시 정책: 루트 `models.yaml`/`sync-models.sh`/`check-models.sh`는 `.gitignore` whitelist 때문에
+> `npx skills add` 사용자에게 직접 배포되지 않는다. 대신 각 스킬 폴더의 복제본(`models.yaml`+`models.lib.sh`)이
+> 게시되어 단일 스킬만 설치해도 SSOT를 갖는다. 복제본 드리프트는 `check-models.sh`가 잡는다.
+
 ## 만든 곳
 
 **allaix skills**는 **Allaix Labs**와 **LETSECU(주식회사 렛시큐)** 가 함께 개발·관리하는 에이전트 스킬 모음이다.

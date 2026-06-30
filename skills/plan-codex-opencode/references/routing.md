@@ -1,6 +1,13 @@
 # 라우팅 레퍼런스 — 호명 → 백엔드 (plan-codex-opencode 전용)
 
-사용자가 자연어로 부르는 모델명을 `(backend, model, effort/variant, dir/session 플래그)`로 정규화하는 단일 진실 소스.
+> **모델명 SSOT**: 아래 표의 모델명(`gpt-5.5`·`zai-coding-plan/glm-5.2`·`opencode-go/kimi-k2.7-code`
+> 등)의 단일 진실원은 **`models.yaml`** 이다(레포 루트 + 각 스킬 폴더에 sync-models.sh 로 복제).
+> 버전업·모델명 변경·신규 모델 추가 시 **models.yaml 만 고치고 `bash sync-models.sh`** 실행 →
+> `models.lib.sh` 재생성 + 각 스킬로 복제. 그 후 `bash check-models.sh` 가 이 문서와 SSOT 정합을
+> 자동 검증(드리프트=FAIL). 과거엔 이 표 자체가 SSOT 였으나, 이제 models.yaml 이 진실원이고 이 표는
+> 사람이 읽는 뷰(기계적 소비는 models.lib.sh 의 `$M_*_CLI` 변수). 스크립트는 변수를, 문서는 값을 표기.
+
+사용자가 자연어로 부르는 모델명을 `(backend, model, effort/variant, dir/session 플래그)`로 정규화한다.
 검증 환경(실측): codex-cli 0.139.0 · opencode 1.16.2 · omo(oh-my-openagent) 4.10.0 — `opencode models` / 각 `--help`로 확인. 최소 요구 버전은 README 전제조건 참조.
 
 ## 대원칙

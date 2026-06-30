@@ -1,5 +1,11 @@
 # Council 레퍼런스 — 격리 · 교차리뷰 · 종합 (plan-codex-opencode용)
 
+> **모델명 SSOT**: 아래 코드 예시의 모델 문자열(`gpt-5.5`·`zai-coding-plan/glm-5.2`·
+> `opencode-go/kimi-k2.7-code`)은 `models.yaml`(단일 진실원)에서 온다. 버전업·모델명 변경 시
+> **models.yaml 만 고치고 `sync-models.sh`** 실행 — `check-models.sh` 가 이 파일과 SSOT 의
+> 정합을 자동 검증한다(드리프트 시 FAIL). 스크립트(check-*.sh)는 `models.lib.sh` 를 source 해서
+> `$M_GPT_CLI` 등 변수로 읽지만, 아래는 사람이 읽는 예시이므로 값을 그대로 표기한다.
+
 Council = **동일 HANDOFF를 N개 패널에 병렬 위임 → Claude가 비교·교차리뷰·종합**.
 서로 다른 모델 패밀리의 독립적 실수를 교차검증으로 잡아내는 것이 목적이다.
 worktree 셋업/정리/적용 셸 함수는 `scripts/council-worktrees.sh`에 캡슐화되어 있다.

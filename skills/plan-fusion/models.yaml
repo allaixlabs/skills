@@ -1,0 +1,154 @@
+# models.yaml — 모델명 단일 진실원 (SSOT)
+#
+# 역할: plan-* 오케스트레이션 스킬들이 라우팅하는 AI 모델의 "이름·플래그·패밀리"를
+#   한 곳에서 정의한다. 버전업·모델명 변경·신규 모델 추가 시 **이 파일만 고치고**
+#   `bash sync-models.sh` 를 실행하면 — (a) models.lib.sh 가 재생성되고 (b) 각 스킬
+#   폴더로 복제본이 퍼진다. 이후 `bash check-models.sh` 로 문서·스크립트 정합 검증.
+#
+# 게시 정책: 이 루트 파일은 .gitignore whitelist 때문에 npx skills add 사용자에게
+#   직접 배포되지 않는다. 대신 sync-models.sh 가 각 skills/<스킬>/ 아래에 동일
+#   내용의 복제본(models.yaml + models.lib.sh)을 둬서 단일 스킬만 설치해도 SSOT를
+#   갖게 한다(council-worktrees.sh·codex-cli.md 가 쓰는 "실파일 복제 + cmp 드리프트
+#   감지" 관례와 동일).
+#
+# 스키마 제약: sync-models.sh 가 awk 로 파싱한다(yq 의존성 0). 따라서 —
+#   - 중첩은 1단계(models: / panels: / disabled_models:)만.
+#   - 값에 멀티라인 문자열·YAML 앵커·flow 매핑 금지. alias 는 flow 시퀀스만.
+#   - 키는 고정(family/backend/aliases/cli_model/effort_flag/variant_flag/dir_flag/dir_flag_alt).
+# 복잡해지면 yq 로 전환(sync-models.sh 만 교체).
+
+version: 1
+generated_at: 2026-06-28
+
+# 소비자(check-fusion.sh 의 is_disabled_model)가 어디에도 라우팅하지 않을 모델.
+# 사용자 "No Fable" 정책 — 참가자·Judge·Synth·폴백 전 역할 금지.
+disabled_models:
+  - fable-5
+  - mythos-5
+
+# 각 엔트리 = 라우팅 테이블 1행. 키 = 패널 슬러그(council.md·check-fusion.sh 의 id 와 정합).
+models:
+  gpt:
+    family: gpt
+    backend: codex
+    aliases: [codex, gpt5.5, "gpt5.5 xhigh"]
+    cli_model: gpt-5.5
+    effort_flag: -c model_reasoning_effort=xhigh
+    dir_flag: -C
+    is_orchestrator_default: true
+  gpt_fast:
+    family: gpt
+    backend: codex
+    aliases: ["gpt5.5 fast", "gpt5.5 pro"]
+    cli_model: gpt-5.5-fast
+    cli_model_pro: gpt-5.5-pro
+    effort_flag_template: -c model_reasoning_effort={v}
+    dir_flag: -C
+  gpt_54:
+    family: gpt
+    backend: codex
+    aliases: [gpt5.4, "gpt5.4 mini", "gpt5.4 fast"]
+    cli_model: gpt-5.4
+    cli_model_mini: gpt-5.4-mini
+    cli_model_fast: gpt-5.4-fast
+    effort_flag_template: -c model_reasoning_effort={v}
+    dir_flag: -C
+  spark:
+    family: gpt
+    backend: codex
+    aliases: [spark, "codex spark"]
+    cli_model: gpt-5.3-codex-spark
+    dir_flag: -C
+  glm:
+    family: glm
+    backend: opencode
+    aliases: [glm5.2, "glm 5.2"]
+    cli_model: zai-coding-plan/glm-5.2
+    variant_flag: --variant high
+    dir_flag: -d
+    dir_flag_alt: --dir
+  glm_51:
+    family: glm
+    backend: opencode
+    aliases: [glm5.1, glm4.7, "glm5 turbo"]
+    cli_model: zai-coding-plan/glm-5.1
+    variant_flag: --variant high
+    dir_flag: -d
+    dir_flag_alt: --dir
+  kimi:
+    family: glm
+    backend: opencode
+    aliases: ["kimi k2.7", kimi]
+    cli_model: opencode-go/kimi-k2.7-code
+    variant_flag: --variant high
+    dir_flag: -d
+    dir_flag_alt: --dir
+  kimi_26:
+    family: glm
+    backend: opencode
+    aliases: ["kimi k2.6"]
+    cli_model: opencode-go/kimi-k2.6
+    variant_flag: --variant high
+    dir_flag: -d
+    dir_flag_alt: --dir
+  deepseek:
+    family: glm
+    backend: opencode
+    aliases: [deepseek, "deepseek pro", "deepseek flash"]
+    cli_model: opencode-go/deepseek-v4-pro
+    cli_model_flash: opencode-go/deepseek-v4-flash
+    variant_flag: --variant high
+    dir_flag: -d
+    dir_flag_alt: --dir
+  # opencode-go 기타 provider 모델(routing.md 표의 나머지 행). 단일 cli_model 대표값 + 변형.
+  qwen:
+    family: glm
+    backend: opencode
+    aliases: [qwen, "qwen3.7 max", "qwen3.7 plus", "qwen3.6 plus"]
+    cli_model: opencode-go/qwen3.7-max
+    variant_flag: --variant high
+    dir_flag: -d
+    dir_flag_alt: --dir
+  minimax:
+    family: glm
+    backend: opencode
+    aliases: [minimax, "minimax m3", "minimax m2.7", mimo]
+    cli_model: opencode-go/minimax-m3
+    variant_flag: --variant high
+    dir_flag: -d
+    dir_flag_alt: --dir
+  gemini:
+    family: gemini
+    backend: agy
+    aliases: [gemini, "gemini 3.1 pro", "gemini pro"]
+    cli_model: "Gemini 3.1 Pro (High)"
+    effort_flag: ""
+    dir_flag: ""
+  gemini_flash:
+    family: gemini
+    backend: agy
+    aliases: ["gemini flash", "gemini 3.5 flash"]
+    cli_model: "Gemini 3.5 Flash (Medium)"
+    effort_flag: ""
+    dir_flag: ""
+  opus:
+    family: claude
+    backend: claude
+    aliases: [opus, "opus 4.8", claude]
+    cli_model: opus
+    dir_flag: ""
+  opus_review:
+    family: claude
+    backend: opencode
+    aliases: []
+    cli_model: dgrid/claude-opus-4-8
+    dir_flag: --dir
+
+# 기본 패널 프리셋 (호명 없을 때) — routing.md §기본패널추천 / routing-fusion.md §패널프리셋.
+# 오케스트레이터 동족 제거는 check-fusion.sh 가 런타임에 적용(여기서는 "오케스트레이터=unknown" 기준).
+panels:
+  default_2: [gpt, glm]
+  default_3: [gpt, glm, kimi]
+  fusion_default_participants: [gpt, gemini, glm, kimi]
+  fusion_judge: opus
+  fusion_synth: gpt
