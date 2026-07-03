@@ -44,15 +44,16 @@ else _t() { shift; "$@"; }; fi
 # 이 스크립트를 부른 오케스트레이터(분석·검증 주체)의 모델 패밀리를 식별한다.
 # 같은 패밀리를 참가자·Judge·Synth에 쓰면 교차검증 독립성이 무너지므로(동족),
 # ORCH_FAMILY에 따라 아래 집계에서 그 패밀리를 제외한다.
-# ⚠️ 예외(GLM): ORCH_FAMILY=glm이면 opencode(GLM)는 동족이나 **참가자에 필수 포함**(최소 3종 백엔드 보장).
+# ⚠️ 예외(GLM/KIMI): ORCH_FAMILY=glm|kimi이면 opencode(해당 패밀리)는 동족이나 **참가자에 필수 포함**(최소 3종 백엔드 보장).
 #    역할 분리(오케스트레이터=검증 only·불가양도 / opencode 참가자=독립 풀이)로 동족 위험을 완화하고,
-#    synthesis에 '동종할인(partial)' 표기를 붙인다(GLM_MANDATORY_PARTICIPANT 시그널). Judge·Synth는 여전히 동족 회피.
-# env: PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude (헤드리스/cron 안전)
+#    synthesis에 '동종할인(partial)' 표기를 붙인다(GLM/KIMI_MANDATORY_PARTICIPANT 시그널). Judge·Synth는 여전히 동족 회피.
+# env: PLAN_FUSION_ORCHESTRATOR=glm|kimi|gpt|gemini|claude (헤드리스/cron 안전)
 # argv: 첫 인자를 폴백으로 받는다(env 미설정 시). 둘 다 없으면 unknown.
 ORCH_RAW="${PLAN_FUSION_ORCHESTRATOR:-${1:-}}"
 ORCH_FAMILY=unknown; ORCH_BACKEND=unknown
 case "$ORCH_RAW" in
   glm|glm-5*|glm4*|zai*)          ORCH_FAMILY=glm;    ORCH_BACKEND=opencode ;;
+  kimi|kimi-*|moonshot|opencode-go/kimi*) ORCH_FAMILY=kimi; ORCH_BACKEND=opencode ;;
   gpt|gpt-5*|gpt5*|codex)         ORCH_FAMILY=gpt;    ORCH_BACKEND=codex ;;
   gemini|gemini-*|agy|antigravity) ORCH_FAMILY=gemini; ORCH_BACKEND=agy ;;
   claude|opus|anthropic)          ORCH_FAMILY=claude; ORCH_BACKEND=claude ;;
@@ -273,7 +274,7 @@ else
   echo "HINT: omo run(완수보장) 경로 미준비 — 구현 단계는 opencode run 직접 경로로 폴백 가능." >&2
 fi
 
-# 참가자 백엔드 수 = 교차검증 독립성의 핵심. codex(GPT)·agy(Gemini)·opencode(GLM/Kimi 생태계)를 센다.
+# 참가자 백엔드 수 = 교차검증 독립성의 핵심. codex(GPT)·agy(Gemini)·opencode(GLM·Kimi·DeepSeek 생태계)를 센다.
 # claude(Opus)는 기본 Judge 전용이라 참가자 백엔드 카운트에서 제외(동족 주의) — 단 가용은 표기.
 # ⚠️ opencode가 '교차검증 독립 패밀리'로 자격이 있는가 = openai(=GPT, codex와 중복) 외 provider 인증 여부.
 #    기본 패널 GLM(zai)·Kimi(opencode-go) 등 비-GPT 프로바이더가 있어야 독립 패밀리다. openai만 인증된
@@ -281,6 +282,7 @@ fi
 #    (opencode_ok=1이지만 openai-only면 EFFECTIVE_BACKENDS가 과대평가돼 게이트가 비독립 세트를 통과시키던 결함).
 #    ${PROV:-}/${AUTH_KEYS:-}로 set -u 가드(opencode 미설치 시 AUTH_KEYS unset).
 opencode_indep=0
+kimi_indep=0
 if [ "$opencode_ok" = 1 ]; then
   # ⚠️ anthropic 제외(재검토 #2 회귀 수정): claude가 아래에서 effective에 별도 가산되므로, opencode-anthropic을
   #    독립 패밀리로 세면 같은 Anthropic 패밀리가 이중집계돼 effective 과대평가된다. zai/opencode-go/dgrid만 독립.
@@ -288,13 +290,20 @@ if [ "$opencode_ok" = 1 ]; then
      || printf '%s' "${AUTH_KEYS:-}" | grep -qiE 'zai|opencode-go|dgrid'; then
     opencode_indep=1
   fi
+  # kimi 패밀리는 opencode-go provider 별도 인증 단위 — glm(zai)과 다른 업스트림(provider prefix)이라
+  # 별도 패밀리로 분리. 단 opencode CLI 백엔드(런타임·바이너리)는 glm과 공유 → partial-inbreed(아래 로직).
+  if printf '%s\n' "${PROV:-}" | grep -qiE '●.*(OpenCode Go)' \
+     || printf '%s' "${AUTH_KEYS:-}" | grep -qiE 'opencode-go'; then
+    kimi_indep=1
+  fi
 fi
 echo "OPENCODE_INDEP_FAMILY=$([ "$opencode_indep" = 1 ] && echo yes || echo 'no(openai-only이면 GPT 중복 — 독립 패밀리 아님)')"
+echo "KIMI_INDEP_FAMILY=$([ "$kimi_indep" = 1 ] && echo yes || echo 'no(opencode-go 미인증 — kimi 패밀리 가용 아님)')"
 
 # === 동족 제거: 오케스트레이터와 같은 패밀리는 참가자 카운트에서 제외 ===
 # 교차검증 독립성의 핵심 — 오케스트레이터가 이미 그 패밀리를 쓰고 있으므로, 같은 패밀리를 참가자·Judge·Synth에
 # 또 넣으면 동족(확증편향). 각 패밀리별로: ready 여부 + 오케스트레이터 패밀리 충돌 여부를 종합해 카운트한다.
-# ⚠️ 예외: ORCH_FAMILY=glm이면 opencode(GLM)는 동족이나 참가자에서 빼지 않고 **필수 포함**(GLM_MANDATORY_PARTICIPANT=yes).
+# ⚠️ 예외: ORCH_FAMILY=glm|kimi이면 opencode(해당 패밀리)는 동족이나 참가자에서 빼지 않고 **필수 포함**(GLM/KIMI_MANDATORY_PARTICIPANT=yes).
 #    역할 분리(오케스트레이터=검증 only·불가양도 / opencode 참가자=독립 풀이)로 동족 위험을 완화 + '최소 3종 백엔드' 보장.
 #    동종할인(partial) 표기를 붙인다. Judge·Synth 후보에서는 종전대로 동족 회피(아래 체인·기본값 로직에서 처리).
 EXCLUDED=""   # 휴먼 리딩용 제외 사유 누적
@@ -310,16 +319,20 @@ if [ "$agy_ok" = 1 ]; then
     excluded_agy=1; EXCLUDED="${EXCLUDED}agy(orch=gemini) "
   fi
 fi
-# ⚠️ GLM 예외: 오케스트레이터=GLM이더라도 opencode(GLM)는 **참가자에 필수 포함**.
+# ⚠️ GLM/KIMI 예외: 오케스트레이터=GLM/KIMI이더라도 opencode(해당 패밀리)는 **참가자에 필수 포함**.
 # 정당화: 오케스트레이터는 검증-only(불가양도), opencode 참가자는 독립 풀이 수행 — 역할 분리로
-# 동족 위험을 완화하고, "최소 3종 백엔드(codex·agy·glm)" 다양성을 보장한다. 단 동족이므로
+# 동족 위험을 완화하고, "최소 3종 백엔드(codex·agy·opencode)" 다양성을 보장한다. 단 동족이므로
 # synthesis/REPORT에 '동종할인(partial)' 표기를 붙인다(DeepSeek partial 선례 재사용).
 # (Judge·Synth는 여전히 동족 회피 — opencode가 Judge/Synth 후보에서 빠지는 건 아래 체인·기본값 로직에서 별도 처리.)
 excluded_opencode=0
 glm_mandatory_participant=no
+kimi_mandatory_participant=no
 if [ "$opencode_indep" = 1 ]; then
   if [ "$ORCH_FAMILY" = glm ]; then
     glm_mandatory_participant=yes   # 제외하지 않고 필수 참가자로 — families 가산 유지
+  fi
+  if [ "$ORCH_FAMILY" = kimi ]; then
+    kimi_mandatory_participant=yes  # KIMI 예외(GLM 대칭) — opencode 백엔드 필수 포함(3종 보장)
   fi
 fi
 excluded_claude=0
@@ -330,17 +343,20 @@ if [ "$claude_ok" = 1 ]; then
 fi
 echo "EXCLUDED_FAMILIES=${EXCLUDED:-<none>}"
 echo "ORCH_FAMILY_EXCLUDED=$([ -n "$EXCLUDED" ] && echo yes || echo no)"
-# GLM 예외 시그널 — 참가자 동종(역할 분리) 명시. synthesis/REPORT가 읽어 '동종할인' 표기.
+# GLM/KIMI 예외 시그널 — 참가자 동종(역할 분리) 명시. synthesis/REPORT가 읽어 '동종할인' 표기.
 echo "GLM_MANDATORY_PARTICIPANT=$glm_mandatory_participant"
+echo "KIMI_MANDATORY_PARTICIPANT=$kimi_mandatory_participant"
 if [ "$glm_mandatory_participant" = yes ]; then
   echo "PARTICIPANT_CONFLICT_RISK=partial(opencode-glm 동족·역할분리)"
+elif [ "$kimi_mandatory_participant" = yes ]; then
+  echo "PARTICIPANT_CONFLICT_RISK=partial(opencode-kimi 동족·역할분리)"
 fi
 
 families=0
 [ "$codex_ok" = 1 ] && [ "$excluded_codex" = 0 ]    && families=$((families+1))
 [ "$agy_ok" = 1 ]   && [ "$excluded_agy" = 0 ]      && families=$((families+1))
 [ "$opencode_indep" = 1 ] && [ "$excluded_opencode" = 0 ] && families=$((families+1))
-echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready & 비-오케스트레이터-패밀리 — GLM·Kimi 등 동일 opencode 모델은 1로 집계; openai-only opencode는 GPT 중복이라 제외; 모델 다양성 ≠ 백엔드 다양성; ORCH_FAMILY와 충돌하는 패밀리는 동족이라 제외(EXCLUDED_FAMILIES 참조); ⚠️ 예외: ORCH_FAMILY=glm이면 opencode는 동족이나 **참가자에 필수 포함**(GLM_MANDATORY_PARTICIPANT=yes, 동종할인 표기 — 역할 분리: 오케스트레이터=검증 only / 참가자=독립 풀이))"
+echo "PARTICIPANT_FAMILIES=$families (codex/agy/opencode 중 ready & 비-오케스트레이터-패밀리 — opencode 백엔드는 1로 집계(백엔드 다양성 기준); 단 GLM(zai)·Kimi(opencode-go)는 별도 provider라 동족 판정은 provider별로 적용; openai-only opencode는 GPT 중복이라 제외; 모델 다양성 ≠ 백엔드 다양성; ORCH_FAMILY와 충돌하는 패밀리는 동족이라 제외(EXCLUDED_FAMILIES 참조); ⚠️ 예외: ORCH_FAMILY=glm|kimi이면 opencode는 동족이나 **참가자에 필수 포함**(GLM/KIMI_MANDATORY_PARTICIPANT=yes, 동종할인 표기 — 역할 분리: 오케스트레이터=검증 only / 참가자=독립 풀이))"
 
 # claude(Opus)는 오케스트레이터가 claude 패밀리가 아닐 때 한해 '참가자 후보 백엔드'로 쓸 수 있다.
 # (오케스트레이터=claude면 claude를 참가자로 쓰면 동족이므로 제외 — effective 가산도 안 함.)
@@ -378,20 +394,29 @@ fi
 # Judge/Synth 후보 신호 — 오케스트레이터 패밀리와 충돌하면 차순위로, 모두 충돌하면 self 폴백.
 # 동족(오케스트레이터 패밀리 == Judge/Synth 패밀리)이면 CONFLICT_RISK=yes로 표시해 synthesis.md에 할인 명시.
 #
-# Judge 우선순위: claude(비-동족) > codex(비-동족) > agy(비-동족) > opencode(GLM/Kimi, 비-동족)
-#   > opencode-deepseek(동족할인 — GLM 오케스트레이터여도 라우트가 다르면 Judge 허용) > self(비독립).
+# Judge 우선순위: claude(비-동족) > codex(비-동족) > agy(비-동족) > opencode-deepseek(동족할인)
+#   > opencode-glm(비-동족·단 ORCH_FAMILY=kimi면 partial) > opencode-kimi(비-동족·단 ORCH_FAMILY=glm이면 partial) > self(비독립).
 #
 # ⚠️ DeepSeek 예외(F1): 참가자 집계에서는 DeepSeek를 opencode 1패밀리로 묶어 동족 제거하지만, Judge는
 #    교차검증의 '제3자 판정'이라 동족이어도 '동종할인 경고'로 허용하는 게 self(오케스트레이터=동족+비독립)보다 낫다.
 #    claude(기본 Judge)가 런타임에 죽은 경우(주간 한도·인증 만료 등)의 핵심 폴백 경로다.
 #    DeepSeek는 Kimi와 같은 opencode-go provider(routing-fusion.md line 35) — 인증 공유하므로 MODEL_READY_DEEPSEEK로 판정.
+# ⚠️ Kimi 분리: ORCH_FAMILY=glm이면 Kimi(opencode-go)는 opencode 백엔드 공유로 partial.
+#    ORCH_FAMILY=kimi이면 DeepSeek(opencode-go provider 공유)가 partial. 둘은 같은 provider라 상호 partial.
 deepseek_judge_ok=0
 deepseek_partial_inbreed=no
+kimi_judge_ok=0
+kimi_partial_inbreed=no
 if printf '%s\n' "${PROV:-}" | grep -qiE '●.*(OpenCode Go)' \
    || printf '%s' "${AUTH_KEYS:-}" | grep -qiE 'opencode-go'; then
   deepseek_judge_ok=1
+  kimi_judge_ok=1
   if [ "$ORCH_FAMILY" = glm ]; then
     deepseek_partial_inbreed=yes   # opencode 백엔드 공유(런타임·인증) — 부분 동족
+    kimi_partial_inbreed=yes       # opencode 백엔드 공유(GLM 오케스트레이터) — 부분 동족
+  fi
+  if [ "$ORCH_FAMILY" = kimi ]; then
+    deepseek_partial_inbreed=yes   # opencode-go provider 공유(KIMI 오케스트레이터) — 부분 동족
   fi
 fi
 
@@ -422,14 +447,21 @@ judge_chain_append() {  # $1=허용여부(1/0) $2=backend $3=model $4=conflict
   fi
 }
 
-# 체인 구성: claude → codex → agy → opencode-deepseek(동족할인) → self.
-# claude/codex/agy는 비-동족일 때만(ORCH_FAMILY와 다를 때). DeepSeek는 partial 허용(GLM 오케스트레이터도 라우트 달라 허용).
+# 체인 구성: claude → codex → agy → opencode-deepseek(동족할인) → opencode-glm → opencode-kimi → self.
+# claude/codex/agy는 비-동족일 때만(ORCH_FAMILY와 다를 때). DeepSeek는 partial 허용(GLM/KIMI 오케스트레이터도 라우트 달라 허용).
+# GLM·Kimi는 별도 provider(zai vs opencode-go)라 분리 — 단 opencode 백엔드 공유로 상호 partial
+# (ORCH_FAMILY=kimi→glm partial, ORCH_FAMILY=glm→kimi partial).
 # 모델명은 SSOT(models.lib.sh 의 M_*_CLI)에서 — 하드코딩 금지.
 _M_OPUS="${M_OPUS_CLI:-opus}"
 _M_GPT="${M_GPT_CLI:-gpt-5.5}"
 _M_GEMINI="${M_GEMINI_CLI:-gemini}"          # agy judge 식별용 라벨(실제 모델문자열은 아님)
 _M_DEEPSEEK="${M_DEEPSEEK_CLI:-opencode-go/deepseek-v4-pro}"
+_M_KIMI="${M_KIMI_CLI:-opencode-go/kimi-k2.7-code}"
+_M_GLM="${M_GLM_CLI:-zai-coding-plan/glm-5.2}"
 _ds_conflict=no; [ "$deepseek_partial_inbreed" = yes ] && _ds_conflict=partial
+_kimi_conflict=no; [ "$kimi_partial_inbreed" = yes ] && _kimi_conflict=partial
+# GLM(zai)은 ORCH_FAMILY=kimi일 때 opencode 백엔드 공유로 partial(KIMI 오케스트레이터).
+_glm_conflict=no; [ "$ORCH_FAMILY" = kimi ] && [ "$opencode_indep" = 1 ] && _glm_conflict=partial
 if [ "$claude_ok" = 1 ] && [ "$ORCH_FAMILY" != claude ]; then
   judge_chain_append 1 claude "$_M_OPUS" no
 fi
@@ -442,9 +474,13 @@ fi
 if [ "$deepseek_judge_ok" = 1 ]; then
   judge_chain_append 1 opencode "$_M_DEEPSEEK" "$_ds_conflict"
 fi
-# 비동족 opencode(GLM/Kimi) — ORCH_FAMILY≠glm일 때 일반 참가자 라우트로도 Judge 가능(기존 동작 보존).
+# GLM(zai) — ORCH_FAMILY≠glm일 때. ORCH_FAMILY=kimi면 opencode 백엔드 공유로 partial.
 if [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
-  judge_chain_append 1 opencode "glm/kimi" no
+  judge_chain_append 1 opencode "$_M_GLM" "$_glm_conflict"
+fi
+# Kimi(opencode-go) — ORCH_FAMILY≠kimi일 때. ORCH_FAMILY=glm이면 opencode 백엔드 공유로 partial.
+if [ "$kimi_judge_ok" = 1 ] && [ "$ORCH_FAMILY" != kimi ]; then
+  judge_chain_append 1 opencode "$_M_KIMI" "$_kimi_conflict"
 fi
 # 차순위가 하나도 없으면 self(완전 비독립). 라벨의 패밀리는 런타임 오케스트레이터 패밀리를 따른다.
 _jchain="${_jchain:-orchestrator-self:${ORCH_FAMILY:-glm}:yes}"
@@ -462,7 +498,11 @@ elif [ "$deepseek_judge_ok" = 1 ]; then
   JUDGE_DEFAULT='opencode(DeepSeek v4 Pro) fallback'
   [ "$deepseek_partial_inbreed" = yes ] && JUDGE_CONFLICT_RISK=partial
 elif [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
-  JUDGE_DEFAULT='opencode(GLM/Kimi) fallback'
+  JUDGE_DEFAULT='opencode(GLM) fallback'
+  [ "$ORCH_FAMILY" = kimi ] && JUDGE_CONFLICT_RISK=partial   # opencode 백엔드 공유(KIMI 오케스트레이터)
+elif [ "$kimi_judge_ok" = 1 ] && [ "$ORCH_FAMILY" != kimi ]; then
+  JUDGE_DEFAULT='opencode(Kimi) fallback'
+  [ "$kimi_partial_inbreed" = yes ] && JUDGE_CONFLICT_RISK=partial
 else
   JUDGE_DEFAULT='orchestrator-self(비독립 — 가용 비-동족 백엔드 없음)'
   JUDGE_CONFLICT_RISK=yes
@@ -470,7 +510,8 @@ fi
 echo "JUDGE_DEFAULT=$JUDGE_DEFAULT"
 echo "JUDGE_FALLBACK_CHAIN=$_jchain"
 echo "JUDGE_DEEPSEEK_READY=$([ "$deepseek_judge_ok" = 1 ] && echo yes || echo no)"
-echo "JUDGE_CONFLICT_RISK=$JUDGE_CONFLICT_RISK (yes=Judge=오케스트레이터-self(완전동족) / partial=Judge가 오케스트레이터와 백엔드 공유(opencode-deepseek — 동종할인) / no=비독립 — synthesis.md 표기 기준)"
+echo "JUDGE_KIMI_READY=$([ "$kimi_judge_ok" = 1 ] && echo yes || echo no)"
+echo "JUDGE_CONFLICT_RISK=$JUDGE_CONFLICT_RISK (yes=Judge=오케스트레이터-self(완전동족) / partial=Judge가 오케스트레이터와 백엔드·provider 공유(opencode-deepseek/kimi/glm — 동종할인) / no=비독립 — synthesis.md 표기 기준)"
 
 # Synth 우선순위: codex(비-동족) > claude(비-동족) > 가용 참가자 > self.
 SYNTH_DEFAULT=""
@@ -482,7 +523,9 @@ elif [ "$claude_ok" = 1 ] && [ "$ORCH_FAMILY" != claude ]; then
 elif [ "$agy_ok" = 1 ] && [ "$ORCH_FAMILY" != gemini ]; then
   SYNTH_DEFAULT='agy(Gemini) fallback'
 elif [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
-  SYNTH_DEFAULT='opencode(GLM/Kimi) fallback'
+  SYNTH_DEFAULT='opencode(GLM) fallback'
+elif [ "$kimi_judge_ok" = 1 ] && [ "$ORCH_FAMILY" != kimi ]; then
+  SYNTH_DEFAULT='opencode(Kimi) fallback'
 else
   SYNTH_DEFAULT='orchestrator-self(비독립 — 가용 비-동족 백엔드 없음)'
   SYNTH_CONFLICT_RISK=yes

@@ -2,7 +2,7 @@
 
 두 실행 경로 — **omo run**(Sisyphus 오케스트레이션·완수보장)과 **opencode run 직접**(경량 단발) — 의 실측 노트.
 검증 환경(실측): omo(oh-my-openagent) 4.10.0 · opencode 1.16.2 — `omo run --help` / `opencode run --help`로 확인. 최소 요구 버전은 README 전제조건 참조(게이트는 ≥1.4). ⚠️ 단 이 문서의 플래그(`--variant`·`--format json`·`run` 등)는 **1.16.2에서만 실측**됐다 — 1.4~1.15에서 동일 동작 보장은 없으니, 게이트를 통과해도 플래그 오류가 나면 `opencode upgrade`로 최신을 권장.
-모델은 동일(glm·kimi·deepseek 등), **실행기만 다르다**. 라우팅은 `references/routing-fusion.md` 참조.
+모델은 동일(glm·kimi·deepseek 등), **실행기만 다르다**. 단 GLM(zai)·Kimi(opencode-go)는 별도 provider라 별도 패밀리(동족 판정 분리). 라우팅은 `references/routing-fusion.md` 참조.
 
 ---
 

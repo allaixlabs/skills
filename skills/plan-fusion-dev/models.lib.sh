@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ⚠️ 자동 생성 — 수동 수정 금지. models.yaml 편집 후 sync-models.sh 재실행.
 # generated_from: /Users/macpro/project/makeskill/models.yaml
-# generated_at: 2026-06-28
+# generated_at: 2026-07-03
 
 # shellcheck shell=bash
 # 이 파일을 source 하면 아래 변수·헬퍼를 쓸 수 있다(check-fusion.sh 등).
 
 MODELS_VERSION=1
-MODELS_GENERATED_AT="2026-06-28"
+MODELS_GENERATED_AT="2026-07-03"
 
 # disabled (사용자 정책 — 참가자·Judge·Synth·폴백 전 역할 라우팅 금지)
 MODELS_DISABLED="fable-5 mythos-5"
@@ -51,14 +51,14 @@ M_GLM_51_DIR="-d"
 M_GLM_51_DIR_ALT="--dir"
 
 M_KIMI_CLI="opencode-go/kimi-k2.7-code"
-M_KIMI_FAMILY="glm"
+M_KIMI_FAMILY="kimi"
 M_KIMI_BACKEND="opencode"
 M_KIMI_VARIANT="--variant high"
 M_KIMI_DIR="-d"
 M_KIMI_DIR_ALT="--dir"
 
 M_KIMI_26_CLI="opencode-go/kimi-k2.6"
-M_KIMI_26_FAMILY="glm"
+M_KIMI_26_FAMILY="kimi"
 M_KIMI_26_BACKEND="opencode"
 M_KIMI_26_VARIANT="--variant high"
 M_KIMI_26_DIR="-d"

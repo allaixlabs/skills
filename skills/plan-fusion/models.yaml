@@ -76,7 +76,7 @@ models:
     dir_flag: -d
     dir_flag_alt: --dir
   kimi:
-    family: glm
+    family: kimi
     backend: opencode
     aliases: ["kimi k2.7", kimi]
     cli_model: opencode-go/kimi-k2.7-code
@@ -84,7 +84,7 @@ models:
     dir_flag: -d
     dir_flag_alt: --dir
   kimi_26:
-    family: glm
+    family: kimi
     backend: opencode
     aliases: ["kimi k2.6"]
     cli_model: opencode-go/kimi-k2.6

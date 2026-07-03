@@ -2,7 +2,7 @@
 
 **오케스트레이터 = 두뇌(분석·계획·검증·사실확인), 여러 AI 모델 패밀리 CLI = 손, 합성 = Judge·Synthesizer CLI** — "GPT·Gemini·GLM·Kimi로 각각 풀고 Opus가 판정·GPT가 종합해" 류 **CLI Fusion** 요청을 표준 워크플로우로 패키징한 스킬.
 
-> **오케스트레이터 자동감지**: 오케스트레이터는 **ZCode(GLM)·Codex CLI(GPT)·AGY(Gemini)·Claude Code(Opus)** 중 무엇이든 될 수 있다. `check-fusion.sh`가 env `PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude`(argv 폴백)에서 감지해 `ORCHESTRATOR_FAMILY`로 내보낸다 — **감지된 패밀리는 동족(확증편향) 회피를 위해 참가자·Judge·Synth 후보에서 자동 제외**된다(상세 아래 [오케스트레이터 자동감지](#오케스트레이터-자동감지)).
+> **오케스트레이터 자동감지**: 오케스트레이터는 **ZCode(GLM)·Kimi CLI·Codex CLI(GPT)·AGY(Gemini)·Claude Code(Opus)** 중 무엇이든 될 수 있다. `check-fusion.sh`가 env `PLAN_FUSION_ORCHESTRATOR=glm|kimi|gpt|gemini|claude`(argv 폴백)에서 감지해 `ORCHESTRATOR_FAMILY`로 내보낸다 — **감지된 패밀리는 동족(확증편향) 회피를 위해 참가자·Judge·Synth 후보에서 자동 제외**된다(상세 아래 [오케스트레이터 자동감지](#오케스트레이터-자동감지)).
 
 > 핵심 전제: 참가자 CLI들은 오케스트레이터의 대화 컨텍스트를 모른다. 위임 품질은 **자기완결 HANDOFF**가, 교차검증 가치는 **서로 다른 모델 패밀리**가 결정한다.
 > CLI 사용법은 추정이 아니라 **codex 0.139.0 · opencode 1.16.2 · omo 4.10.0 · agy 1.0.10 · claude 2.1.x 실측**으로 검증했다(agy `--print` 헤드리스 채팅·파일쓰기 스모크 통과 포함).
