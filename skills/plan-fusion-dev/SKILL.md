@@ -63,7 +63,7 @@ description: >
 1. **메타 점검**(read-only): `bash "$SKILL_DIR/scripts/check-fusion-dev.sh"` → `FUSION_DEV_PLAN_READY` · `FUSION_DEV_DEV_READY` · `FUSION_DEV_CAPABILITY`.
    - `full`(양쪽 가용) → 진행. `plan-only`(계획만) → 개발은 plan-then-codex 등으로 안내 후 사용자 결정. `dev-only`/`none` → exit 1, 안내·중단.
    - 두 하위 스크립트(check-fusion.sh · check-panels.sh)의 출력(오케스트레이터 패밀리·Judge/Synth 기본·패널 가용성·GLM 인증)이 같이 나오니 숙지한다.
-2. **오케스트레이터 패밀리 확인**: `PLAN_FUSION_ORCHESTRATOR=glm|gpt|gemini|claude` env(없으면 argv/탐침). 동족 회피 룰이 계획 단계에 자동 적용된다(check-fusion.sh). **⚠️ GLM 예외(참가자 한정)**: 오케스트레이터=glm이면 opencode(GLM)가 동족이어도 **계획 단계 패널에 필수 포함**(`GLM_MANDATORY_PARTICIPANT=yes`) — 역할 분리(오케스트레이터=검증 only / 참가자=독립 풀이)로 정당화, 동종할인 synthesis 명시. 따라서 GLM 환경에서 계획 패널은 codex·agy·glm **3종**(N=3). **개발 단계는 동족 제약을 받지 않는다** — 계획과 무관하게 GLM이 리뷰어/검증자로 패널에 들어간다.
+2. **오케스트레이터 패밀리 확인**: `PLAN_FUSION_ORCHESTRATOR=glm|kimi|gpt|gemini|claude` env(없으면 argv/탐침). 동족 회피 룰이 계획 단계에 자동 적용된다(check-fusion.sh). **⚠️ GLM/KIMI 예외(참가자 한정)**: 오케스트레이터=glm|kimi이면 opencode(해당 패밀리)가 동족이어도 **계획 단계 패널에 필수 포함**(`GLM/KIMI_MANDATORY_PARTICIPANT=yes`) — 역할 분리(오케스트레이터=검증 only / 참가자=독립 풀이)로 정당화, 동종할인 synthesis 명시. 따라서 GLM|KIMI 환경에서 계획 패널은 codex·agy·opencode **3종**(N=3). **개발 단계는 동족 제약을 받지 않는다** — 계획과 무관하게 GLM/Kimi가 리뷰어/검증자로 패널에 들어간다.
 3. **격리 폴더 2개 생성**:
    ```bash
    slug=$(printf '%s' "<task 한단어>" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | cut -c1-20)

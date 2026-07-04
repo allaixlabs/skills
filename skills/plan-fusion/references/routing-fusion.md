@@ -25,9 +25,11 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | **codex / gpt 계열** | `codex exec` | GPT 1급 시민(결정론 샌드박스, `exec review` 코드리뷰). 기본 **Synthesizer**. ⚠️ 오케스트레이터가 gpt 패밀리면 동족. |
 | **gemini 계열** | `agy -p` | Antigravity CLI가 Gemini 전용 실행기. **새 패밀리(Google)** — 교차검증 다양성↑. ⚠️ 오케스트레이터가 gemini 패밀리면 동족. **agy 1.0.10: 파일 검색 스코프 결함 → `--add-dir <작업dir>` + 프롬프트 파일 참조 절대경로** (아래 특이사항 참고). |
 | **opus / claude 계열** | `claude --print` | Anthropic 직접. 기본 **Judge**(오케스트레이터가 claude 패밀리가 아닐 때). ⚠️ 오케스트레이터가 claude 패밀리면 동족. |
-| **그 외 모든 provider** (glm·kimi·deepseek·qwen·minimax·opus-via-dgrid 등) | **opencode 계열** (`omo run`/`opencode run`) | 멀티 프로바이더는 opencode 생태계 담당. ⚠️ 오케스트레이터가 glm 패밀리면 동족. |
+| **glm 계열** (zai-coding-plan) | **opencode 계열** (`omo run`/`opencode run`) | GLM 직접 provider. ⚠️ 오케스트레이터가 glm 패밀리면 동족(참가자 필수 포함 예외). |
+| **kimi 계열** (opencode-go) | **opencode 계열** | Kimi 별도 provider → **별도 패밀리**(GLM과 동족 아님, 단 opencode 백엔드 공유로 상호 partial). ⚠️ 오케스트레이터가 kimi 패밀리면 동족(참가자 필수 포함 예외). |
+| **그 외 provider** (deepseek·qwen·minimax·opus-via-dgrid 등) | **opencode 계열** | 멀티 프로바이더는 opencode 생태계 담당(glm family 잔류). ⚠️ 오케스트레이터가 glm 패밀리면 동족. |
 
-핵심: codex(GPT)·agy(Gemini)·opencode(GLM/Kimi)는 **서로 다른 모델 패밀리** → 같은 문제에서 다른 실수 → 교차검증 독립성. 참가자는 가능한 한 **서로 다른 패밀리**로 구성한다.
+핵심: codex(GPT)·agy(Gemini)·opencode-glm·opencode-kimi는 **서로 다른 모델 패밀리** → 같은 문제에서 다른 실수 → 교차검증 독립성. 참가자는 가능한 한 **서로 다른 패밀리**로 구성한다.
 
 ## 호명 → 정규화 테이블
 
