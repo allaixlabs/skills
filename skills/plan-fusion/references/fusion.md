@@ -358,11 +358,22 @@ while [ -n "$_rest" ]; do
   printf 'judge_exit=%s\n' "$_rc" >> "$RUN/manifest"
   printf 'judge_backend=%s\n' "$_backend" >> "$RUN/manifest"
   # 산출 가드: 비어있지 않고 공백 아닌 문자가 있으면 채택. 빈/공백이면 차순위로.
-  if [ -s "$RUN/judge.md" ] && grep -q '[^[:space:]]' "$RUN/judge.md"; then
+  # ⚠️ 에러 메시지 오판 방지: CLI가 stderr가 아닌 stdout으로 에러를 뱉으면(예: claude
+  #    "You've hit your session limit · resets ...") 비어있지 않아 정상 산출로 오판해
+  #    차순위로 안 넘어감(실제 발생: claude 세션 한도가 산출로 채택돼 codex 폴백 무력화).
+  #    짧은 산출(<400 바이트)이 명확한 에러 패턴을 포함하면 실패 산출로 간주해 차순위로 넘긴다.
+  #    정상 Judge 판정은 구조화 섹션(## 1./## 2.…)이라 훨씬 길다(본 위임 judge.md 61행/수 KB).
+  _judge_is_err=0
+  if [ -s "$RUN/judge.md" ] && [ "$(wc -c < "$RUN/judge.md")" -lt 400 ] \
+     && grep -qiE 'session limit|rate limit|hit your|resets at|E2BIG|argument list too long|not (found|installed)|unauthorized|forbidden' "$RUN/judge.md" 2>/dev/null; then
+    _judge_is_err=1
+    echo "WARN: Judge 후보 $_backend 산출이 짧은 에러 메시지로 추정됨(<400B + 에러 패턴) → 차순위로." >&2
+  fi
+  if [ -s "$RUN/judge.md" ] && grep -q '[^[:space:]]' "$RUN/judge.md" && [ "$_judge_is_err" = 0 ]; then
     _judge_backend_used="$_backend"; _judge_conflict="$_conflict"
     break
   fi
-  echo "WARN: Judge 후보 $_backend 실패(exit=$_rc, 산출 공백) → 체인 차순위로." >&2
+  echo "WARN: Judge 후보 $_backend 실패(exit=$_rc, 산출 공백 또는 에러 메시지) → 체인 차순위로." >&2
   : > "$RUN/judge.md"   # 다음 후보를 위해 초기화(실패 잔재 방지)
 done
 # 전 후보 실패 → self 폴백(오케스트레이터 직접 판정).
