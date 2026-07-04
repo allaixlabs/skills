@@ -15,6 +15,7 @@
 *.log
 tmp/
 .tmp/
+runs/
 
 # Python 캐시 (py_compile 부산물)
 **/__pycache__/

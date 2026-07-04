@@ -95,7 +95,7 @@ GLM·Kimi는 같은 opencode 백엔드(런타임·인증 공유)라 **모델 다
 
 ## 1. ANALYZE
 
-오케스트레이터가 코드·실행 페이지를 직접 분석. 변경 대상·스택·빌드/테스트/린트 명령·인간 승인 영역 식별. UI면 스크린샷 → 텍스트 스펙.
+오케스트레이터가 코드·실행 페이지를 직접 분석. 변경 대상·스택·빌드/테스트/린트 명령·인간 승인 영역 식별. UI면 스크린샷 → 텍스트 스펙. 브라우저 증거 수집(`aside`/`mcp__aside__repl`) 시 [`references/aside-repl.md`](references/aside-repl.md) 참조 — 세션 유지 함정(MCP 도구 vs CLI 경로).
 **Fusion-Research**면 질문을 **검증가능한 하위 질문(Q1..Qn)**으로 분해 — Judge 평가·오케스트레이터 사실확인의 축이 된다.
 - **UI 노출 판정(필수)**: 이 작업이 사용자에게 노출되는 변경인가(새 화면·컴포넌트·라우트·상호작용·표시 로직)를 yes/no로 판정하고 **1줄 근거**를 HANDOFF의 'UI 노출 판정' 필드에 기록한다.
   - yes → HANDOFF의 '디자인 스펙' 섹션 + UI Acceptance Criteria를 필수화(아래 §2 PLAN · §5 VERIFY · `templates/fusion-judge.md.tmpl`·`fusion-synth.md.tmpl` 연동).
