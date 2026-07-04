@@ -185,8 +185,12 @@ skills/
 `"Gemini 3.1 Pro (High)"`·`opencode-go/kimi-k2.7-code`·`opus`·disabled 정책 `fable-5`/`mythos-5` 등)은
 **`models.yaml`(레포 루트)이 단일 진실원(SSOT)**이다. 과거엔 모델명이 routing 문서·스크립트·SKILL.md·
 템플릿에 각각 하드코딩돼 버전업 시 여러 곳을 손으로 고쳐야 했고(실제로 `plan-then-opencode`가 구버전으로
-경직되는 버전 스큐가 발생), `check-fusion.sh`의 Judge 폴백 체인엔 라우팅 문서만 고쳐서는 반영되지 않는
-하드코딩이 박혀 있었다.
+경직되는 버전 스큐가 발생), `check-fusion.sh`의 Judge 폴백 체인·동족 판정에도 라우팅 문서만 고쳐서는
+반영되지 않는 하드코딩 family 분기가 박혀 있었다. **모델명(버전업)은 SSOT화가 완료**됐고, **family 분류
+(ORCH 감지·동족 제거·partial-inbreed·폴백 체인)도 부분 데이터화** — `family`·`aliases`·`backend`·`cli_model`
+필드에서 파생(신규 키 없음), 단 mandatory 예외·Judge/Synth 우선순위는 운영 정책이라 코드 상수로 두되
+SSOT 존재 검증으로 drift를 잡는다. 백엔드 헬스체크(`codex login status`·`agy models` 등)는 절차적이라
+YAML에 담지 않는다.
 
 **버전업·모델명 변경·신규 모델 추가 절차**(루트에서):
 ```bash

@@ -18,15 +18,152 @@ set -u
 # 동일한 값이 routing-fusion.md·council.md·SKILL.md 등에도 있지만, 스크립트 로직이
 # 쓰는 진실원은 이 파일이다. 버전업·모델명 변경 시 models.yaml 만 고치고 sync-models.sh.
 _SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)
-if [ -f "$_SELF_DIR/../../models.lib.sh" ]; then
+# lib 탐색 순서: (1) 스킬 폴더 사본(skills/<스킬>/models.lib.sh, 단일 설치 시),
+#               (2) 루트 복제본(레포 루트 models.lib.sh, 개발 시).
+# 기존 ../../(skills/) 경로는 잘못된 위치 — 실제 lib는 스킬 폴더(../) 또는 루트(../../ 를 2번).
+if [ -f "$_SELF_DIR/../models.lib.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$_SELF_DIR/../models.lib.sh"
+elif [ -f "$_SELF_DIR/../../models.lib.sh" ]; then
   # shellcheck disable=SC1091
   . "$_SELF_DIR/../../models.lib.sh"
-elif [ -f "$_SELF_DIR/models.lib.sh" ]; then
-  # 루트 복제본이 없으면 스킬 폴더 자체 사본(독립 설치 시).
-  # shellcheck disable=SC1091
-  . "$_SELF_DIR/models.lib.sh"
 fi
 unset _SELF_DIR
+
+# === family SSOT-화 헬퍼 + policy constant ===
+# 모델 family 분류는 models.yaml(family·aliases·backend·cli_model)에서 파생.
+# 단 mandatory 예외·Judge/Synth 우선순위는 운영 정책이라 코드 상수로 두되, SSOT 존재 검증으로 drift 방지.
+# (Judge/Synth 우선순위는 slug 기준 — deepseek 처럼 family=glm 이지만 route 가 별개인 후보 처리)
+MANDATORY_PARTICIPANT_FAMILIES="glm kimi"   # ORCH_FAMILY == 이 값이면 opencode(동족) 참가자 필수 포함(역할 분리)
+JUDGE_PRIORITY_SLUGS="opus gpt gemini deepseek glm kimi"
+SYNTH_PRIORITY_SLUGS="gpt opus gemini glm kimi"
+
+# 스크립트 상단 검증: policy constant 의 모든 토큰이 models.yaml 에 존재하는지.
+# 누락 시 FAIL — models.yaml 만 고치고 check-fusion.sh 를 안 고쳤을 때의 silent drift 방지.
+_policy_check_err=0
+for _tok in $MANDATORY_PARTICIPANT_FAMILIES $JUDGE_PRIORITY_SLUGS $SYNTH_PRIORITY_SLUGS; do
+  case " ${MODELS_FAMILY_LIST:-} ${MODELS_SLUG_LIST:-} " in
+    *" $_tok "*) ;;
+    *)
+      echo "FAIL: policy constant 토큰 '$_tok' 이(가) models.yaml(family/slug)에 없음 — SSOT 드리프트." >&2
+      _policy_check_err=1 ;;
+  esac
+done
+[ "$_policy_check_err" -ne 0 ] && exit 1
+unset _policy_check_err _tok
+
+# slug → family / aliases / backend / cli 조회(read_model wrapper).
+_family_of_slug() { read_model "$1" FAMILY; }
+_backend_of_slug() { read_model "$1" BACKEND; }
+_cli_of_slug()    { read_model "$1" CLI; }
+
+# slug → family 의 대표 slug 반환(family 별 첫 slug). family 전체가 같은 backend/cli 를 쓰진 않으므로
+# partial_inbreed 은 slug 입도로 동작(아래). 이 함수는 ORCH family → 대표 slug 매핑용.
+_slug_for_family() {  # $1=family → 첫 slug (또는 빈값)
+  [ -n "${MODELS_SLUG_LIST:-}" ] || return 0
+  for _s in $MODELS_SLUG_LIST; do
+    [ "$(_family_of_slug "$_s")" = "$1" ] && { printf '%s\n' "$_s"; return 0; }
+  done
+}
+
+# raw 입력(PLAN_FUSION_ORCHESTRATOR/argv) → family. 판정 순서:
+#   1. empty/unknown/none → unknown
+#   2. slug exact match → 그 slug 의 family
+#   3. alias exact match(pipe 구분자로 순회, 공백 alias 보존) → 그 slug 의 family
+#   4. cli_model exact match → 그 slug 의 family
+#   5. cli_model prefix fallback(raw 가 cli_model 으로 시작) → 그 slug 의 family
+# 양방향 prefix match(Gemini 방식)는 금지 — 새 alias 하나로 과매칭 위험.
+family_for_alias() {  # $1=raw → family slug or "unknown"
+  local _raw="${1:-}" _s _al _cli _fam
+  case "$_raw" in
+    ''|unknown|UNKNOWN|none|NONE) printf 'unknown\n'; return 0 ;;
+  esac
+  # 2. slug exact
+  for _s in ${MODELS_SLUG_LIST:-}; do
+    [ "$_s" = "$_raw" ] && { _family_of_slug "$_s"; return 0; }
+  done
+  # 3. alias exact (pipe 구분자 순회)
+  for _s in ${MODELS_SLUG_LIST:-}; do
+    _al=$(read_model "$_s" ALIASES)
+    [ -n "$_al" ] || continue
+    # pipe 로 split 하며 각 alias 가 raw 와 exact 일치하는지
+    local _rest="$_al" _a
+    while [ -n "$_rest" ]; do
+      _a="${_rest%%|*}"
+      [ "$_a" = "$_raw" ] && { _family_of_slug "$_s"; return 0; }
+      case "$_rest" in
+        *'|'*) _rest="${_rest#*|}" ;;
+        *) break ;;
+      esac
+    done
+  done
+  # 4·5. cli_model exact / prefix fallback (zai-coding-plan/glm-5.2... 등 provider 경로 입력)
+  for _s in ${MODELS_SLUG_LIST:-}; do
+    _cli=$(read_model "$_s" CLI)
+    [ -n "$_cli" ] || continue
+    case "$_raw" in
+      "$_cli"|$_cli*) _family_of_slug "$_s"; return 0 ;;
+    esac
+  done
+  printf 'unknown\n'
+}
+
+# cli_model 의 provider prefix(provider/name 형식). partial_inbreed 파생용. 신필드 아님.
+provider_of() {  # $1=cli_model → provider prefix (또는 빈값)
+  case "$1" in
+    */*) printf '%s\n' "${1%%/*}" ;;
+    *)   printf '\n' ;;
+  esac
+}
+
+# candidate slug 가 ORCH 와 partial-inbreed 인지. full inbreed(family 같음)는 여기서 false.
+# 규칙: candidate family != ORCH family 이고,
+#   (a) candidate backend == ORCH 대표 backend (둘 다 비어있지 않) → partial, OR
+#   (b) provider_of(candidate cli) == provider_of(ORCH cli) (둘 다 비어있지 않) → partial
+# 이 규칙으로 glm↔kimi(opencode backend 공유)·kimi↔deepseek(opencode-go provider 공유) 자동 파생.
+partial_inbreed() {  # $1=candidate slug → yes|no
+  local _cand="$1" _cf _ob _cb _oc _cc _oslug
+  _cf=$(_family_of_slug "$_cand")
+  [ "$_cf" = "$ORCH_FAMILY" ] && { printf 'no\n'; return 0; }   # full inbreed 은 별도(skip/mandatory)
+  _oslug=$(_slug_for_family "$ORCH_FAMILY")
+  [ -n "$_oslug" ] || { printf 'no\n'; return 0; }              # ORCH unknown 이면 partial 없음
+  _ob=$(_backend_of_slug "$_oslug"); _cb=$(_backend_of_slug "$_cand")
+  if [ -n "$_ob" ] && [ "$_ob" = "$_cb" ]; then printf 'yes\n'; return 0; fi
+  _oc=$(provider_of "$(_cli_of_slug "$_oslug")"); _cc=$(provider_of "$(_cli_of_slug "$_cand")")
+  if [ -n "$_oc" ] && [ "$_oc" = "$_cc" ]; then printf 'yes\n'; return 0; fi
+  printf 'no\n'
+}
+
+# candidate family 가 ORCH 와 같으면서 mandatory 상수에 있으면 true(참가자 필수 포함 예외).
+is_mandatory_when_orch() {  # $1=candidate family → 0=true(필수), 1=false
+  [ "$1" = "$ORCH_FAMILY" ] || return 1
+  case " $MANDATORY_PARTICIPANT_FAMILIES " in
+    *" $1 "*) return 0 ;;
+  esac
+  return 1
+}
+
+# === 오케스트레이터 감지 (env 우선, argv 폴백, unknown 허용) ===
+# family_for_alias 가 models.yaml SSOT(family·aliases·cli_model)에서 파생. case glob 없음.
+# 새 패밀리 추가 시 models.yaml 만 고치면 자동 인식(sync-models.sh 후).
+ORCH_RAW="${PLAN_FUSION_ORCHESTRATOR:-${1:-}}"
+ORCH_FAMILY=$(family_for_alias "$ORCH_RAW")
+# backend 는 ORCH family 의 대표 slug 에서. unknown 이면 unknown.
+if [ "$ORCH_FAMILY" = unknown ]; then
+  ORCH_BACKEND=unknown
+else
+  ORCH_BACKEND=$(_backend_of_slug "$(_slug_for_family "$ORCH_FAMILY")")
+  [ -n "$ORCH_BACKEND" ] || ORCH_BACKEND=unknown
+fi
+# 인식 불가 경고(unknown 도 유효 입력이지만, 사용자 오타 가능성 알림).
+if [ -n "$ORCH_RAW" ] && [ "$ORCH_FAMILY" = unknown ] && \
+   ! printf '%s' "$ORCH_RAW" | grep -qE '^(unknown|UNKNOWN|none|NONE)$'; then
+  echo "WARN: PLAN_FUSION_ORCHESTRATOR='$ORCH_RAW' 인식불가 — unknown 취급(동족 제거 룰 비활성, 모든 패밀리 가용 후보)." >&2
+fi
+echo "# ── 오케스트레이터 감지 ──────────────────────────────────"
+echo "ORCHESTRATOR_INPUT=${ORCH_RAW:-<unset>}"
+echo "ORCHESTRATOR_FAMILY=$ORCH_FAMILY"
+echo "ORCHESTRATOR_BACKEND=$ORCH_BACKEND"
 
 # agy 는 zsh 함수로 래핑될 수 있다(.zshrc). bash 스크립트에선 함수 미로드 → 바이너리를 직접 찾는다.
 # 일반 설치 경로 보강(macOS Apple Silicon/Intel·Linuxbrew). ${PATH:-}로 set -u 가드.
@@ -40,31 +177,7 @@ if command -v timeout  >/dev/null 2>&1; then _t() { timeout  "$@"; }
 elif command -v gtimeout >/dev/null 2>&1; then _t() { gtimeout "$@"; }
 else _t() { shift; "$@"; }; fi
 
-# === 오케스트레이터 감지 (env 우선, argv 폴백, unknown 허용) ===
-# 이 스크립트를 부른 오케스트레이터(분석·검증 주체)의 모델 패밀리를 식별한다.
-# 같은 패밀리를 참가자·Judge·Synth에 쓰면 교차검증 독립성이 무너지므로(동족),
-# ORCH_FAMILY에 따라 아래 집계에서 그 패밀리를 제외한다.
-# ⚠️ 예외(GLM/KIMI): ORCH_FAMILY=glm|kimi이면 opencode(해당 패밀리)는 동족이나 **참가자에 필수 포함**(최소 3종 백엔드 보장).
-#    역할 분리(오케스트레이터=검증 only·불가양도 / opencode 참가자=독립 풀이)로 동족 위험을 완화하고,
-#    synthesis에 '동종할인(partial)' 표기를 붙인다(GLM/KIMI_MANDATORY_PARTICIPANT 시그널). Judge·Synth는 여전히 동족 회피.
-# env: PLAN_FUSION_ORCHESTRATOR=glm|kimi|gpt|gemini|claude (헤드리스/cron 안전)
-# argv: 첫 인자를 폴백으로 받는다(env 미설정 시). 둘 다 없으면 unknown.
-ORCH_RAW="${PLAN_FUSION_ORCHESTRATOR:-${1:-}}"
-ORCH_FAMILY=unknown; ORCH_BACKEND=unknown
-case "$ORCH_RAW" in
-  glm|glm-5*|glm4*|zai*)          ORCH_FAMILY=glm;    ORCH_BACKEND=opencode ;;
-  kimi|kimi-*|moonshot|opencode-go/kimi*) ORCH_FAMILY=kimi; ORCH_BACKEND=opencode ;;
-  gpt|gpt-5*|gpt5*|codex)         ORCH_FAMILY=gpt;    ORCH_BACKEND=codex ;;
-  gemini|gemini-*|agy|antigravity) ORCH_FAMILY=gemini; ORCH_BACKEND=agy ;;
-  claude|opus|anthropic)          ORCH_FAMILY=claude; ORCH_BACKEND=claude ;;
-  ''|unknown|NONE|none)           ORCH_FAMILY=unknown; ORCH_BACKEND=unknown ;;
-  *)                              ORCH_FAMILY=unknown; ORCH_BACKEND=unknown
-    echo "WARN: PLAN_FUSION_ORCHESTRATOR='$ORCH_RAW' 인식불가 — unknown 취급(동족 제거 룰 비활성, 모든 패밀리 가용 후보)." >&2 ;;
-esac
-echo "# ── 오케스트레이터 감지 ──────────────────────────────────"
-echo "ORCHESTRATOR_INPUT=${ORCH_RAW:-<unset>}"
-echo "ORCHESTRATOR_FAMILY=$ORCH_FAMILY"
-echo "ORCHESTRATOR_BACKEND=$ORCH_BACKEND"
+# (오케스트레이터 감지는 위 family SSOT-화 블록에서 처리 — family_for_alias 기반)
 
 codex_ok=0
 opencode_ok=0
@@ -404,21 +517,13 @@ fi
 # ⚠️ Kimi 분리: ORCH_FAMILY=glm이면 Kimi(opencode-go)는 opencode 백엔드 공유로 partial.
 #    ORCH_FAMILY=kimi이면 DeepSeek(opencode-go provider 공유)가 partial. 둘은 같은 provider라 상호 partial.
 deepseek_judge_ok=0
-deepseek_partial_inbreed=no
 kimi_judge_ok=0
-kimi_partial_inbreed=no
 if printf '%s\n' "${PROV:-}" | grep -qiE '●.*(OpenCode Go)' \
    || printf '%s' "${AUTH_KEYS:-}" | grep -qiE 'opencode-go'; then
   deepseek_judge_ok=1
   kimi_judge_ok=1
-  if [ "$ORCH_FAMILY" = glm ]; then
-    deepseek_partial_inbreed=yes   # opencode 백엔드 공유(런타임·인증) — 부분 동족
-    kimi_partial_inbreed=yes       # opencode 백엔드 공유(GLM 오케스트레이터) — 부분 동족
-  fi
-  if [ "$ORCH_FAMILY" = kimi ]; then
-    deepseek_partial_inbreed=yes   # opencode-go provider 공유(KIMI 오케스트레이터) — 부분 동족
-  fi
 fi
+# (deepseek/kimi partial_inbreed 변수 제거 — 아래 emit_chain 이 partial_inbreed() 헬퍼로 런타임 파생.
 
 # JUDGE_FALLBACK_CHAIN: 런타임 Judge 폴백이 소비하는 후보 순서(fusion.md §3-2·§3-4).
 #    "primary -> fallback1 -> fallback2 -> ... -> self" 형식. self 전 단계까지 차순위가 없으면 self.
@@ -433,103 +538,137 @@ if ! command -v is_disabled_model >/dev/null 2>&1; then
   is_disabled_model() { return 0; }
 fi
 
-_jchain=""
-_j_self_added=0
-judge_chain_append() {  # $1=허용여부(1/0) $2=backend $3=model $4=conflict
-  if [ "$1" = 1 ]; then
-    # ⚠️ #7: 과거 build_judge_candidate() 데드코드(정도만 있고 호출 0건, | 구분자가 실사용 : 과 불일치)는 삭제.
-    if ! is_disabled_model "$3"; then
-      echo "WARN: disabledModels 정책 위반(SSOT MODELS_DISABLED) — backend=$2 model=$3 후보에서 제외." >&2
-      return 0
-    fi
-    if [ -n "$_jchain" ]; then _jchain="${_jchain} -> "; fi
-    _jchain="${_jchain}${2}:${3}:${4}"
-  fi
+# slug → runtime readiness(adapter). 헬스체크 결과(절차적)를 chain 구성에 연결.
+# 백엔드 인증 단위별로 분기 — opencode 안의 glm/kimi/deepseek 는 provider 별 ready.
+slug_ready() {  # $1=slug → 0=ready, 1=not
+  case "$1" in
+    gpt|gpt_fast|gpt_54|spark)            [ "$codex_ok" = 1 ] ;;
+    gemini|gemini_flash)                  [ "$agy_ok" = 1 ] ;;
+    opus)                                 [ "$claude_ok" = 1 ] ;;
+    glm|glm_51)                           [ "$opencode_indep" = 1 ] ;;
+    kimi|kimi_26)                         [ "$kimi_judge_ok" = 1 ] ;;
+    deepseek)                             [ "$deepseek_judge_ok" = 1 ] ;;
+    # qwen/minimax/opus_review 등은 현재 Judge/Synth pool 에서 제외(ready 미정의).
+    *)                                    return 1 ;;
+  esac
 }
 
-# 체인 구성: claude → codex → agy → opencode-deepseek(동족할인) → opencode-glm → opencode-kimi → self.
-# claude/codex/agy는 비-동족일 때만(ORCH_FAMILY와 다를 때). DeepSeek는 partial 허용(GLM/KIMI 오케스트레이터도 라우트 달라 허용).
-# GLM·Kimi는 별도 provider(zai vs opencode-go)라 분리 — 단 opencode 백엔드 공유로 상호 partial
-# (ORCH_FAMILY=kimi→glm partial, ORCH_FAMILY=glm→kimi partial).
-# 모델명은 SSOT(models.lib.sh 의 M_*_CLI)에서 — 하드코딩 금지.
-_M_OPUS="${M_OPUS_CLI:-opus}"
-_M_GPT="${M_GPT_CLI:-gpt-5.5}"
-_M_GEMINI="${M_GEMINI_CLI:-gemini}"          # agy judge 식별용 라벨(실제 모델문자열은 아님)
-_M_DEEPSEEK="${M_DEEPSEEK_CLI:-opencode-go/deepseek-v4-pro}"
-_M_KIMI="${M_KIMI_CLI:-opencode-go/kimi-k2.7-code}"
-_M_GLM="${M_GLM_CLI:-zai-coding-plan/glm-5.2}"
-_ds_conflict=no; [ "$deepseek_partial_inbreed" = yes ] && _ds_conflict=partial
-_kimi_conflict=no; [ "$kimi_partial_inbreed" = yes ] && _kimi_conflict=partial
-# GLM(zai)은 ORCH_FAMILY=kimi일 때 opencode 백엔드 공유로 partial(KIMI 오케스트레이터).
-_glm_conflict=no; [ "$ORCH_FAMILY" = kimi ] && [ "$opencode_indep" = 1 ] && _glm_conflict=partial
-if [ "$claude_ok" = 1 ] && [ "$ORCH_FAMILY" != claude ]; then
-  judge_chain_append 1 claude "$_M_OPUS" no
-fi
-if [ "$codex_ok" = 1 ] && [ "$ORCH_FAMILY" != gpt ]; then
-  judge_chain_append 1 codex "$_M_GPT" no
-fi
-if [ "$agy_ok" = 1 ] && [ "$ORCH_FAMILY" != gemini ]; then
-  judge_chain_append 1 agy "$_M_GEMINI" no
-fi
-if [ "$deepseek_judge_ok" = 1 ]; then
-  judge_chain_append 1 opencode "$_M_DEEPSEEK" "$_ds_conflict"
-fi
-# GLM(zai) — ORCH_FAMILY≠glm일 때. ORCH_FAMILY=kimi면 opencode 백엔드 공유로 partial.
-if [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
-  judge_chain_append 1 opencode "$_M_GLM" "$_glm_conflict"
-fi
-# Kimi(opencode-go) — ORCH_FAMILY≠kimi일 때. ORCH_FAMILY=glm이면 opencode 백엔드 공유로 partial.
-if [ "$kimi_judge_ok" = 1 ] && [ "$ORCH_FAMILY" != kimi ]; then
-  judge_chain_append 1 opencode "$_M_KIMI" "$_kimi_conflict"
-fi
-# 차순위가 하나도 없으면 self(완전 비독립). 라벨의 패밀리는 런타임 오케스트레이터 패밀리를 따른다.
-_jchain="${_jchain:-orchestrator-self:${ORCH_FAMILY:-glm}:yes}"
+# 사람이 읽는 default 라벨. 체인 튜플(be:model:conflict)에서 친숙한 표시명으로 변환.
+# 라벨은 사람 가독용 — 패밀리/대표명 사용(opus, GPT, Gemini, DeepSeek v4 Pro, GLM, Kimi).
+_label_for_first() {  # $1=first tuple "be:model:conflict" → 표시 라벨
+  local _t="$1" _be _model _conf
+  _be="${_t%%:*}"; _rest="${_t#*:}"; _model="${_rest%:*}"; _conf="${_rest##*:}"
+  case "$_be:$_model" in
+    claude:opus|claude:*)        printf 'claude(Opus)\n' ;;
+    codex:*)                     printf 'codex(GPT) fallback\n' ;;
+    agy:*)                       printf 'agy(Gemini) fallback\n' ;;
+    opencode:*deepseek*)         printf 'opencode(DeepSeek v4 Pro) fallback\n' ;;
+    opencode:*glm*)              printf 'opencode(GLM) fallback\n' ;;
+    opencode:*kimi*)             printf 'opencode(Kimi) fallback\n' ;;
+    *)                           printf '%s(%s) fallback\n' "$_be" "$_model" ;;
+  esac
+}
 
+# slug → chain 라벨(후보 식별용). SSOT cli_model 전체 대신 친숙한 표시명으로 간결화.
+# runtime/fusion.md 가 파싱하는 튜플 식별자 — backend:라벨:conflict.
+_chain_label_for_slug() {  # $1=slug → 간결 라벨
+  case "$1" in
+    opus)              printf 'opus\n' ;;
+    gpt|gpt_fast|gpt_54|spark)  printf 'gpt-5.5\n' ;;
+    gemini|gemini_flash)        printf 'gemini\n' ;;
+    deepseek)                   printf 'opencode-go/deepseek-v4-pro\n' ;;
+    glm|glm_51)                 printf 'zai-coding-plan/glm-5.2\n' ;;
+    kimi|kimi_26)               printf 'opencode-go/kimi-k2.7-code\n' ;;
+    *)                          _cli_of_slug "$1" ;;
+  esac
+}
+
+# chain 구성: priority slug 리스트를 순회하며 backend:label:conflict 튜플 적재.
+# 우선순위 자체는 코드 상수(JUDGE/SYNTH_PRIORITY_SLUGS). conflict 는 partial_inbreed() 헬퍼로 파생.
+# 동족(family == ORCH_FAMILY)이면 skip — 단 Judge 폴백의 DeepSeek 예외(F1)는 partial 허용으로 보존:
+#   deepseek 는 family=glm 이라 ORCH=glm 이면 동족이나, partial_inbreed(opencode-go provider 공유 kimi)와
+#   별개로 "제3자 판정" 가치로 partial 허용. 따라서 deepseek 는 동족이어도 skip 않고 partial 로 append.
+emit_chain() {  # $1=priority slug list → "be:label:conflict -> ..." (또는 self 폴백)
+  local _prio="$1" _slug _be _lbl _conf _is_orch_fam
+  _chain=""
+  for _slug in $_prio; do
+    slug_ready "$_slug" || continue                       # 절차적 readiness 게이트
+    _lbl=$(_chain_label_for_slug "$_slug"); [ -n "$_lbl" ] || continue
+    is_disabled_model "$_lbl" || { echo "WARN: disabledModels 정책 위반(SSOT) — slug=$_slug label=$_lbl 후보에서 제외." >&2; continue; }
+    _is_orch_fam=$(_family_of_slug "$_slug")
+    # 동족 skip — 단 deepseek 는 F1 예외(제3자 판정 partial 허용).
+    if [ "$_is_orch_fam" = "$ORCH_FAMILY" ] && [ "$_slug" != deepseek ]; then
+      continue
+    fi
+    # conflict 산출: partial_inbreed 헬퍼. 단 deepseek 동족(GLM/KIMI ORCH)은 partial 로 허용.
+    if [ "$_is_orch_fam" = "$ORCH_FAMILY" ] && [ "$_slug" = deepseek ]; then
+      _conf=partial
+    else
+      _conf=$(partial_inbreed "$_slug"); [ "$_conf" = yes ] && _conf=partial || _conf=no
+    fi
+    _be=$(_backend_of_slug "$_slug")
+    if [ -n "$_chain" ]; then _chain="${_chain} -> "; fi
+    _chain="${_chain}${_be}:${_lbl}:${_conf}"
+  done
+  # 차순위가 하나도 없으면 self(완전 비독립). 라벨의 패밀리는 런타임 오케스트레이터 패밀리를 따른다.
+  printf '%s\n' "${_chain:-orchestrator-self:${ORCH_FAMILY:-glm}:yes}"
+}
+
+# === Judge chain (priority 상수 순회) ===
+JUDGE_CHAIN_RAW=$(emit_chain "$JUDGE_PRIORITY_SLUGS")
+JUDGE_FALLBACK_CHAIN=$JUDGE_CHAIN_RAW
+
+# JUDGE_DEFAULT = chain 첫 후보의 라벨. 충돌 라벨은 preflight 표시용.
 JUDGE_DEFAULT=""
 JUDGE_CONFLICT_RISK=no
-# JUDGE_DEFAULT = 체인의 첫 후보(전체 패밀리 라벨용). 충돌 라벨은 런타임이 아니라 preflight 표시용.
-if [ "$claude_ok" = 1 ] && [ "$ORCH_FAMILY" != claude ]; then
-  JUDGE_DEFAULT='claude(Opus)'
-elif [ "$codex_ok" = 1 ] && [ "$ORCH_FAMILY" != gpt ]; then
-  JUDGE_DEFAULT='codex(GPT) fallback'
-elif [ "$agy_ok" = 1 ] && [ "$ORCH_FAMILY" != gemini ]; then
-  JUDGE_DEFAULT='agy(Gemini) fallback'
-elif [ "$deepseek_judge_ok" = 1 ]; then
-  JUDGE_DEFAULT='opencode(DeepSeek v4 Pro) fallback'
-  [ "$deepseek_partial_inbreed" = yes ] && JUDGE_CONFLICT_RISK=partial
-elif [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
-  JUDGE_DEFAULT='opencode(GLM) fallback'
-  [ "$ORCH_FAMILY" = kimi ] && JUDGE_CONFLICT_RISK=partial   # opencode 백엔드 공유(KIMI 오케스트레이터)
-elif [ "$kimi_judge_ok" = 1 ] && [ "$ORCH_FAMILY" != kimi ]; then
-  JUDGE_DEFAULT='opencode(Kimi) fallback'
-  [ "$kimi_partial_inbreed" = yes ] && JUDGE_CONFLICT_RISK=partial
-else
-  JUDGE_DEFAULT='orchestrator-self(비독립 — 가용 비-동족 백엔드 없음)'
-  JUDGE_CONFLICT_RISK=yes
-fi
+_first="${JUDGE_CHAIN_RAW%% -> *}"     # 첫 후보 (또는 전체가 self 폴백)
+case "$_first" in
+  orchestrator-self:*)
+    JUDGE_DEFAULT='orchestrator-self(비독립 — 가용 비-동족 백엔드 없음)'
+    JUDGE_CONFLICT_RISK=yes
+    ;;
+  *:*)
+    # conflict 라벨 추출 — partial 이면 risk 표시.
+    _fc="${_first##*:}"
+    JUDGE_DEFAULT=$(_label_for_first "$_first")
+    [ "$_fc" = partial ] && JUDGE_CONFLICT_RISK=partial
+    ;;
+esac
 echo "JUDGE_DEFAULT=$JUDGE_DEFAULT"
-echo "JUDGE_FALLBACK_CHAIN=$_jchain"
+echo "JUDGE_FALLBACK_CHAIN=$JUDGE_FALLBACK_CHAIN"
 echo "JUDGE_DEEPSEEK_READY=$([ "$deepseek_judge_ok" = 1 ] && echo yes || echo no)"
 echo "JUDGE_KIMI_READY=$([ "$kimi_judge_ok" = 1 ] && echo yes || echo no)"
 echo "JUDGE_CONFLICT_RISK=$JUDGE_CONFLICT_RISK (yes=Judge=오케스트레이터-self(완전동족) / partial=Judge가 오케스트레이터와 백엔드·provider 공유(opencode-deepseek/kimi/glm — 동종할인) / no=비독립 — synthesis.md 표기 기준)"
 
-# Synth 우선순위: codex(비-동족) > claude(비-동족) > 가용 참가자 > self.
+# === Synth chain (priority 상수 순회) ===
+SYNTH_CHAIN_RAW=$(emit_chain "$SYNTH_PRIORITY_SLUGS")
 SYNTH_DEFAULT=""
 SYNTH_CONFLICT_RISK=no
-if [ "$codex_ok" = 1 ] && [ "$ORCH_FAMILY" != gpt ]; then
-  SYNTH_DEFAULT='codex(GPT)'
-elif [ "$claude_ok" = 1 ] && [ "$ORCH_FAMILY" != claude ]; then
-  SYNTH_DEFAULT='claude(Opus) fallback'
-elif [ "$agy_ok" = 1 ] && [ "$ORCH_FAMILY" != gemini ]; then
-  SYNTH_DEFAULT='agy(Gemini) fallback'
-elif [ "$opencode_indep" = 1 ] && [ "$ORCH_FAMILY" != glm ]; then
-  SYNTH_DEFAULT='opencode(GLM) fallback'
-elif [ "$kimi_judge_ok" = 1 ] && [ "$ORCH_FAMILY" != kimi ]; then
-  SYNTH_DEFAULT='opencode(Kimi) fallback'
-else
-  SYNTH_DEFAULT='orchestrator-self(비독립 — 가용 비-동족 백엔드 없음)'
-  SYNTH_CONFLICT_RISK=yes
-fi
+_sfirst="${SYNTH_CHAIN_RAW%% -> *}"
+case "$_sfirst" in
+  orchestrator-self:*)
+    SYNTH_DEFAULT='orchestrator-self(비독립 — 가용 비-동족 백엔드 없음)'
+    SYNTH_CONFLICT_RISK=yes
+    ;;
+  *:*)
+    _sfc="${_sfirst##*:}"
+    # Synth 라벨 — priority 첫 slug(codex/gpt)가 첫 후보면 주종합자(fallback 없이),
+    # 그 외 백엔드가 폴백으로 올라오면 'fallback' 접미사. SYNTH_PRIORITY_SLUGS 첫 토큰 기준.
+    _sfirst_slug="${SYNTH_PRIORITY_SLUGS%% *}"
+    _sfirst_fam=$(_family_of_slug "$_sfirst_slug")
+    _scand_fam=$(_family_of_slug "${_sfirst%%:*}")  # parse 불가하니 backend 로 대체 판단
+    # 간단히: 첫 후보의 backend 가 codex 면 주종합자, 아니면 fallback.
+    _sbe="${_sfirst%%:*}"
+    if [ "$_sbe" = codex ]; then
+      SYNTH_DEFAULT=$(_label_for_first "$_sfirst" | sed 's/ fallback$//')
+    else
+      # codex 동족 등으로 차순위 백엔드가 폴백 — fallback 접미사 보정.
+      _synlbl=$(_label_for_first "$_sfirst" | sed 's/ fallback$//')
+      SYNTH_DEFAULT="$_synlbl fallback"
+    fi
+    [ "$_sfc" = partial ] && SYNTH_CONFLICT_RISK=partial
+    ;;
+esac
 echo "SYNTH_DEFAULT=$SYNTH_DEFAULT"
 echo "SYNTH_CONFLICT_RISK=$SYNTH_CONFLICT_RISK (yes면 Synth가 오케스트레이터-self라 동족)"
 
