@@ -187,7 +187,7 @@ skills/
 
 ## 모델명 관리 (SSOT)
 
-`plan-*` 오케스트레이션 스킬들이 라우팅하는 AI 모델명(`gpt-5.5`·`zai-coding-plan/glm-5.2`·
+`plan-*` 오케스트레이션 스킬들이 라우팅하는 AI 모델명(`gpt-5.6-sol`·`zai-coding-plan/glm-5.2`·
 `"Gemini 3.1 Pro (High)"`·`opencode-go/kimi-k2.7-code`·`opus`·disabled 정책 `fable-5`/`mythos-5` 등)은
 **`models.yaml`(레포 루트)이 단일 진실원(SSOT)**이다. 과거엔 모델명이 routing 문서·스크립트·SKILL.md·
 템플릿에 각각 하드코딩돼 버전업 시 여러 곳을 손으로 고쳐야 했고(실제로 `plan-then-opencode`가 구버전으로

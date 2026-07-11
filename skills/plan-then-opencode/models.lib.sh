@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 # ⚠️ 자동 생성 — 수동 수정 금지. models.yaml 편집 후 sync-models.sh 재실행.
 # generated_from: /Users/macpro/project/makeskill/models.yaml
-# generated_at: 2026-07-04
+# generated_at: 2026-07-11
 
 # shellcheck shell=bash
 # 이 파일을 source 하면 아래 변수·헬퍼를 쓸 수 있다(check-fusion.sh 등).
 
 MODELS_VERSION=1
-MODELS_GENERATED_AT="2026-07-04"
+MODELS_GENERATED_AT="2026-07-11"
 
 # disabled (사용자 정책 — 참가자·Judge·Synth·폴백 전 역할 라우팅 금지)
 MODELS_DISABLED="fable-5 mythos-5"
 
 # 모델별 변수 (키 = 패널 슬러그). M_<ID>_<ATTR> 형식.
-M_GPT_CLI="gpt-5.5"
+M_GPT_CLI="gpt-5.6-sol"
 M_GPT_FAMILY="gpt"
 M_GPT_BACKEND="codex"
 M_GPT_EFFORT="-c model_reasoning_effort=xhigh"
 M_GPT_DIR="-C"
 M_GPT_ALIASES="codex|gpt5.5|gpt5.5 xhigh"
 
-M_GPT_FAST_CLI="gpt-5.5-fast"
+M_GPT_FAST_CLI="gpt-5.6-sol-fast"
 M_GPT_FAST_FAMILY="gpt"
 M_GPT_FAST_BACKEND="codex"
 M_GPT_FAST_EFFORT_TEMPLATE="-c model_reasoning_effort={v}"

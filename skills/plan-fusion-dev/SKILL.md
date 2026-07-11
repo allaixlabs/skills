@@ -141,11 +141,11 @@ description: >
 
 > **`$RUN` 바인딩**: 이하 `plan-codex-opencode` 절차 본문이 말하는 `$RUN`은 **이 스킬의 `$RUN_PCO`** 이다(계획 단계 `$RUN_PF`가 아님). 모든 handoff·worktree·council·manifest 경로는 `$RUN_PCO` 아래다.
 
-- **패널(기본 라인업)**: codex `gpt-5.5`(effort xhigh 또는 high) + opencode `glm-5.2`. 둘 다 이 스킬 사전점검(check-fusion-dev.sh)에서 가용 확인됨.
+- **패널(기본 라인업)**: codex `gpt-5.6-sol`(effort xhigh 또는 high) + opencode `glm-5.2`. 둘 다 이 스킬 사전점검(check-fusion-dev.sh)에서 가용 확인됨.
 - **Pipeline 모드 시 역할 분배**(SKILL.md plan-codex-opencode §3 Pipeline):
-  - 구현(메인): codex `gpt-5.5` xhigh — `$RUN_PCO`의 handoff로 위임, SESSION_A 추출.
+  - 구현(메인): codex `gpt-5.6-sol` xhigh — `$RUN_PCO`의 handoff로 위임, SESSION_A 추출.
   - 리뷰: 구현자와 다른 패밀리 = opencode `glm-5.2`. (codex 구현이면 리뷰는 omo/opencode로 — 역방향도 허용.)
-  - 수정: codex `gpt-5.5` resume — 리뷰 지적 반영.
+  - 수정: codex `gpt-5.6-sol` resume — 리뷰 지적 반영.
   - 종합: 오케스트레이터(plan-codex-opencode §4 종합).
 - **Council-Code 모드 시**: 두 패널이 각자 worktree에서 병렬 구현 → 교차리뷰 → 채택/합성. 비용 2배지만 독립성 최대.
 - ⚠️ **오케스트레이터 동족 주의**: 오케스트레이터=glm(ZCode)이면, 계획·개발 양 단계 모두 GLM이 "동족"이 될 수 있다. **계획 단계**: GLM 예외로 opencode(GLM)가 참가자에 필수 포함(`GLM_MANDATORY_PARTICIPANT=yes`) — 역할 분리(오케스트레이터=검증 only / 참가자=독립 풀이)로 정당화, 동종할인 synthesis 명시. **개발 단계**: GLM이 "리뷰어/견제" 역할로 GPT 구현을 교차검증하므로, 오케스트레이터 분석·검증과 GLM 리뷰가 같은 패밀리여도 *패널 내* 교차검증(GPT↔GLM)은 유효하다. 양쪽 모두 synthesis에 "오케스트레이터-GLM 동족(역할 분리)"을 표기하고 진행.

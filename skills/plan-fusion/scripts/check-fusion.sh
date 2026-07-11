@@ -574,7 +574,7 @@ _label_for_first() {  # $1=first tuple "be:model:conflict" → 표시 라벨
 _chain_label_for_slug() {  # $1=slug → 간결 라벨
   case "$1" in
     opus)              printf 'opus\n' ;;
-    gpt|gpt_fast|gpt_54|spark)  printf 'gpt-5.5\n' ;;
+    gpt|gpt_fast|gpt_54|spark)  printf 'gpt-5.6-sol\n' ;;
     gemini|gemini_flash)        printf 'gemini\n' ;;
     deepseek)                   printf 'opencode-go/deepseek-v4-pro\n' ;;
     glm|glm_51)                 printf 'zai-coding-plan/glm-5.2\n' ;;

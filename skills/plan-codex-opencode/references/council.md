@@ -1,6 +1,6 @@
 # Council 레퍼런스 — 격리 · 교차리뷰 · 종합 (plan-codex-opencode용)
 
-> **모델명 SSOT**: 아래 코드 예시의 모델 문자열(`gpt-5.5`·`zai-coding-plan/glm-5.2`·
+> **모델명 SSOT**: 아래 코드 예시의 모델 문자열(`gpt-5.6-sol`·`zai-coding-plan/glm-5.2`·
 > `opencode-go/kimi-k2.7-code`)은 `models.yaml`(단일 진실원)에서 온다. 버전업·모델명 변경 시
 > **models.yaml 만 고치고 `sync-models.sh`** 실행 — `check-models.sh` 가 이 파일과 SSOT 의
 > 정합을 자동 검증한다(드리프트 시 FAIL). 스크립트(check-*.sh)는 `models.lib.sh` 를 source 해서
@@ -74,7 +74,7 @@ diff는 `diff -ru "$ROOT" "$WT" > "$RUN/$id/diff.patch"`로 대체.
 ```bash
 # codex 패널 (코드: workspace-write / 리서치: read-only)
 mkdir -p "$RUN/codex"
-codex exec -C "$RUN/wt/codex" -m gpt-5.5 -c model_reasoning_effort="xhigh" \
+codex exec -C "$RUN/wt/codex" -m gpt-5.6-sol -c model_reasoning_effort="xhigh" \
   --sandbox workspace-write -o "$RUN/codex/result.md" - < "$RUN/handoff.md" \
   > "$RUN/codex/round1.log" 2>&1
 echo "round1_exit=$?" >> "$RUN/codex/manifest"
@@ -124,7 +124,7 @@ git -C "$RUN/wt/$id" --no-pager diff --cached --stat "$BASE" > "$RUN/$id/diff.st
 ```bash
 mkdir -p "$RUN/xreview"
 # (a) GPT가 GLM 변경 리뷰 — codex exec review 특화 도구
-( cd "$RUN/wt/glm" && codex exec review --base "$BASE" -m gpt-5.5 \
+( cd "$RUN/wt/glm" && codex exec review --base "$BASE" -m gpt-5.6-sol \
   "정확성/회귀/엣지케이스/범위일탈 지적" ) > "$RUN/xreview/codex-on-glm.md" 2>&1
 
 # (b) 비-GPT 상호리뷰 — GLM/Kimi가 codex(또는 서로의) diff를 리뷰.

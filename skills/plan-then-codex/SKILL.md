@@ -34,7 +34,7 @@ echo "$RUN"
 
 | 사용자 표현 | 플래그 |
 |---|---|
-| "gpt5.5", "gpt-5.5" | `-m gpt-5.5` — 사용자의 Codex 환경에서 지원/alias 확인 시 |
+| "gpt5.5", "gpt-5.6-sol" | `-m gpt-5.6-sol` — 사용자의 Codex 환경에서 지원/alias 확인 시 |
 | "spark" (빠른 작업) | `-m gpt-5.3-codex-spark` — 지원/alias 확인 시 |
 | "xhigh" / "high" / "medium" / "low" / "minimal" | `-c model_reasoning_effort="<값>"` |
 
@@ -91,7 +91,7 @@ printf 'project_root=%s\nround%s_started_at=%s\nround%s_result=%s\nround%s_log=%
 
 codex exec -C "<프로젝트 루트>" \
   --sandbox workspace-write "${NETWORK_FLAGS[@]}" \
-  [-m gpt-5.5] [-c model_reasoning_effort="xhigh"] [-i "$RUN/before-1.png"] \
+  [-m gpt-5.6-sol] [-c model_reasoning_effort="xhigh"] [-i "$RUN/before-1.png"] \
   -o "$RUN/result-r1.md" - < "$RUN/handoff.md" > "$RUN/round1.log" 2>&1
 round1_rc=$?
 

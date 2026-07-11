@@ -111,7 +111,7 @@ $OMO_BIN run \
 
 ```bash
 $OMO_BIN run --agent Hephaestus \
-  --model openai/gpt-5.5 \
+  --model openai/gpt-5.6-sol \
   -d "<프로젝트 루트>" --json \
   "..." > "$RUN/round1.log" 2>&1
 ```
@@ -134,7 +134,7 @@ omo run은 아래 **두 조건이 모두 충족될 때만** 자동 종료:
 |-|-----------|---------|
 | stdin 입력 | `- < FILE` | `"$(cat FILE)"` 또는 메시지 인자 |
 | 작업 디렉토리 | `-C <dir>` | `-d <dir>` |
-| 모델 | `-m gpt-5.5` | `-m provider/model` |
+| 모델 | `-m gpt-5.6-sol` | `-m provider/model` |
 | effort | `-c model_reasoning_effort="xhigh"` | omo run 직접 플래그 없음 — `--agent`(예: Sisyphus 라우팅) 또는 `-m` 모델 선택으로 대체 |
 | 샌드박스 | `--sandbox workspace-write` | 없음 (풀 파일시스템 접근) |
 | 세션 resume | `codex exec resume <id>` | `omo run --session-id <id>` |

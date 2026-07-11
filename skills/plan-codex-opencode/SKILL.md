@@ -24,7 +24,7 @@ description: >
 ## 0. 사전점검 + 요청 파싱 + 모드/패널 결정
 
 1. **사전 점검**(read-only): `bash "$SKILL_DIR/scripts/check-panels.sh"` → `CODEX_BACKEND_READY` / `OPENCODE_BACKEND_READY` / provider 인증 매트릭스 / `PANEL_CAPABILITY`. 전부 불가(exit 1)면 중단·보고. 부분 가용이면 가용 백엔드 내 다중 모델로 축소 진행 제안.
-2. **호명 파싱**(`references/routing.md`): 사용자가 부른 모델("codex, glm5.2, kimi k2.7")을 각각 `(backend, model, effort/variant, dir 플래그)`로 정규화. **호명 없으면 기본 패널 추천**(서로 다른 패밀리 2~3개, 예: codex `gpt-5.5` + `zai-coding-plan/glm-5.2`) + **1줄 이유** 제시.
+2. **호명 파싱**(`references/routing.md`): 사용자가 부른 모델("codex, glm5.2, kimi k2.7")을 각각 `(backend, model, effort/variant, dir 플래그)`로 정규화. **호명 없으면 기본 패널 추천**(서로 다른 패밀리 2~3개, 예: codex `gpt-5.6-sol` + `zai-coding-plan/glm-5.2`) + **1줄 이유** 제시.
 3. **모드 선택**:
    - 답이 갈릴 수 있는 설계/구현 + 신뢰도↑ 목적 → **Council**
    - 범위 명확 + 구현 품질 검증 깊이 목적 → **Pipeline**

@@ -75,7 +75,7 @@ bash scripts/check-fusion.sh glm
 
 | 호명 | 백엔드 | 모델 경로 |
 |---|---|---|
-| codex / gpt5.5 [xhigh] | `codex exec` | `gpt-5.5` (오케스트레이터≠gpt일 때 Synthesizer) |
+| codex / gpt5.5 [xhigh] | `codex exec` | `gpt-5.6-sol` (오케스트레이터≠gpt일 때 Synthesizer) |
 | gemini / "gemini pro" / flash | `agy -p` | `"Gemini 3.1 Pro (High)"` · `"Gemini 3.5 Flash (Medium)"` |
 | opus / claude | `claude --print` | `opus` (오케스트레이터≠claude일 때 Judge) |
 | glm5.2 / kimi k2.7 / deepseek … | opencode (omo/직접) | `zai-coding-plan/glm-5.2` · `opencode-go/kimi-k2.7-code` |

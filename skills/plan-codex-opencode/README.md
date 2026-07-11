@@ -30,13 +30,13 @@
 
 | 사용자 호명 | 백엔드 | 모델 경로 |
 |---|---|---|
-| codex / gpt5.5 [xhigh] | `codex exec` | `gpt-5.5` |
+| codex / gpt5.5 [xhigh] | `codex exec` | `gpt-5.6-sol` |
 | glm5.2 | opencode (omo/직접) | `zai-coding-plan/glm-5.2` |
 | kimi k2.7 | opencode | `opencode-go/kimi-k2.7-code` |
 | deepseek / qwen / minimax / opus … | opencode | `opencode-go/…` · `dgrid/claude-opus-4-8` |
 
 - **백엔드 선택**: 구현(쓰기) → `omo run`(Sisyphus 완수보장), 리뷰·분석(읽기·단발) → `opencode run` 직접. codex는 항상 `codex exec`.
-- **기본 패널**(호명 없을 때): codex `gpt-5.5` + `zai-coding-plan/glm-5.2`(2-패널), 고난도면 +`kimi-k2.7-code`. 동일 패밀리 조합 금지.
+- **기본 패널**(호명 없을 때): codex `gpt-5.6-sol` + `zai-coding-plan/glm-5.2`(2-패널), 고난도면 +`kimi-k2.7-code`. 동일 패밀리 조합 금지.
 - 전체 라우팅·플래그 차이는 `references/routing.md` 참조.
 
 ## 전제조건

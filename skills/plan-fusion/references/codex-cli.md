@@ -18,7 +18,7 @@ Fusion-Research/Fusion-Code에서 codex 패널은 자기 작업 디렉토리(`-C
 | 플래그 | 용도 |
 |---|---|
 | `-C, --cd <DIR>` | 작업 루트. **항상 명시** (worktree 또는 프로젝트 루트) |
-| `-m, --model <MODEL>` | 모델 (`gpt-5.5`, `gpt-5.5-fast`, `gpt-5.3-codex-spark` 등) |
+| `-m, --model <MODEL>` | 모델 (`gpt-5.6-sol`, `gpt-5.6-sol-fast`, `gpt-5.3-codex-spark` 등) |
 | `-c model_reasoning_effort="<v>"` | effort: `minimal` `low` `medium` `high` `xhigh` |
 | `-s, --sandbox <MODE>` | `read-only` / `workspace-write` / `danger-full-access` |
 | `-c sandbox_workspace_write.network_access=true` | workspace-write의 네트워크 차단 해제 **시도**(아래 주의) |
@@ -51,7 +51,7 @@ codex exec review [OPTIONS] [PROMPT | -]
 예 — Fusion-Code에서 glm 패널 worktree의 변경을 GPT가 리뷰:
 ```bash
 mkdir -p "$RUN/xreview"
-( cd "$RUN/wt/glm" && codex exec review --base "$BASE" -m gpt-5.5 \
+( cd "$RUN/wt/glm" && codex exec review --base "$BASE" -m gpt-5.6-sol \
   "이 변경의 정확성/회귀/엣지케이스/범위일탈을 지적하라." ) \
   > "$RUN/xreview/codex-on-glm.md" 2>&1
 ```
