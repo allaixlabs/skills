@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ⚠️ 자동 생성 — 수동 수정 금지. models.yaml 편집 후 sync-models.sh 재실행.
 # generated_from: /Users/macpro/project/makeskill/models.yaml
-# generated_at: 2026-07-11
+# generated_at: 2026-07-12
 
 # shellcheck shell=bash
 # 이 파일을 source 하면 아래 변수·헬퍼를 쓸 수 있다(check-fusion.sh 등).
 
 MODELS_VERSION=1
-MODELS_GENERATED_AT="2026-07-11"
+MODELS_GENERATED_AT="2026-07-12"
 
 # disabled (사용자 정책 — 참가자·Judge·Synth·폴백 전 역할 라우팅 금지)
 MODELS_DISABLED="fable-5 mythos-5"
@@ -119,7 +119,10 @@ is_disabled_model() {
 # 라우팅 헬퍼: 슬러그 → 속성 조회. 미정의 시 빈 값. 예: read_model glm CLI
 read_model() {
   local _id="$1" _attr="$2" _u _var _val
-  _u=$(printf "%s" "$_id" | tr "[:lower:]" "[:upper:]" | tr -cs "[:alnum:]" "[_]")
+  # macOS BSD tr 에서 `tr -cs "[:alnum:]" "[_]"` 가 `_` 를 비알파벳으로 취급해 `]` 로
+  # 변환하는 결함이 있어 glm_51 → GLM]51 이 되어 ${M_GLM]51_*} 무효 확장이 난다.
+  # sed 로 알파벳·숫자가 아닌 문자를 `_` 로 치환 (이식성 안전).
+  _u=$(printf "%s" "$_id" | tr "[:lower:]" "[:upper:]" | sed s/[^[:alnum:]]/_/g)
   _var="M_${_u}_${_attr}"
   eval "_val=\"\${$_var:-}\""
   printf "%s\n" "$_val"
