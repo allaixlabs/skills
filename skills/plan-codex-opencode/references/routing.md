@@ -24,7 +24,6 @@
 | 사용자 자연어 | backend | `-m` model | effort/variant | dir 플래그 |
 |---|---|---|---|---|
 | codex / gpt5.5 / "gpt5.5 xhigh" | `codex exec` | `gpt-5.6-sol` | `-c model_reasoning_effort="xhigh"` | `-C` |
-| gpt5.5 fast / gpt5.5 pro | `codex exec` | `gpt-5.6-sol-fast` / `gpt-5.6-sol-pro` | `-c model_reasoning_effort="<v>"` | `-C` |
 | glm5.2 / "glm 5.2" | opencode | `zai-coding-plan/glm-5.2` | `--variant high` | `-d`(omo) / `--dir`(opencode) |
 | glm5.1 / glm4.7 / "glm5 turbo" | opencode | `zai-coding-plan/glm-5.1` / `glm-4.7` / `glm-5-turbo` | `--variant high` | `-d`/`--dir` |
 | kimi k2.7 / kimi | opencode | `opencode-go/kimi-k2.7-code` | `--variant high` | `-d`/`--dir` |
@@ -51,7 +50,7 @@
 
 ## 기본 패널 추천 (사용자 호명 없을 때) — 교차검증 독립성 기준
 
-- 코어 원칙: **서로 다른 모델 패밀리/프로바이더 2~3개**를 골라 상관된 오류를 깨뜨린다. 동일 패밀리(gpt-5.6-sol + gpt-5.6-sol-fast) 조합 금지.
+- 코어 원칙: **서로 다른 모델 패밀리/프로바이더 2~3개**를 골라 상관된 오류를 깨뜨린다. 동일 패밀리끼리 조합(예: gpt-5.6-sol만 2회) 금지.
 - **기본 2-패널**: codex `gpt-5.6-sol` + opencode `zai-coding-plan/glm-5.2` (OpenAI × Z.AI — 결정론 샌드박스 1 + 멀티프로바이더 1).
 - **3-패널(고난도)**: 위 + `opencode-go/kimi-k2.7-code` (세 번째 독립 패밀리).
 - `dgrid/claude-opus-4-8`(opus)는 종합자 Claude와 **동족**이라 교차검증 독립성이 낮다 → 패널 멤버가 아니라 **리뷰 보조**로만 권장.

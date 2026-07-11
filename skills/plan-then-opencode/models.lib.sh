@@ -20,13 +20,6 @@ M_GPT_EFFORT="-c model_reasoning_effort=xhigh"
 M_GPT_DIR="-C"
 M_GPT_ALIASES="codex|gpt5.5|gpt5.5 xhigh"
 
-M_GPT_FAST_CLI="gpt-5.6-sol-fast"
-M_GPT_FAST_FAMILY="gpt"
-M_GPT_FAST_BACKEND="codex"
-M_GPT_FAST_EFFORT_TEMPLATE="-c model_reasoning_effort={v}"
-M_GPT_FAST_DIR="-C"
-M_GPT_FAST_ALIASES="gpt5.5 fast|gpt5.5 pro"
-
 M_GLM_CLI="zai-coding-plan/glm-5.2"
 M_GLM_FAMILY="glm"
 M_GLM_BACKEND="opencode"
@@ -103,7 +96,7 @@ M_OPUS_REVIEW_FAMILY="claude"
 M_OPUS_REVIEW_BACKEND="opencode"
 M_OPUS_REVIEW_DIR="--dir"
 
-MODELS_SLUG_LIST="gpt gpt_fast glm glm_51 kimi kimi_26 deepseek qwen minimax gemini gemini_flash opus opus_review"
+MODELS_SLUG_LIST="gpt glm glm_51 kimi kimi_26 deepseek qwen minimax gemini gemini_flash opus opus_review"
 MODELS_FAMILY_LIST="gpt glm kimi gemini claude"
 
 # 패널 프리셋 (슬러그 공백分隔) — 오케스트레이터 동족 제거는 check-fusion.sh 런타임 적용

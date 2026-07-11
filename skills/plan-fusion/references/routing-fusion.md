@@ -36,7 +36,6 @@ plan-codex-opencode/routing.md 를 확장해 **agy(Gemini) · claude(Opus)** 두
 | 사용자 자연어 | backend | model | effort/variant | dir 플래그 | resume |
 |---|---|---|---|---|---|
 | codex / gpt5.5 / "gpt5.5 xhigh" | `codex exec` | `gpt-5.6-sol` | `-c model_reasoning_effort="xhigh"` | `-C` | `exec resume <id>` |
-| gpt5.5 fast / pro | `codex exec` | `gpt-5.6-sol-fast` / `gpt-5.6-sol-pro` | `-c model_reasoning_effort="<v>"` | `-C` | 〃 |
 | **gemini / "gemini 3.1 pro" / "gemini pro"** | `agy -p` | `"Gemini 3.1 Pro (High)"` | **모델 문자열에 내장**(High/Low) | **`cd`** (`-C` 없음) | `--conversation <id>` |
 | **gemini flash / "gemini 3.5 flash"** | `agy -p` | `"Gemini 3.5 Flash (Medium)"` | 〃 (Low/Medium/High) | **`cd`** | `--conversation <id>` |
 | **opus / "opus 4.8" / claude** | `claude --print` | `opus` (alias) 또는 `claude-opus-4-8` | (모델 alias) | **`cd`** (`--add-dir` 보조) | `--continue`(최근) / `--resume <id>`(`-r`) |

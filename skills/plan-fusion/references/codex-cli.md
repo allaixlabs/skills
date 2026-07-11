@@ -18,7 +18,7 @@ Fusion-Research/Fusion-Code에서 codex 패널은 자기 작업 디렉토리(`-C
 | 플래그 | 용도 |
 |---|---|
 | `-C, --cd <DIR>` | 작업 루트. **항상 명시** (worktree 또는 프로젝트 루트) |
-| `-m, --model <MODEL>` | 모델 (`gpt-5.6-sol`, `gpt-5.6-sol-fast` 등) |
+| `-m, --model <MODEL>` | 모델 (`gpt-5.6-sol`) |
 | `-c model_reasoning_effort="<v>"` | effort: `minimal` `low` `medium` `high` `xhigh` |
 | `-s, --sandbox <MODE>` | `read-only` / `workspace-write` / `danger-full-access` |
 | `-c sandbox_workspace_write.network_access=true` | workspace-write의 네트워크 차단 해제 **시도**(아래 주의) |

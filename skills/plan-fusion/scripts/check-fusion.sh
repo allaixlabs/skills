@@ -542,7 +542,7 @@ fi
 # 백엔드 인증 단위별로 분기 — opencode 안의 glm/kimi/deepseek 는 provider 별 ready.
 slug_ready() {  # $1=slug → 0=ready, 1=not
   case "$1" in
-    gpt|gpt_fast)                        [ "$codex_ok" = 1 ] ;;
+    gpt)                                 [ "$codex_ok" = 1 ] ;;
     gemini|gemini_flash)                  [ "$agy_ok" = 1 ] ;;
     opus)                                 [ "$claude_ok" = 1 ] ;;
     glm|glm_51)                           [ "$opencode_indep" = 1 ] ;;
@@ -574,7 +574,7 @@ _label_for_first() {  # $1=first tuple "be:model:conflict" → 표시 라벨
 _chain_label_for_slug() {  # $1=slug → 간결 라벨
   case "$1" in
     opus)              printf 'opus\n' ;;
-    gpt|gpt_fast)                printf 'gpt-5.6-sol\n' ;;
+    gpt)                         printf 'gpt-5.6-sol\n' ;;
     gemini|gemini_flash)        printf 'gemini\n' ;;
     deepseek)                   printf 'opencode-go/deepseek-v4-pro\n' ;;
     glm|glm_51)                 printf 'zai-coding-plan/glm-5.2\n' ;;
