@@ -203,7 +203,9 @@ YAML에 담지 않는다.
 # 1. models.yaml 만 편집 — 단일 편집점. (신규 모델 추가·버전 변경·disabled 정책 변경 모두 여기)
 $EDITOR models.yaml
 
-# 2. 변환 + 스킬별 복제 — models.lib.sh(bash source용) 재생성 + 각 스킬 폴더로 복제본 배치.
+# 2. 변환 + 복제 + 마크다운 자동 생성 — models.lib.sh 재생성, 각 스킬로 복제,
+#    .src 템플릿(routing.md.src 등)의 gpt-5.6-sol 토큰을 SSOT cli_model 값으로 치환해
+#    최종 마크다운(routing.md 등) 자동 생성.
 bash sync-models.sh
 
 # 3. 정합 검증 — 문서·스크립트·템플릿의 모델명이 SSOT와 일치하는지(드리프트/미정의 토큰 잡기).
@@ -214,11 +216,12 @@ bash check-models.sh        # exit 0=정합, exit 1=드리프트(어느 파일·
 - **`models.yaml`**(루트) — 편집 진실원. 스키마 제한(중첩 1단계·고정 키)으로 sync-models.sh 가 awk 로 파싱(yq 의존성 0).
 - **`models.lib.sh`**(루트 + 각 스킬) — sync-models.sh 가 자동 생성. `check-fusion.sh` 등이 `source` 해 `$M_GPT_CLI`·`is_disabled_model` 헬퍼로 소비. **수동 수정 금지**.
 - **스킬별 복제본** — `skills/<스킬>/models.yaml` + `models.lib.sh`. `npx skills add --skill X` 로 단일 스킬만 설치하는 사용자도 SSOT를 받도록(council-worktrees.sh·codex-cli.md 의 "실파일 복제 + cmp 드리프트 감지" 관례와 동일 — 심링크 회피, Windows 호환). `check-models.sh`가 루트 vs 복제본 정합을 검증.
-- **마크다운 문서**(routing.md·routing-fusion.md·SKILL.md·README.md·council.md·템플릿) — 사람이 읽는 뷰. 값은 하드코딩하되 `check-models.sh`가 SSOT와 정합을 자동 검증(드리프트 시 FAIL).
+- **마크다운 템플릿(`.src`) + 자동 생성 최종 파일** — routing.md·routing-fusion.md·SKILL.md·README.md·council.md·fusion.md·codex-cli.md·cli-fusion-map.md·opencode-cli.md·omo-cli.md·synthesis.md.tmpl 등은 `.src` 원본(참조 토큰 `gpt-5.6-sol`·`zai-coding-plan/glm-5.2` 등 포함)에서 **sync-models.sh가 SSOT cli_model 값으로 치환해 최종 파일을 자동 생성**. 모델명 버전업 시 models.yaml만 고치면 마크다운까지 갱신(수동 sed 불필요). `.src`만 편집 — 최종 파일은 덮어쓰기 생성되므로 직접 고치지 말 것. `check-models.sh`가 미치환 토큰·드리프트를 잡는다.
 
 > 게시 정책: 루트 `models.yaml`/`sync-models.sh`/`check-models.sh`는 `.gitignore` whitelist 때문에
 > `npx skills add` 사용자에게 직접 배포되지 않는다. 대신 각 스킬 폴더의 복제본(`models.yaml`+`models.lib.sh`)이
 > 게시되어 단일 스킬만 설치해도 SSOT를 갖는다. 복제본 드리프트는 `check-models.sh`가 잡는다.
+> `.src` 템플릿과 자동 생성된 최종 마크다운 모두 배포된다(사용자는 sync-models.sh 없이도 읽기용 마크다운을 받음).
 
 ## 만든 곳
 

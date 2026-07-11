@@ -1,0 +1,156 @@
+# CLI Fusion Map — 5-CLI 실행경로 매트릭스 (plan-fusion용)
+> "5-CLI 실행경로"=codex·agy·claude·omo·opencode(omo·opencode는 같은 opencode 패밀리의 두 실행기). **백엔드 패밀리는 4**(codex·agy·opencode·claude).
+
+각 모델 패밀리를 자기 CLI로 독립 실행하는 방법의 단일 참조. codex/opencode 상세는 `codex-cli.md`·`opencode-cli.md`에,
+**신규 백엔드 agy(Gemini)·claude(Opus)** 상세는 이 문서에 둔다. 호명→정규화는 `routing-fusion.md`.
+
+검증 환경(실측): codex 0.139.0 · opencode 1.16.2 · omo 4.10.0 · **agy 1.0.10** · **claude 2.1.x**.
+
+## 통합 매트릭스
+
+| | 패밀리 | 헤드리스 호출 | 작업디렉토리 | 모델 지정 | effort | 출력 캡처 | resume | 강제 read-only |
+|-|-|-|-|-|-|-|-|-|
+| **codex** | GPT | `codex exec - < FILE` | `-C <dir>` | `-m @@GPT_CLI@@` | `-c model_reasoning_effort="xhigh"` | `-o FILE` | `exec resume <id>` | `-s read-only` ✅ |
+| **agy** | Gemini | `agy -p "<msg>"` | **`cd <dir>`** + **`--add-dir <dir>`** | `--model "@@GEMINI_CLI@@"` (1.0.10: 순서 자유) | 모델 문자열 내장 | **stdout 리다이렉트** | `--conversation <id>` | ❌(아래) |
+| **claude** | Opus | `claude --print "<msg>"` | **`cd <dir>`** (+`--add-dir`) | `--model opus` | (alias) | **stdout**/`--output-format` | `--continue`(최근)/`--resume <id>`(`-r`) | ⚠️(아래) |
+| **omo** | GLM/Kimi/… | `omo run "<msg>"` | `-d <dir>` | `-m @@GLM_CLI@@` | (없음) | stdout | `--session-id <id>` | ❌(지시+검증) |
+| **opencode** | GLM/Kimi/… | `opencode run "<msg>"` | `--dir <dir>` | `-m @@KIMI_CLI@@` | `--variant high` | stdout | `-s <id>` | ❌(지시+검증) |
+
+**역할 기본값**(오케스트레이터 패밀리 회피 — `check-fusion.sh`의 `JUDGE_DEFAULT`/`SYNTH_DEFAULT`가 자동 산출):
+- **참가자** = 가용한 서로 다른 패밀리 중 오케스트레이터 패밀리(`ORCHESTRATOR_FAMILY`)를 뺀 나머지.
+- **Judge** = 오케스트레이터가 claude 패밀리가 아닐 때 `claude(Opus)`; claude 패밀리면 차순위 비-동족 백엔드(codex→agy→opencode 순); 모두 동족이면 orchestrator-self(비독립 표기).
+- **Synthesizer** = 오케스트레이터가 gpt 패밀리가 아닐 때 `codex(GPT)`; gpt 패밀리면 차순위(claude→agy→opencode); 모두 동족이면 orchestrator-self.
+- 상세 분기는 `routing-fusion.md`의 **오케스트레이터 패밀리 제거 변형표** 참조.
+
+> ⚠️ **omo/opencode의 `-m`는 항상 `provider/model` 전체**(단일 슬래시, 끝 슬래시 없음). 베어 모델명이나 끝 슬래시(`@@KIMI_CLI@@/`)는 opencode가 `Model not found`로 즉시 exit=1 → 위임 1건도 안 돌고 무응답 처리돼 quorum에 피해. `routing-fusion.md` 정규화표 `model`열을 그대로 복사하고, manifest에 `model=<값>`을 기록해 exit≠0 시 원인 대조(SKILL.md §0·`opencode-cli.md` 경로 B).
+
+---
+
+## 신규 백엔드 ① agy (Antigravity CLI — Gemini)
+
+```bash
+# 함수 래퍼(.zshrc) 회피 위해 'command agy' + PATH 보강.
+# macOS Apple Silicon=/opt/homebrew/bin, Intel=/usr/local/bin, Linuxbrew=/home/linuxbrew/.linuxbrew/bin.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:$PATH"
+# ⚠️ 백그라운드 위임을 bash 스크립트 파일로 돌릴 때: agy가 zsh function(shell snapshot)으로만 존재하면 'command agy'도
+#    bash 별프로세스에서 안 보인다(PATH에 바이너리 없음 → command not found). 그땐 **풀경로**로: /opt/homebrew/bin/agy
+#    (실경로는 `ls -l $(/usr/bin/which -a agy)` 또는 `type agy`로 확인). 일반 함수=137MB 바이너리 래핑이므로 풀경로 호출이 안전.
+
+# 참가자 — 코드(쓰기): worktree에서 cd 후 실행, 쓰기 권한 자동승인
+( cd "$RUN/wt/gemini" && command agy \
+    --print-timeout 900s \
+    --dangerously-skip-permissions \
+    --model "@@GEMINI_CLI@@" \
+    --print "$(cat "$RUN/handoff.md")" ) > "$RUN/gemini/round1.log" 2>&1
+echo "round1_exit=$?" >> "$RUN/gemini/manifest"
+
+# 참가자 — 리서치(읽기): 읽기전용 사본 + skip-permissions (아래 ⚠️ 교착주의 참조)
+# ⚠️ cp -a는 .git(리모트·자격증명)·.env*(시크릿)·out-of-tree 심링크 보존 → push·시크릿·심링크탈출 미방어. .git·.env* 제외 + 심링크 차단:
+RO="$RUN/ro/gemini"; mkdir -p "$RUN/ro"
+rsync -a --safe-links --exclude '.git' --exclude node_modules --exclude '.env' --exclude '.env.*' "$ROOT/" "$RO/" 2>/dev/null \
+  || { rm_rc=0; rm -rf "$RO" || rm_rc=$?; cp_rc=0; cp -a "$ROOT" "$RO" || cp_rc=$?; cleanup_rc=0; if [ -d "$RO" ]; then find "$RO" -name .git -prune -exec rm -rf {} + 2>/dev/null || cleanup_rc=$?; find "$RO" -type l -delete 2>/dev/null || cleanup_rc=$?; find "$RO" \( -name '.env' -o -name '.env.*' \) -delete 2>/dev/null || cleanup_rc=$?; fi; [ "$rm_rc" = 0 ] && [ "$cp_rc" = 0 ] && [ "$cleanup_rc" = 0 ]; } \
+  || { echo "ABORT: gemini 읽기전용 사본 격리 실패(.git/심링크 잔존 가능) — 위임 중단(무응답, quorum 처리). 비격리 사본에서 참가자를 돌리지 않는다." >&2; exit 1; }
+# ⚠️ errexit를 안 쓰므로 위 사본 그룹의 실패 반환을 **반드시 `|| { … exit 1; }`로 act**한다(fusion.md §1과 동일) —
+#    안 그러면 cleanup 실패(.git 잔존) 사본에서 아래 `agy --dangerously-skip-permissions`가 그대로 돌아 격리가 무력화된다.
+# ⚠️ agy 1.0.10: 파일 검색 스코프 결함 — `--add-dir "$RO"`로 스코프 제한 + 프롬프트 파일 참조는 절대경로. (1.0.9 플래그 순서 결함은 1.0.10에서 해결 — routing-fusion.md 특이사항)
+( cd "$RO" && command agy --print-timeout 600s --dangerously-skip-permissions \
+    --model "@@GEMINI_CLI@@" \
+    -p "$(cat "$RUN/handoff.md")" ) > "$RUN/gemini/round1.log" 2>&1
+# 로컬 원본 쓰기는 무해(네트워크 차단은 별도). 분석 종료 후: rm -rf "$RO"
+```
+
+### 주요 플래그 (실측 `agy --help`)
+
+| 플래그 | 용도 |
+|---|---|
+| `--print` / `-p` / `--prompt` | **비인터랙티브** 단일 프롬프트 실행·응답 출력 (= codex `exec`, claude `--print`) |
+| `--model <문자열>` | 모델. `agy models` 출력 문자열 그대로 (`"@@GEMINI_CLI@@"`, `"Gemini 3.5 Flash (Low)"`) |
+| `--print-timeout <dur>` | print 모드 대기 타임아웃 (기본 `5m0s`). **omo와 달리 자체 타임아웃 존재** → 장시간 작업도 자가 차단 |
+| `--dangerously-skip-permissions` | 도구 권한 자동승인. **헤드리스 쓰기 작업에 필수**(미지정 시 권한 프롬프트로 멈춤) |
+| `--sandbox` | "터미널 제약" 샌드박스 — **파일시스템 read-only를 보장하지 않음**(아래 주의) |
+| `--add-dir <dir>` | 워크스페이스에 디렉토리 추가(반복 가능). 주 작업디렉토리는 cwd |
+| `--continue` / `-c` | 최근 대화 이어가기 — **병렬 패널에선 금지**(다른 패널 대화 오선택) |
+| `--conversation <id>` | 특정 대화 ID resume |
+| `--log-file <path>` | CLI 로그 파일 경로 |
+| `models` (서브커맨드) | 사용 가능 모델 목록 |
+
+### 실측 확인 사항 (이 세션 스모크)
+- `--print` 채팅 응답 OK (exit 0).
+- `--print --dangerously-skip-permissions`로 **cwd에 파일 생성 성공** → **Fusion-Code 참가자로 사용 가능**(Research 한정 아님).
+- `cd <dir>` 후 실행 시 그 디렉토리에 쓴다 → worktree 격리와 결합.
+
+### 주의
+- **`-C`/`-o` 없음** → 항상 `( cd <dir> && ... ) > round1.log 2>&1`. codex처럼 `-o result.md` 못 만드니 round1.log가 곧 result.
+- **⚠️ 권한 프롬프트 교착**: agy는 에이전트 CLI라 프롬프트가 도구 사용(파일읽기·명령)을 유발하면 헤드리스에서 **권한 프롬프트로 멈출 수 있고 `--print-timeout`이 이를 못 끊는다**(실측: 도구 무유발 프롬프트나 `--dangerously-skip-permissions`면 정상 종료). 그래서 **쓰기(Code)든 읽기(Research)든 `--dangerously-skip-permissions`를 붙이되, Research는 읽기전용 `cp -a` 사본에서 실행**해 쓰기가 떨어져도 원본을 보호한다(위 예시).
+- **⚠️ 최상위 백그라운드로 호출**: agy는 **각 참가자를 자기 `run_in_background` Bash 호출로 직접** 띄운다(실측: 백그라운드 래퍼 스크립트 안에 `( cd && agy )`를 다시 중첩하면 종료가 안 잡혀 무한대기). 부모 스크립트 중첩 금지. wall-clock 상한 초과 시 `무응답`/`ORCHESTRATION_FAIL`.
+- **`--sandbox`는 파일 RO 보장 X** — codex의 `-s read-only` 같은 강제 차단이 아니다(터미널 제약일 뿐). RO가 필요하면 위 `cp -a` 사본 격리.
+- **resume id 추출 미확정**: round1.log에서 conversation id를 못 찾으면 `--conversation` 대신 **fresh 재위임**.
+- **세션 저장소 경합**: `--continue`(최근) 금지. resume은 명시 `--conversation <id>`만.
+
+---
+
+## 신규 백엔드 ② claude (Claude Code — Opus, 오케스트레이터가 claude 패밀리가 아닐 때 기본 Judge)
+
+```bash
+# claude로 판정(읽기). 프롬프트(템플릿+judge-input)는 파일로 만들어 stdin 전달 — argv는 E2BIG 위험.
+{ cat "$SKILL_DIR/templates/fusion-judge.md.tmpl"; echo; cat "$RUN/judge-input.md"; } > "$RUN/judge-prompt.md"
+# 중립 디렉토리($RUN, 비-git)에서 실행 → 프로젝트 CLAUDE.md/hooks/MCP 간섭 최소화. claude는 --print에서 stdin 수용(실측).
+( cd "$RUN" && claude --print --model opus < "$RUN/judge-prompt.md" ) > "$RUN/judge.md" 2>"$RUN/judge.err"
+echo "judge_exit=$?" >> "$RUN/manifest"
+# 항상 stdin: claude·codex 모두 `< FILE`/`- < FILE` 지원. 대형 diff면 argv는 즉사(E2BIG).
+
+# 참가자 — 코드(쓰기, highEnd/codeSecurity 프리셋에서만): worktree에서
+( cd "$RUN/wt/opus" && claude --print --model opus \
+    --dangerously-skip-permissions \
+    "$(cat "$RUN/handoff.md")" ) > "$RUN/opus/round1.log" 2>&1
+echo "round1_exit=$?" >> "$RUN/opus/manifest"
+echo "family=claude"  >> "$RUN/opus/manifest"   # ⚠️ quorum 집계 필수 — 누락 시 Opus 참가 프리셋에서 후보는 judge-input에 들어가나 family 카운트에서 빠져 'Fusion 미성립'으로 거짓 격하(fusion.md §3-1 quorum 전제)
+```
+
+### 주요 플래그 (실측 `claude --help`)
+
+| 플래그 | 용도 |
+|---|---|
+| `--print` / `-p` | **비인터랙티브** 출력 |
+| `--model <model>` | `opus`(alias) 또는 `@@OPUS_REVIEW_BARE@@`(풀네임) |
+| `--add-dir <dirs...>` | 도구 접근 허용 디렉토리 추가 (주 작업디렉토리는 cwd) |
+| `--output-format <fmt>` | `--print` 전용 출력 형식(text/json/stream-json) |
+| `--json-schema <schema>` | 구조화 출력(`--print` 전용) — Judge 판정을 구조화하고 싶을 때 |
+| `--dangerously-skip-permissions` | 모든 권한 우회 (쓰기 참가자에 필요) |
+| `--continue`(`-c`, 최근) / `--resume <id>`(`-r`, 특정 세션) | 세션 이어가기 / 특정 세션 resume(`--print`). ⚠️ `-r`은 `--resume`의 단축이지 `--continue`가 아님 |
+| `--fallback-model <model>` | 기본 모델 실패 시 폴백 |
+
+### ⚠️ 동족 주의 (가장 중요 — 일반화)
+오케스트레이터의 패밀리는 `check-fusion.sh`가 `ORCHESTRATOR_FAMILY`(`glm`/`gpt`/`gemini`/`claude`/`unknown`)로 감지한다. claude 백엔드를 쓰면 외부 Opus 프로세스를 부르는 것이고, 오케스트레이터가 `claude` 패밀리면 **모델 패밀리가 동일**하다(동족). 같은 논리가 각 패밀리에 성립 — 감지된 오케스트레이터 패밀리를 참가자·Judge·Synth에서 또 쓰면 비독립.
+- **기본**: claude = **Judge 전용**(읽기 판정) — 단 오케스트레이터가 `claude` 패밀리가 아닐 때. `ORCH_FAMILY=claude`면 `JUDGE_DEFAULT`가 codex/agy/opencode로 폴백.
+- **claude가 참가자인 프리셋**(highEnd/codeSecurity): 오케스트레이터가 `claude` 패밀리면 Judge=claude는 자기 후보 자기심사 → 확증편향. **Judge를 다른 패밀리(Gemini/codex)로 바꾸거나** `synthesis.md`에 "Judge 비독립" 명시.
+- 오케스트레이터가 `gpt`/`gemini`/`glm` 패밀리면 각각 codex/agy/opencode가 동족이므로 `EXCLUDED_FAMILIES`에서 자동 제거된다. **⚠️ GLM 예외(참가자 한정)**: `ORCH_FAMILY=glm`이면 opencode(GLM)는 동족이어도 **참가자에 필수 포함**(`GLM_MANDATORY_PARTICIPANT=yes`) — 역할 분리(오케스트레이터=검증 only·불가양도 / opencode 참가자=독립 풀이)로 동족 위험 완화 + '최소 3종 백엔드(codex·agy·glm)' 보장. 동종할인(`PARTICIPANT_CONFLICT_RISK=partial`)을 synthesis/REPORT에 명시. **Judge·Synth는 여전히 동족 회피**(참가자만 예외).
+- Synthesizer는 오케스트레이터가 `gpt` 패밀리가 아닐 때 codex(GPT), gpt 패밀리면 차순위 비-동족 백엔드.
+
+### Judge/Synth 폴백 (불가양도 안전망)
+- **Judge CLI 실패** → 오케스트레이터가 직접 판정(부모 plan-codex-opencode 방식) + REPORT에 "Judge=self" 표기.
+- **Synth CLI 실패** → 차순위 참가자 CLI 또는 오케스트레이터가 합성 + 표기.
+- 코드의 **최종 구현은 항상 백엔드**(역할경계). Synth가 코드일 땐 "합성 HANDOFF"를 만들고 실제 작성은 백엔드가.
+
+---
+
+## codex / opencode (재사용 — 요약)
+
+- **codex(GPT)**: `codex exec --skip-git-repo-check -C <dir> -m @@GPT_CLI@@ -c model_reasoning_effort="xhigh" -o result.md - < handoff.md`. 비코드는 `-s read-only`. ⚠️ **`--skip-git-repo-check` 필수** — `-C` 대상이 git repo 미인식(심링크 경로·서브디렉토리·non-repo)이면 `Not inside a trusted directory`로 즉시 exit 1(read-only여도). **교차리뷰 1급 도구 `codex exec review --base <BASE>`**. 상세 `codex-cli.md`.
+- **opencode(GLM/Kimi)**: 구현 `omo run --agent Sisyphus -m <prov/model> -d <dir> --json`, 리뷰/단발 `opencode run -m <prov/model> --variant high --format json --dir <dir>`. 상세 `opencode-cli.md`.
+
+## 산출물 세트 (참가자별 manifest — 모든 백엔드 공통)
+
+```
+$RUN/<id>/manifest      # worktree= / branch= / round1_exit= / session(or conversation)=
+$RUN/<id>/round1.log    # stdout+stderr 전체 (agy/claude/omo/opencode는 이게 result)
+$RUN/<id>/result.md     # codex 패널만 (-o)
+$RUN/handoff.md         # 모든 참가자 공유 단일 스펙
+$RUN/judge-input.md     # handoff + 참가자별 라벨 답변 (Judge 입력, 데이터 펜스로 감쌈)
+$RUN/judge-prompt.md    # 템플릿 + judge-input (Judge에 stdin 전달)
+$RUN/judge.md           # Judge CLI 판정
+$RUN/final.md           # Synthesizer CLI 최종 답변 (Fusion-Research)
+$RUN/handoff.synth.md   # Synthesizer 합성 HANDOFF (Fusion-Code — 실제 구현은 백엔드 위임)
+```
+
+읽는 순서: 모든 참가자 완료 알림이 도착하면 즉시 read(대기/안내문만 출력 금지 — 부분 완료 진행 보고는 허용) → manifest exit → codex는 `result.md`, 그 외는 `round1.log`.

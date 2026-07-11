@@ -569,17 +569,14 @@ _label_for_first() {  # $1=first tuple "be:model:conflict" → 표시 라벨
   esac
 }
 
-# slug → chain 라벨(후보 식별용). SSOT cli_model 전체 대신 친숙한 표시명으로 간결화.
+# slug → chain 라벨(후보 식별용). 모델명은 SSOT(read_model)에서 — 하드코딩 금지.
 # runtime/fusion.md 가 파싱하는 튜플 식별자 — backend:라벨:conflict.
+# opus/gemini는 패밀리 표시명이 라벨(cli_model 아님) — 예외 유지.
 _chain_label_for_slug() {  # $1=slug → 간결 라벨
   case "$1" in
     opus)              printf 'opus\n' ;;
-    gpt)                         printf 'gpt-5.6-sol\n' ;;
-    gemini|gemini_flash)        printf 'gemini\n' ;;
-    deepseek)                   printf 'opencode-go/deepseek-v4-pro\n' ;;
-    glm|glm_51)                 printf 'zai-coding-plan/glm-5.2\n' ;;
-    kimi|kimi_26)               printf 'opencode-go/kimi-k2.7-code\n' ;;
-    *)                          _cli_of_slug "$1" ;;
+    gemini|gemini_flash) printf '%s\n' "$1" ;;
+    *)                 _cli_of_slug "$1" ;;
   esac
 }
 
