@@ -35,7 +35,6 @@ echo "$RUN"
 | 사용자 표현 | 플래그 |
 |---|---|
 | "gpt5.5", "gpt-5.6-sol" | `-m gpt-5.6-sol` — 사용자의 Codex 환경에서 지원/alias 확인 시 |
-| "spark" (빠른 작업) | `-m gpt-5.3-codex-spark` — 지원/alias 확인 시 |
 | "xhigh" / "high" / "medium" / "low" / "minimal" | `-c model_reasoning_effort="<값>"` |
 
 모델명이 unsupported로 실패하면 구현 라운드가 아니라 `ORCHESTRATION_FAIL`로 분류하고, 사용자 config alias 또는 사용 가능한 모델명을 확인한 뒤 재시도한다.

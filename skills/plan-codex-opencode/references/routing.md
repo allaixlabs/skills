@@ -25,8 +25,6 @@
 |---|---|---|---|---|
 | codex / gpt5.5 / "gpt5.5 xhigh" | `codex exec` | `gpt-5.6-sol` | `-c model_reasoning_effort="xhigh"` | `-C` |
 | gpt5.5 fast / gpt5.5 pro | `codex exec` | `gpt-5.6-sol-fast` / `gpt-5.6-sol-pro` | `-c model_reasoning_effort="<v>"` | `-C` |
-| spark / codex spark | `codex exec` | `gpt-5.3-codex-spark` | (빠른 작업 기본) | `-C` |
-| gpt5.4 / gpt5.4 mini / fast | `codex exec` | `gpt-5.4` / `gpt-5.4-mini` / `gpt-5.4-fast` | `-c model_reasoning_effort="<v>"` | `-C` |
 | glm5.2 / "glm 5.2" | opencode | `zai-coding-plan/glm-5.2` | `--variant high` | `-d`(omo) / `--dir`(opencode) |
 | glm5.1 / glm4.7 / "glm5 turbo" | opencode | `zai-coding-plan/glm-5.1` / `glm-4.7` / `glm-5-turbo` | `--variant high` | `-d`/`--dir` |
 | kimi k2.7 / kimi | opencode | `opencode-go/kimi-k2.7-code` | `--variant high` | `-d`/`--dir` |
